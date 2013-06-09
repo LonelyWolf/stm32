@@ -17,3 +17,6 @@
 *.elf
 *.hex
 *.map
+
+# Eclipse workfiles
+*.xml
