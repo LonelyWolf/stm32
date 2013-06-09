@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<history>
+   <processor signature="arm-none-eabi-gcc noversion nomachine -mcpu=cortex-m3 -mthumb -Wall -ffunction-sections -g -O2 -flto -fno-builtin -c -DSTM32F100RB -DSTM32F10X_MD_VL -DUSE_STDPERIPH_DRIVER -D__ASSEMBLY__ -I..\..\..\workspace\MatrixKeyboard\stm_lib\inc -I..\..\.. -I..\..\..\workspace\MatrixKeyboard\stm_lib -I..\..\..\workspace\MatrixKeyboard\cmsis_boot -I..\..\..\workspace\MatrixKeyboard\cmsis -I..\..\..\workspace -I..\..\..\workspace\MatrixKeyboard">
+      <target file="startup_stm32f10x_md_vl.o" lastModified="13eff07e9a5">
+         <source file="..\..\..\cmsis_boot\startup\startup_stm32f10x_md_vl.c" lastModified="13ee7c331f4"/>
+      </target>
+      <target file="stm32f10x_pwr.o" lastModified="13eff07eaf4">
+         <source file="..\..\..\stm_lib\src\stm32f10x_pwr.c" lastModified="13efc3547a1"/>
+      </target>
+      <target file="stm32f10x_tim.o" lastModified="13eff07e955">
+         <source file="..\..\..\stm_lib\src\stm32f10x_tim.c" lastModified="13ee7c33ed3"/>
+      </target>
+      <target file="stm32f10x_rtc.o" lastModified="13eff07e6ff">
+         <source file="..\..\..\stm_lib\src\stm32f10x_rtc.c" lastModified="13efc354796"/>
+      </target>
+      <target file="core_cm3.o" lastModified="13eff07e9fc">
+         <source file="..\..\..\cmsis\core_cm3.c" lastModified="13efd20ce10"/>
+      </target>
+      <target file="rtc.o" lastModified="13eff07ea4b">
+         <source file="..\..\..\rtc.c" lastModified="13efd052b90"/>
+      </target>
+      <target file="system_stm32f10x.o" lastModified="13eff07ea9e">
+         <source file="..\..\..\cmsis_boot\system_stm32f10x.c" lastModified="13ee7c33218"/>
+      </target>
+      <target file="main.o" lastModified="13eff70d672">
+         <source file="..\..\..\main.c" lastModified="13eff70d434"/>
+      </target>
+      <target file="stm32f10x_gpio.o" lastModified="13eff07eb9d">
+         <source file="..\..\..\stm_lib\src\stm32f10x_gpio.c" lastModified="13ee7c331db"/>
+      </target>
+      <target file="stm32f10x_rcc.o" lastModified="13eff07ecfb">
+         <source file="..\..\..\stm_lib\src\stm32f10x_rcc.c" lastModified="13ee7c331e8"/>
+      </target>
+      <target file="stm32f10x_bkp.o" lastModified="13eff07ede7">
+         <source file="..\..\..\stm_lib\src\stm32f10x_bkp.c" lastModified="13efc6bc8f6"/>
+      </target>
+      <target file="delay.o" lastModified="13eff281661">
+         <source file="..\..\..\delay.c" lastModified="13eff281205"/>
+      </target>
+      <target file="lcd1602.o" lastModified="13eff26b871">
+         <source file="..\..\..\lcd1602.c" lastModified="13eff07e2ea"/>
+      </target>
+   </processor>
+</history>

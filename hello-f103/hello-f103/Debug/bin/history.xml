@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<history>
+   <processor signature="arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -g -nostartfiles -Map=hello-f103.map -O2 --gc-sections -LG:\CoIDE\configuration\ProgramData\hello-f103 -TG:\CoIDE\configuration\ProgramData\hello-f103/arm-gcc-link.ld -g">
+      <target file="hello-f103.elf" lastModified="13f28f8349b">
+         <source file="..\obj\stm32f10x_rtc.o" lastModified="13f28d0fdb9"/>
+         <source file="..\obj\delay.o" lastModified="13f28d0fe02"/>
+         <source file="..\obj\stm32f10x_tim.o" lastModified="13f28d0ff8f"/>
+         <source file="..\obj\core_cm3.o" lastModified="13f28d0ffd0"/>
+         <source file="..\obj\rtc.o" lastModified="13f28d10014"/>
+         <source file="..\obj\system_stm32f10x.o" lastModified="13f28d1005d"/>
+         <source file="..\obj\startup_stm32f10x_hd.o" lastModified="13f28d1008b"/>
+         <source file="..\obj\stm32f10x_pwr.o" lastModified="13f28d100d2"/>
+         <source file="..\obj\stm32f10x_gpio.o" lastModified="13f28d1015c"/>
+         <source file="..\obj\main.o" lastModified="13f28f765a6"/>
+         <source file="..\obj\stm32f10x_rcc.o" lastModified="13f28d1023b"/>
+         <source file="..\obj\lcd1602.o" lastModified="13f28f832b4"/>
+         <source file="..\obj\stm32f10x_bkp.o" lastModified="13f28d10301"/>
+      </target>
+   </processor>
+</history>

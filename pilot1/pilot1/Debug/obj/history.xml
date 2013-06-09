@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<history>
+   <processor signature="arm-none-eabi-gcc noversion nomachine -mcpu=cortex-m3 -mthumb -Wall -ffunction-sections -g -O0 -c -DSTM32F100RB -DSTM32F10X_MD_VL -DUSE_STDPERIPH_DRIVER -D__ASSEMBLY__ -I..\..\.. -I..\..\..\workspace\pilot1\cmsis -I..\..\..\workspace\pilot1\stm_lib -I..\..\..\workspace\pilot1\cmsis_boot -I..\..\..\workspace\pilot1 -I..\..\..\workspace\pilot1\stm_lib\inc -I..\..\..\workspace">
+      <target file="startup_stm32f10x_md_vl.o" lastModified="13edfeb326b">
+         <source file="..\..\..\cmsis_boot\startup\startup_stm32f10x_md_vl.c" lastModified="13934d7b8ee"/>
+      </target>
+      <target file="stm32f10x_tim.o" lastModified="13edfeb3244">
+         <source file="..\..\..\stm_lib\src\stm32f10x_tim.c" lastModified="1394a14c987"/>
+      </target>
+      <target file="core_cm3.o" lastModified="13edfeb32b2">
+         <source file="..\..\..\cmsis\core_cm3.c" lastModified="13934d7b91c"/>
+      </target>
+      <target file="system_stm32f10x.o" lastModified="13edfeb330f">
+         <source file="..\..\..\cmsis_boot\system_stm32f10x.c" lastModified="13934d7b8f5"/>
+      </target>
+      <target file="main.o" lastModified="13ee7c0de17">
+         <source file="..\..\..\main.c" lastModified="13ee7c0ad31"/>
+      </target>
+      <target file="stm32f10x_gpio.o" lastModified="13edfeb3376">
+         <source file="..\..\..\stm_lib\src\stm32f10x_gpio.c" lastModified="13934d7b8d1"/>
+      </target>
+      <target file="stm32f10x_rcc.o" lastModified="13edfeb341f">
+         <source file="..\..\..\stm_lib\src\stm32f10x_rcc.c" lastModified="13934d7b936"/>
+      </target>
+      <target file="delay.o" lastModified="13edfeb3169">
+         <source file="..\..\..\delay.c" lastModified="13957b3ace9"/>
+      </target>
+      <target file="lcd1602.o" lastModified="13edfeb3467">
+         <source file="..\..\..\lcd1602.c" lastModified="13edd242553"/>
+      </target>
+   </processor>
+</history>

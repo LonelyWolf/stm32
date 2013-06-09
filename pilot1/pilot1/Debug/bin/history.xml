@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<history>
+   <processor signature="arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -g -nostartfiles -Map=pilot1.map -O0 --gc-sections -LG:\CoIDE\configuration\ProgramData\pilot1 -TG:\CoIDE\configuration\ProgramData\pilot1/arm-gcc-link.ld -g">
+      <target file="pilot1.elf" lastModified="13ee7c0e256">
+         <source file="..\obj\delay.o" lastModified="13edfeb3169"/>
+         <source file="..\obj\stm32f10x_tim.o" lastModified="13edfeb3244"/>
+         <source file="..\obj\startup_stm32f10x_md_vl.o" lastModified="13edfeb326b"/>
+         <source file="..\obj\core_cm3.o" lastModified="13edfeb32b2"/>
+         <source file="..\obj\system_stm32f10x.o" lastModified="13edfeb330f"/>
+         <source file="..\obj\stm32f10x_gpio.o" lastModified="13edfeb3376"/>
+         <source file="..\obj\main.o" lastModified="13ee7c0de17"/>
+         <source file="..\obj\stm32f10x_rcc.o" lastModified="13edfeb341f"/>
+         <source file="..\obj\lcd1602.o" lastModified="13edfeb3467"/>
+      </target>
+   </processor>
+</history>

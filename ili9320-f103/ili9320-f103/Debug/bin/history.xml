@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<history>
+   <processor signature="arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -g -nostartfiles -flto -Map=ili9320-f103.map -O0 --gc-sections --entry=main -LG:\CoIDE\configuration\ProgramData\ili9320-f103 -TG:\CoIDE\configuration\ProgramData\ili9320-f103/arm-gcc-link.ld -g">
+      <target file="ili9320-f103.elf" lastModified="13f28b0b4b3">
+         <source file="..\obj\delay.o" lastModified="13f28a9b756"/>
+         <source file="..\obj\core_cm3.o" lastModified="13f28a9b7a5"/>
+         <source file="..\obj\system_stm32f10x.o" lastModified="13f28a9b7ec"/>
+         <source file="..\obj\startup_stm32f10x_hd.o" lastModified="13f28a9b81d"/>
+         <source file="..\obj\stm32f10x_gpio.o" lastModified="13f28a9b888"/>
+         <source file="..\obj\main.o" lastModified="13f28b0b21b"/>
+         <source file="..\obj\stm32f10x_rcc.o" lastModified="13f28a9b9d7"/>
+         <source file="..\obj\stm32f10x_spi.o" lastModified="13f28a9ba58"/>
+      </target>
+   </processor>
+</history>

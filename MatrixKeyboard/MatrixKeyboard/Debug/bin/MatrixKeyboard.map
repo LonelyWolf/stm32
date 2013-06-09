@@ -1,0 +1,156 @@
+
+Allocating common symbols
+Common symbol       size              file
+
+now                 0x3               ..\obj\main.o (symbol from plugin)
+
+Discarded input sections
+
+ .text          0x00000000        0x0 ..\obj\stm32f10x_rtc.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\delay.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\stm32f10x_tim.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\startup_stm32f10x_md_vl.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\core_cm3.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\rtc.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\system_stm32f10x.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\stm32f10x_pwr.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\stm32f10x_gpio.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\main.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\stm32f10x_rcc.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\lcd1602.o (symbol from plugin)
+ .text          0x00000000        0x0 ..\obj\stm32f10x_bkp.o (symbol from plugin)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+rom              0x08000000         0x00020000         xr
+ram              0x20000000         0x00002000         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0x20002000                _eram = 0x20002000
+
+.text           0x08000000      0xd44
+ *(.isr_vector .isr_vector.*)
+ .isr_vector    0x08000000      0x124 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                0x08000000                g_pfnVectors
+ *(.text .text.* .gnu.linkonce.t.*)
+ .text          0x08000124      0x8d0 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                0x08000890                Reset_Handler
+ .text.startup  0x080009f4      0x320 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                0x080009f4                main
+ *(.glue_7t)
+ .glue_7t       0x00000000        0x0 linker stubs
+ *(.glue_7)
+ .glue_7        0x00000000        0x0 linker stubs
+ *(.rodata .rodata* .gnu.linkonce.r.*)
+ .rodata        0x08000d14        0xc C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+ .rodata.str1.4
+                0x08000d20       0x24 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.vfp11_veneer   0x08000d44        0x0
+ .vfp11_veneer  0x00000000        0x0 linker stubs
+
+.v4_bx          0x08000d44        0x0
+ .v4_bx         0x00000000        0x0 linker stubs
+
+.iplt           0x08000d44        0x0
+ .iplt          0x00000000        0x0 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.rel.dyn        0x08000d44        0x0
+ .rel.iplt      0x00000000        0x0 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.ARM.extab
+ *(.ARM.extab* .gnu.linkonce.armextab.*)
+                0x08000d44                __exidx_start = .
+
+.ARM.exidx
+ *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+                0x08000d44                __exidx_end = .
+                0x08000d44                . = ALIGN (0x4)
+                0x08000d44                _etext = .
+                0x08000d44                _sidata = .
+
+.data           0x20000000       0x30 load address 0x08000d44
+                0x20000000                _sdata = .
+ *(.data .data.*)
+ .data          0x20000000       0x30 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                0x20000030                . = ALIGN (0x4)
+                0x20000030                _edata = .
+
+.igot.plt       0x20000030        0x0 load address 0x08000d74
+ .igot.plt      0x00000000        0x0 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.bss            0x20000030       0x18 load address 0x08000d74
+                0x20000030                _sbss = .
+ *(.bss .bss.*)
+ .bss           0x20000030       0x18 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+ *(COMMON)
+                0x20000048                . = ALIGN (0x4)
+                0x20000048                _ebss = .
+
+.co_stack       0x20000048      0x400 load address 0x08000d8c
+                0x20000048                . = ALIGN (0x8)
+ *(.co_stack .co_stack.*)
+ .co_stack      0x20000048      0x400 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                0x20000448                . = ALIGN (0x4)
+                0x20000448                _end = .
+LOAD ..\obj\stm32f10x_rtc.o
+LOAD C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+LOAD g:/coide/toolchain/bin/../lib/gcc/arm-none-eabi/4.7.3/armv7-m\libgcc.a
+LOAD g:/coide/toolchain/bin/../lib/gcc/arm-none-eabi/4.7.3/../../../../arm-none-eabi/lib/armv7-m\libg.a
+LOAD g:/coide/toolchain/bin/../lib/gcc/arm-none-eabi/4.7.3/../../../../arm-none-eabi/lib/armv7-m\libc.a
+LOAD ..\obj\delay.o
+LOAD ..\obj\stm32f10x_tim.o
+LOAD ..\obj\startup_stm32f10x_md_vl.o
+LOAD ..\obj\core_cm3.o
+LOAD ..\obj\rtc.o
+LOAD ..\obj\system_stm32f10x.o
+LOAD ..\obj\stm32f10x_pwr.o
+LOAD ..\obj\stm32f10x_gpio.o
+LOAD ..\obj\main.o
+LOAD ..\obj\stm32f10x_rcc.o
+LOAD ..\obj\lcd1602.o
+LOAD ..\obj\stm32f10x_bkp.o
+START GROUP
+LOAD g:/coide/toolchain/bin/../lib/gcc/arm-none-eabi/4.7.3/armv7-m\libgcc.a
+LOAD g:/coide/toolchain/bin/../lib/gcc/arm-none-eabi/4.7.3/../../../../arm-none-eabi/lib/armv7-m\libg.a
+LOAD g:/coide/toolchain/bin/../lib/gcc/arm-none-eabi/4.7.3/../../../../arm-none-eabi/lib/armv7-m\libc.a
+END GROUP
+OUTPUT(MatrixKeyboard.elf elf32-littlearm)
+
+.debug_info     0x00000000     0x20ef
+ .debug_info    0x00000000     0x20ef C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_abbrev   0x00000000      0x41c
+ .debug_abbrev  0x00000000      0x41c C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_loc      0x00000000     0x1479
+ .debug_loc     0x00000000     0x1479 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_aranges  0x00000000       0x28
+ .debug_aranges
+                0x00000000       0x28 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_ranges   0x00000000      0x8e8
+ .debug_ranges  0x00000000      0x8e8 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_line     0x00000000      0x94e
+ .debug_line    0x00000000      0x94e C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_str      0x00000000      0xc24
+ .debug_str     0x00000000      0xc24 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                                0xc64 (size before relaxing)
+
+.comment        0x00000000       0x70
+ .comment       0x00000000       0x70 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+                                 0x71 (size before relaxing)
+
+.ARM.attributes
+                0x00000000       0x31
+ .ARM.attributes
+                0x00000000       0x31 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o
+
+.debug_frame    0x00000000      0x178
+ .debug_frame   0x00000000      0x178 C:\Users\Dmitry\AppData\Local\Temp\ccFloO8R.ltrans0.ltrans.o

@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<history>
+   <processor signature="arm-none-eabi-gcc noversion nomachine -mcpu=cortex-m3 -mthumb -Wall -ffunction-sections -g -O0 -c -DSTM32F100RB -DSTM32F10X_MD_VL -DUSE_STDPERIPH_DRIVER -D__ASSEMBLY__ -I..\..\..\workspace\ILI9320 -I..\..\..\workspace\ILI9320\stm_lib -I..\..\.. -I..\..\..\workspace\ILI9320\cmsis_boot -I..\..\..\workspace\ILI9320\cmsis -I..\..\..\workspace\ILI9320\stm_lib\inc -I..\..\..\workspace">
+      <target file="startup_stm32f10x_md_vl.o" lastModified="13f22df1639">
+         <source file="..\..\..\cmsis_boot\startup\startup_stm32f10x_md_vl.c" lastModified="13f1acded9d"/>
+      </target>
+      <target file="stm32f10x_tim.o" lastModified="13f22df1613">
+         <source file="..\..\..\stm_lib\src\stm32f10x_tim.c" lastModified="13f1f3c7cb9"/>
+      </target>
+      <target file="core_cm3.o" lastModified="13f22df1676">
+         <source file="..\..\..\cmsis\core_cm3.c" lastModified="13f1acdedd1"/>
+      </target>
+      <target file="system_stm32f10x.o" lastModified="13f22df16af">
+         <source file="..\..\..\cmsis_boot\system_stm32f10x.c" lastModified="13f1acdedc0"/>
+      </target>
+      <target file="stm32f10x_spi.o" lastModified="13f22df181e">
+         <source file="..\..\..\stm_lib\src\stm32f10x_spi.c" lastModified="13f1acded84"/>
+      </target>
+      <target file="main.o" lastModified="13f22e54c0a">
+         <source file="..\..\..\main.c" lastModified="13f22e549c0"/>
+      </target>
+      <target file="stm32f10x_gpio.o" lastModified="13f22df16fc">
+         <source file="..\..\..\stm_lib\src\stm32f10x_gpio.c" lastModified="13f1acdede8"/>
+      </target>
+      <target file="stm32f10x_rcc.o" lastModified="13f22df17ce">
+         <source file="..\..\..\stm_lib\src\stm32f10x_rcc.c" lastModified="13f1acded94"/>
+      </target>
+      <target file="delay.o" lastModified="13f22df1561">
+         <source file="..\..\..\delay.c" lastModified="13eff281205"/>
+      </target>
+   </processor>
+</history>
