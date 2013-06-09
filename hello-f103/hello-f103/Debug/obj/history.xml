@@ -22,8 +22,8 @@
       <target file="system_stm32f10x.o" lastModified="13f28d1005d">
          <source file="..\..\..\cmsis_boot\system_stm32f10x.c" lastModified="13f27e4d4ff"/>
       </target>
-      <target file="main.o" lastModified="13f28f765a6">
-         <source file="..\..\..\main.c" lastModified="13f28f7637d"/>
+      <target file="main.o" lastModified="13f29d0b020">
+         <source file="..\..\..\main.c" lastModified="13f29d0aab4"/>
       </target>
       <target file="stm32f10x_gpio.o" lastModified="13f28d1015c">
          <source file="..\..\..\stm_lib\src\stm32f10x_gpio.c" lastModified="13f27e4e456"/>

@@ -66,22 +66,19 @@
       <source file="..\..\..\stm_lib\src\stm32f10x_rcc.c" lastModified="13f27e4d4f5">
          <include file="..\..\..\stm_lib\inc\stm32f10x_rcc.h"/>
       </source>
-      <source file="..\..\..\lcd1602.h" lastModified="13ef18913f6">
-      </source>
       <source file="..\..\..\stm_lib\src\stm32f10x_pwr.c" lastModified="13f280ee5c2">
          <include file="..\..\..\stm_lib\inc\stm32f10x_pwr.h"/>
          <include file="..\..\..\stm_lib\inc\stm32f10x_rcc.h"/>
       </source>
-      <source file="..\..\..\main.c" lastModified="13f28f7637d">
-         <include file="..\..\..\stm_lib\inc\stm32f10x_rcc.h"/>
-         <include file="..\..\..\stm_lib\inc\stm32f10x_gpio.h"/>
-         <include file="..\..\..\stm_lib\inc\stm32f10x_tim.h"/>
-         <include file="..\..\..\stm_lib\inc\stm32f10x_rtc.h"/>
-         <include file="..\..\..\lcd1602.h"/>
-         <include file="..\..\..\delay.h"/>
-         <include file="..\..\..\rtc.h"/>
+      <source file="..\..\..\lcd1602.h" lastModified="13ef18913f6">
       </source>
       <source file="..\..\..\cmsis_boot\system_stm32f10x.h" lastModified="13f27e4d4ff">
+      </source>
+      <source file="..\..\..\lcd1602.c" lastModified="13f28f83051">
+         <include file="..\..\..\stm_lib\inc\stm32f10x_rcc.h"/>
+         <include file="..\..\..\stm_lib\inc\stm32f10x_gpio.h"/>
+         <include file="..\..\..\delay.h"/>
+         <include file="..\..\..\lcd1602.h"/>
       </source>
       <source file="..\..\..\cmsis_boot\system_stm32f10x.c" lastModified="13f27e4d4ff">
          <include file="..\..\..\cmsis_boot\stm32f10x.h"/>

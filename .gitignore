@@ -11,3 +11,9 @@
 *.lai
 *.la
 *.a
+
+# Compiled binaries
+*.bin
+*.elf
+*.hex
+*.map
