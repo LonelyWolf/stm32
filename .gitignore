@@ -20,3 +20,10 @@
 
 # Eclipse workfiles
 *.xml
+
+# CooCox workfiles
+*.cogui
+*.comarker
+*.coproj
+*.pbxproj
+*.comemgui
