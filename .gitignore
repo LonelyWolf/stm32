@@ -11,6 +11,7 @@
 *.lai
 *.la
 *.a
+*.ld
 
 # Compiled binaries
 *.bin
@@ -27,3 +28,9 @@
 *.coproj
 *.pbxproj
 *.comemgui
+*.cproject
+*.project
+debug.config
+
+# Trash
+*.bak
