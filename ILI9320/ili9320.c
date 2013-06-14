@@ -163,6 +163,31 @@ void LCD_Init() {
 	LCD_WriteReg(0x0013,(1<<11)|(1<<9)|(1<<8)); // Power control 4: VREG1OUTx0.91
 	LCD_WriteReg(0x0029,0x0000); // Power control 7
 	LCD_WriteReg(0x002b,(1<<5)|(0<<4)); // internal resistor for oscillator; 120Hz frame rate
+	Delay_ms(50);
+
+/*
+	LCD_WriteReg(0x0030,0x0000); // Gamma control 1
+	LCD_WriteReg(0x0031,0x0107); // Gamma control 2
+	LCD_WriteReg(0x0032,0x0000); // Gamma control 3
+	LCD_WriteReg(0x0035,0x0203); // Gamma control 6
+	LCD_WriteReg(0x0036,0x0402); // Gamma control 7
+	LCD_WriteReg(0x0037,0x0000); // Gamma control 8
+	LCD_WriteReg(0x0038,0x0207); // Gamma control 9
+	LCD_WriteReg(0x0039,0x0000); // Gamma control 10
+	LCD_WriteReg(0x003C,0x0203); // Gamma control 13
+	LCD_WriteReg(0x003D,0x0403); // Gamma control 14
+*/
+	LCD_WriteReg(0x0030,0x0207); // Gamma control 1
+	LCD_WriteReg(0x0031,0x0505); // Gamma control 2
+	LCD_WriteReg(0x0032,0x0102); // Gamma control 3
+	LCD_WriteReg(0x0035,0x0006); // Gamma control 6
+	LCD_WriteReg(0x0036,0x0606); // Gamma control 7
+	LCD_WriteReg(0x0037,0x0707); // Gamma control 8
+	LCD_WriteReg(0x0038,0x0506); // Gamma control 9
+	LCD_WriteReg(0x0039,0x0407); // Gamma control 10
+	LCD_WriteReg(0x003C,0x0106); // Gamma control 13
+	LCD_WriteReg(0x003D,0x0601); // Gamma control 14
+
 	LCD_WriteReg(0x0050,0); // Left RAM address pos
 	LCD_WriteReg(0x0051,239); // Right RAM address pos
 	LCD_WriteReg(0x0052,0); // Top RAM address pos
@@ -220,7 +245,7 @@ void LCD_Clear(uint16_t color) {
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_SET);   // SPI_CS_HIGH
 }
 
-uint16_t RGB888to565(uint8_t R,uint8_t G,uint8_t B) {
+uint16_t RGB565(uint8_t R,uint8_t G,uint8_t B) {
 	return ((R >> 3) << 11) | ((G >> 2) << 5) | (B >> 3);
 }
 
@@ -265,7 +290,7 @@ void LCD_FillRect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_SET);   // SPI_CS_HIGH
 }
 
-void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t chColor, uint16_t bgColor) {
+void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t Color) {
 	uint16_t i,j;
 	uint8_t buffer[16],tmpCh;
 
@@ -276,20 +301,42 @@ void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t chColor, uint16_
     	tmpCh = buffer[i];
     	for (j = 0; j < 8; j++) {
     		if (((tmpCh >> (7-j)) & 0x01) == 0x01) {
-        		LCD_Pixel(X+j,Y+i,chColor);
+        		LCD_Pixel(X+j,Y+i,Color);
   			}
     	}
     }
 }
 
-void LCD_Text(uint16_t X, uint16_t Y, char *str, uint16_t chColor, uint16_t bgColor) {
+void LCD_PutStr(uint16_t X, uint16_t Y, char *str, uint16_t Color) {
     unsigned short tmpCh;
 
     do {
         tmpCh = *str++;
-        LCD_PutChar(X,Y,tmpCh,chColor,bgColor);
+        LCD_PutChar(X,Y,tmpCh,Color);
         if (X < 320-8) { X += 8; } else if (Y < 240-16) { X = 0; Y += 16; } else { X = 0; Y = 0; }
     } while ( *str != 0 );
+}
+
+void LCD_PutInt(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color) {
+	char str[11]; // 10 chars max for UINT32_MAX
+	int i = 0;
+	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
+	int strLen = i;
+	for (i--; i>=0; i--) {
+		LCD_PutChar(X+(strLen << 3)-(i << 3),Y,str[i],Color);
+	}
+}
+
+void LCD_PutHex(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color) {
+	char str[11]; // 10 chars max for UINT32_MAX
+	int i = 0;
+	do { str[i++] = "0123456789ABCDEF"[num % 0x10]; } while ((num /= 0x10) > 0);
+	str[i++] = 'x';
+	str[i++] = '0';
+	int strLen = i;
+	for (i--; i>=0; i--) {
+		LCD_PutChar(X+(strLen << 3)-(i << 3),Y,str[i],Color);
+	}
 }
 
 void LCD_BMP_Mono(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, const uint8_t* pBMP, uint16_t Color) {
