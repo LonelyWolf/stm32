@@ -71,26 +71,19 @@ void LCD_WriteDataOnly(uint16_t data) {
 	SPI_SendRecv(data & 0xff);
 }
 
-void LCD_Init_SPI() {
-}
-
 void LCD_Init() {
 #ifdef SOFT_SPI
 	// Software SPI
 	// Turn on PORT clocks
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
-	// Configure SPI1 pins (PA4 = NSS, PA5 = SCK, PA6 = MISO, PA7 = MOSI)
+	// Configure SPI1 pins (PA2 = CS, PA3 = nRESET, PA5 = SCK, PA6 = MISO, PA7 = MOSI)
 	GPIO_InitTypeDef PORT;
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
-	PORT.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7; // NSS,SCK,MISO output with PP
+	PORT.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_5 | GPIO_Pin_7; // nRESET,CS,SCK,MISO output with PP
 	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_Init(GPIOA,&PORT);
 	PORT.GPIO_Pin = GPIO_Pin_6; // MISO input floating
 	PORT.GPIO_Mode = GPIO_Mode_AIN;
-	GPIO_Init(GPIOA,&PORT);
-	// Configure LCD_nRESET (PA3), CS (PA2) pin for output with Push-Pull
-	PORT.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
-	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_Init(GPIOA,&PORT);
 #else
 	// Hardware SPI
@@ -273,6 +266,57 @@ void LCD_VLine(uint16_t X, uint16_t Y0, uint16_t Y1, uint16_t Color) {
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_SET);   // SPI_CS_HIGH
 }
 
+void LCD_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color) {
+	int16_t dX = X2-X1;
+	int16_t dY = Y2-Y1;
+	int16_t dXsym = (dX > 0) ? 1 : -1;
+	int16_t dYsym = (dY > 0) ? 1 : -1;
+
+	if (dX == 0) {
+		if (Y2>Y1) LCD_VLine(X1,Y1,Y2,Color); else LCD_VLine(X1,Y2,Y1,Color);
+		return;
+	}
+	if (dY == 0) {
+		if (X2>X1) LCD_HLine(X1,X2,Y1,Color); else LCD_HLine(X2,X1,Y1,Color);
+		return;
+	}
+
+	LCD_SetWindow(0,0,320,240);
+
+	dX *= dXsym;
+	dY *= dYsym;
+	int16_t dX2 = dX << 1;
+	int16_t dY2 = dY << 1;
+	int16_t di;
+
+	if (dX >= dY) {
+		di = dY2 - dX;
+		while (X1 != X2) {
+			LCD_Pixel(X1,Y1,Color);
+			X1 += dXsym;
+			if (di < 0) {
+				di += dY2;
+			} else {
+				di += dY2 - dX2;
+				Y1 += dYsym;
+			}
+		}
+	} else {
+		di = dX2 - dY;
+		while (Y1 != Y2) {
+			LCD_Pixel(X1,Y1,Color);
+			Y1 += dYsym;
+			if (di < 0) {
+				di += dX2;
+			} else {
+				di += dX2 - dY2;
+				X1 += dXsym;
+			}
+		}
+	}
+	LCD_Pixel(X1,Y1,Color);
+}
+
 void LCD_Rect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color) {
 	LCD_HLine(X,X+W-1,Y,Color);
 	LCD_HLine(X,X+W-1,Y+H-1,Color);
@@ -305,6 +349,43 @@ void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t Color) {
   			}
     	}
     }
+}
+
+void LCD_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color) {
+	LCD_SetWindow(0,0,320,240);
+
+	int16_t Xc = 0, Yc = B;
+	long A2 = (long)A*A, B2 = (long)B*B;
+	long C1 = -(A2/4 + A % 2 + B2);
+	long C2 = -(B2/4 + B % 2 + A2);
+	long C3 = -(B2/4 + B % 2);
+	long t = -A2*Yc;
+	long dXt = B2*Xc*2, dYt = -A2*Yc*2;
+	long dXt2 = B2*2, dYt2 = A2*2;
+	while (Yc >= 0 && Xc <= A) {
+		LCD_Pixel(X+Xc,Y+Yc,Color);
+		if (Xc != 0 || Yc != 0) LCD_Pixel(X-Xc,Y-Yc,Color);
+		if (Xc != 0 && Yc != 0) {
+			LCD_Pixel(X+Xc,Y-Yc,Color);
+			LCD_Pixel(X-Xc,Y+Yc,Color);
+		}
+		if (t + Xc*B2 <= C1 || t + Yc*A2 <= C3) {
+			Xc++;
+			dXt += dXt2;
+			t   += dXt;
+		} else if (t - Yc*A2 > C2) {
+			Yc--;
+			dYt += dYt2;
+			t   += dYt;
+		} else {
+			Xc++;
+			Yc--;
+			dXt += dXt2;
+			dYt += dYt2;
+			t   += dXt;
+			t   += dYt;
+		}
+	}
 }
 
 void LCD_PutStr(uint16_t X, uint16_t Y, char *str, uint16_t Color) {

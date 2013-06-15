@@ -43,6 +43,8 @@ int main(void)
 
 	LCD_PutStr(5,220,"(c) Dimon",RGB565(255,55,55));
 
-	while(1) {
-    }
+	LCD_Ellipse(285,50,24,24,RGB565(255,255,128));
+	LCD_Rect(260,25,51,51,RGB565(128,255,128));
+
+	while(1);
 }
