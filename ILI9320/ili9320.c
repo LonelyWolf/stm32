@@ -39,9 +39,15 @@ void LCD_WriteIndex(uint16_t _index) {
 }
 
 uint16_t LCD_ReadData() {
+	uint16_t value;
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_RESET); // SPI_CS_LOW
 	SPI_SendRecv(SPI_START | SPI_RD | SPI_DATA);
-	uint16_t value = SPI_SendRecv(0x00) << 8; // Read Hi byte
+	SPI_SendRecv(0x00);
+	SPI_SendRecv(0x00);
+	SPI_SendRecv(0x00);
+	SPI_SendRecv(0x00);
+	SPI_SendRecv(0x00);
+	value = SPI_SendRecv(0x00) << 8; // Read Hi byte
 	value |= SPI_SendRecv(0x00); // Read Lo byte
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_SET);   // SPI_CS_HIGH
 	return value;
@@ -76,29 +82,32 @@ void LCD_Init() {
 	// Software SPI
 	// Turn on PORT clocks
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
-	// Configure SPI1 pins (PA2 = CS, PA3 = nRESET, PA5 = SCK, PA6 = MISO, PA7 = MOSI)
+	// Configure SPI1 pins (PA5 = SCK, PA6 = MISO, PA7 = MOSI)
 	GPIO_InitTypeDef PORT;
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
-	PORT.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_5 | GPIO_Pin_7; // nRESET,CS,SCK,MISO output with PP
+	PORT.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7; // SCK,MISO output with PP
 	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_Init(GPIOA,&PORT);
 	PORT.GPIO_Pin = GPIO_Pin_6; // MISO input floating
 	PORT.GPIO_Mode = GPIO_Mode_AIN;
 	GPIO_Init(GPIOA,&PORT);
+	// Configure LCD_nRESET (PA3), CS (PA2) pin for output with Push-Pull
+	PORT.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
+	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_Init(GPIOA,&PORT);
 #else
 	// Hardware SPI
 	// Turn on SPI1 clock
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1,ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA,ENABLE);
 
-	// Configure SPI1 pins (PA4 = NSS, PA5 = SCK, PA6 = MISO, PA7 = MOSI)
+	// Configure SPI1 pins (PA5 = SCK, PA6 = MISO, PA7 = MOSI)
 	GPIO_InitTypeDef PORT;
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
-	PORT.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7; // NSS,SCK,MISO output with PP
+	PORT.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7; // SCK,MOSI output with PP
 	PORT.GPIO_Mode = GPIO_Mode_AF_PP;
 	GPIO_Init(GPIOA,&PORT);
 	PORT.GPIO_Pin = GPIO_Pin_6; // MISO input floating
-	PORT.GPIO_Mode = GPIO_Mode_AIN;
+	PORT.GPIO_Mode = GPIO_Mode_IN_FLOATING;
 	GPIO_Init(GPIOA,&PORT);
 	// Configure LCD_nRESET (PA3), CS (PA2) pin for output with Push-Pull
 	PORT.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
@@ -334,23 +343,6 @@ void LCD_FillRect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_SET);   // SPI_CS_HIGH
 }
 
-void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t Color) {
-	uint16_t i,j;
-	uint8_t buffer[16],tmpCh;
-
-    LCD_SetWindow(X,Y,8,16);
-    memcpy(buffer,AsciiLib[Char-32],16);
-
-    for (i = 0; i < 16; i++) {
-    	tmpCh = buffer[i];
-    	for (j = 0; j < 8; j++) {
-    		if (((tmpCh >> (7-j)) & 0x01) == 0x01) {
-        		LCD_Pixel(X+j,Y+i,Color);
-  			}
-    	}
-    }
-}
-
 void LCD_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color) {
 	LCD_SetWindow(0,0,320,240);
 
@@ -388,14 +380,46 @@ void LCD_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color)
 	}
 }
 
-void LCD_PutStr(uint16_t X, uint16_t Y, char *str, uint16_t Color) {
-    unsigned short tmpCh;
+void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t Color) {
+	uint16_t i,j;
+	uint8_t buffer[16],tmpCh;
 
-    do {
-        tmpCh = *str++;
-        LCD_PutChar(X,Y,tmpCh,Color);
+    LCD_SetWindow(X,Y,8,16);
+    memcpy(buffer,AsciiLib[Char-32],16);
+
+    for (i = 0; i < 16; i++) {
+    	tmpCh = buffer[i];
+    	for (j = 0; j < 8; j++) {
+    		if (((tmpCh >> (7-j)) & 0x01) == 0x01) LCD_Pixel(X+j,Y+i,Color);
+    	}
+    }
+}
+
+void LCD_PutCharO(uint16_t X, uint16_t Y, uint8_t Char, uint16_t Color, uint16_t bgColor) {
+	uint16_t i,j;
+	uint8_t buffer[16],tmpCh;
+
+    LCD_SetWindow(X,Y,8,16);
+    memcpy(buffer,AsciiLib[Char-32],16);
+
+    for (i = 0; i < 16; i++) {
+    	tmpCh = buffer[i];
+    	for (j = 0; j < 8; j++) LCD_Pixel(X+j,Y+i,(((tmpCh >> (7-j)) & 0x01) == 0x01) ? Color : bgColor);
+    }
+}
+
+void LCD_PutStr(uint16_t X, uint16_t Y, char *str, uint16_t Color) {
+    while (*str) {
+        LCD_PutChar(X,Y,*str++,Color);
         if (X < 320-8) { X += 8; } else if (Y < 240-16) { X = 0; Y += 16; } else { X = 0; Y = 0; }
-    } while ( *str != 0 );
+    };
+}
+
+void LCD_PutStrO(uint16_t X, uint16_t Y, char *str, uint16_t Color, uint16_t bgColor) {
+    while (*str) {
+        LCD_PutCharO(X,Y,*str++,Color,bgColor);
+        if (X < 320-8) { X += 8; } else if (Y < 240-16) { X = 0; Y += 16; } else { X = 0; Y = 0; }
+    }
 }
 
 void LCD_PutInt(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color) {
@@ -403,9 +427,15 @@ void LCD_PutInt(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color) {
 	int i = 0;
 	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
 	int strLen = i;
-	for (i--; i>=0; i--) {
-		LCD_PutChar(X+(strLen << 3)-(i << 3),Y,str[i],Color);
-	}
+	for (i--; i>=0; i--) LCD_PutChar(X+(strLen << 3)-(i << 3),Y,str[i],Color);
+}
+
+void LCD_PutIntO(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color, uint16_t bgColor) {
+	char str[11]; // 10 chars max for UINT32_MAX
+	int i = 0;
+	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
+	int strLen = i;
+	for (i--; i>=0; i--) LCD_PutCharO(X+(strLen << 3)-(i << 3),Y,str[i],Color,bgColor);
 }
 
 void LCD_PutHex(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color) {
@@ -415,12 +445,20 @@ void LCD_PutHex(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color) {
 	str[i++] = 'x';
 	str[i++] = '0';
 	int strLen = i;
-	for (i--; i>=0; i--) {
-		LCD_PutChar(X+(strLen << 3)-(i << 3),Y,str[i],Color);
-	}
+	for (i--; i>=0; i--) LCD_PutChar(X+(strLen << 3)-(i << 3),Y,str[i],Color);
 }
 
-void LCD_BMP_Mono(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, const uint8_t* pBMP, uint16_t Color) {
+void LCD_PutHexO(uint16_t X, uint16_t Y, uint32_t num, uint16_t Color, uint16_t bgColor) {
+	char str[11]; // 10 chars max for UINT32_MAX
+	int i = 0;
+	do { str[i++] = "0123456789ABCDEF"[num % 0x10]; } while ((num /= 0x10) > 0);
+	str[i++] = 'x';
+	str[i++] = '0';
+	int strLen = i;
+	for (i--; i>=0; i--) LCD_PutCharO(X+(strLen << 3)-(i << 3),Y,str[i],Color,bgColor);
+}
+
+void LCD_BMPMono(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, const uint8_t* pBMP, uint16_t Color) {
 	uint16_t i,j,k;
 	uint8_t buffer[W];
 
@@ -428,11 +466,20 @@ void LCD_BMP_Mono(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, const uint8_t*
 	for (i = 0; i < H; i++) {
 		memcpy(buffer,&pBMP[i*W],W);
 		for (j = 0; j < W; j++) {
-			for (k = 0; k < 8; k++) {
-				if ((buffer[j] >> (7-k)) & 0x01) {
-					LCD_Pixel(X+(j << 3)+k,Y+i,Color);
-				}
-			}
+			for (k = 0; k < 8; k++) if ((buffer[j] >> (7-k)) & 0x01) LCD_Pixel(X+(j << 3)+k,Y+i,Color);
+		}
+	}
+}
+
+void LCD_BMPMonoO(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, const uint8_t* pBMP, uint16_t Color, uint16_t bgColor) {
+	uint16_t i,j,k;
+	uint8_t buffer[W];
+
+	LCD_SetWindow(X,Y,W*8,H);
+	for (i = 0; i < H; i++) {
+		memcpy(buffer,&pBMP[i*W],W);
+		for (j = 0; j < W; j++) {
+			for (k = 0; k < 8; k++) LCD_Pixel(X+(j << 3)+k,Y+i,((buffer[j] >> (7-k)) & 0x01) ? Color : bgColor);
 		}
 	}
 }
@@ -447,9 +494,7 @@ void LCD_BMP(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, const uint16_t* pBM
 	SPI_SendRecv(SPI_START | SPI_WR | SPI_DATA);
 	for (i = 0; i < H; i++) {
 		memcpy(buffer,&pBMP[i*W],W*2);
-		for (j = 0; j < W; j++) {
-			LCD_WriteDataOnly(buffer[j]);
-		}
+		for (j = 0; j < W; j++) LCD_WriteDataOnly(buffer[j]);
 	}
 	GPIO_WriteBit(GPIOA,GPIO_Pin_2,Bit_SET);   // SPI_CS_HIGH
 }
