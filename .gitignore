@@ -25,7 +25,7 @@
 # CooCox workfiles
 *.cogui
 *.comarker
-*.coproj
+#*.coproj
 *.pbxproj
 *.comemgui
 *.cproject
