@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<Project version="2G - 1.7.2" name="ssd1289_hello">
-  <Target name="ssd1289_hello" isCurrent="1">
+<Project version="2G - 1.7.3" name="SSD1289">
+  <Target name="SSD1289" isCurrent="1">
     <Device manufacturerId="9" manufacturerName="ST" chipId="313" chipName="STM32F103RE" boardId="" boardName=""/>
     <BuildOption>
       <Compile>
-        <Option name="OptimizationLevel" value="0"/>
+        <Option name="OptimizationLevel" value="2"/>
         <Option name="UseFPU" value="0"/>
         <Option name="UserEditCompiler" value=""/>
         <Includepaths>
@@ -21,8 +21,9 @@
         <Option name="DiscardUnusedSection" value="0"/>
         <Option name="UserEditLinkder" value=""/>
         <Option name="UseMemoryLayout" value="1"/>
-        <Option name="LTO" value="1"/>
+        <Option name="LTO" value="0"/>
         <Option name="IsNewStartupCode" value="1"/>
+        <Option name="Library" value="Not use C Library"/>
         <LinkedLibraries/>
         <MemoryAreas debugInFlashNotRAM="1">
           <Memory name="IROM1" type="ReadOnly" size="0x00080000" startValue="0x08000000"/>
@@ -30,12 +31,12 @@
           <Memory name="IROM2" type="ReadOnly" size="" startValue=""/>
           <Memory name="IRAM2" type="ReadWrite" size="" startValue=""/>
         </MemoryAreas>
-        <LocateLinkFile path="../../configuration/programdata/ssd1289_hello/arm-gcc-link.ld" type="0"/>
+        <LocateLinkFile path="../../configuration/programdata/ssd1289/arm-gcc-link.ld" type="0"/>
       </Link>
       <Output>
         <Option name="OutputFileType" value="0"/>
         <Option name="Path" value="./"/>
-        <Option name="Name" value="ssd1289_hello"/>
+        <Option name="Name" value="SSD1289"/>
         <Option name="HEX" value="1"/>
         <Option name="BIN" value="1"/>
       </Output>
@@ -72,27 +73,30 @@
     <Component id="460" name="CMSIS Boot" path="" type="2"/>
   </Components>
   <Files>
-    <File name="cmsis" path="" type="2"/>
-    <File name="stm_lib" path="" type="2"/>
     <File name="cmsis_boot/system_stm32f10x.c" path="cmsis_boot/system_stm32f10x.c" type="1"/>
-    <File name="cmsis/core_cm3.c" path="cmsis/core_cm3.c" type="1"/>
-    <File name="cmsis_boot/system_stm32f10x.h" path="cmsis_boot/system_stm32f10x.h" type="1"/>
+    <File name="facepalm.h" path="facepalm.h" type="1"/>
     <File name="cmsis/core_cm3.h" path="cmsis/core_cm3.h" type="1"/>
     <File name="cmsis_boot" path="" type="2"/>
-    <File name="stm_lib/inc/stm32f10x_rcc.h" path="stm_lib/inc/stm32f10x_rcc.h" type="1"/>
     <File name="delay.h" path="delay.h" type="1"/>
     <File name="stm_lib/src/stm32f10x_rcc.c" path="stm_lib/src/stm32f10x_rcc.c" type="1"/>
-    <File name="ssd1289.c" path="ssd1289.c" type="1"/>
+    <File name="face565.h" path="face565.h" type="1"/>
     <File name="cmsis_boot/startup" path="" type="2"/>
     <File name="cmsis_boot/startup/startup_stm32f10x_hd.c" path="cmsis_boot/startup/startup_stm32f10x_hd.c" type="1"/>
+    <File name="cmsis_boot/stm32f10x.h" path="cmsis_boot/stm32f10x.h" type="1"/>
+    <File name="ssd1289.h" path="ssd1289.h" type="1"/>
+    <File name="cmsis_boot/stm32f10x_conf.h" path="cmsis_boot/stm32f10x_conf.h" type="1"/>
+    <File name="fonts.h" path="fonts.h" type="1"/>
+    <File name="stm_lib/src" path="" type="2"/>
+    <File name="cmsis" path="" type="2"/>
+    <File name="stm_lib" path="" type="2"/>
+    <File name="cmsis/core_cm3.c" path="cmsis/core_cm3.c" type="1"/>
+    <File name="cmsis_boot/system_stm32f10x.h" path="cmsis_boot/system_stm32f10x.h" type="1"/>
+    <File name="stm_lib/inc/stm32f10x_rcc.h" path="stm_lib/inc/stm32f10x_rcc.h" type="1"/>
+    <File name="ssd1289.c" path="ssd1289.c" type="1"/>
     <File name="stm_lib/src/stm32f10x_gpio.c" path="stm_lib/src/stm32f10x_gpio.c" type="1"/>
     <File name="delay.c" path="delay.c" type="1"/>
     <File name="stm_lib/inc" path="" type="2"/>
-    <File name="ssd1289.h" path="ssd1289.h" type="1"/>
     <File name="stm_lib/inc/stm32f10x_gpio.h" path="stm_lib/inc/stm32f10x_gpio.h" type="1"/>
-    <File name="cmsis_boot/stm32f10x.h" path="cmsis_boot/stm32f10x.h" type="1"/>
     <File name="main.c" path="main.c" type="1"/>
-    <File name="cmsis_boot/stm32f10x_conf.h" path="cmsis_boot/stm32f10x_conf.h" type="1"/>
-    <File name="stm_lib/src" path="" type="2"/>
   </Files>
 </Project>
