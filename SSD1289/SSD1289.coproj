@@ -94,8 +94,8 @@
     <File name="stm_lib/inc/stm32f10x_rcc.h" path="stm_lib/inc/stm32f10x_rcc.h" type="1"/>
     <File name="ssd1289.c" path="ssd1289.c" type="1"/>
     <File name="stm_lib/src/stm32f10x_gpio.c" path="stm_lib/src/stm32f10x_gpio.c" type="1"/>
-    <File name="delay.c" path="delay.c" type="1"/>
     <File name="stm_lib/inc" path="" type="2"/>
+    <File name="delay.c" path="delay.c" type="1"/>
     <File name="stm_lib/inc/stm32f10x_gpio.h" path="stm_lib/inc/stm32f10x_gpio.h" type="1"/>
     <File name="main.c" path="main.c" type="1"/>
   </Files>

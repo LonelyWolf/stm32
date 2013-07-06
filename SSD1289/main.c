@@ -4,8 +4,8 @@
 #include <ssd1289.h>
 
 
-#include <facepalm.h>
-#include <face565.h>
+//#include <facepalm.h>
+//#include <face565.h>
 
 
 int main(void) {
@@ -13,7 +13,7 @@ int main(void) {
 
 	// Init DATA port
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
-	PORT.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2  | GPIO_Pin_3  | GPIO_Pin_4 | GPIO_Pin_5 | \
+	PORT.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5 | \
 	         		GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10 | GPIO_Pin_11 | GPIO_Pin_12;
 	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
@@ -69,21 +69,21 @@ int main(void) {
 	LCD_PutStr(24,60,"CPU:",RGB565(255,255,255));
 	LCD_PutInt(50,60,RCC_Clocks.SYSCLK_Frequency,RGB565(255,255,192));
 
-	LCD_BMPMono(118,118,25,120,&FacePalm[0],RGB565(0,162,232));
-	LCD_PutStr(120,134,"1-bit color >",RGB565(255,128,0));
+//	LCD_BMPMono(118,118,25,120,&FacePalm[0],RGB565(0,162,232));
+//	LCD_PutStr(120,134,"1-bit color >",RGB565(255,128,0));
 
-	LCD_Rect(19,89,82,98,RGB565(0,0,255));
-	LCD_BMP(20,90,80,96,&Face565[0]);
-	LCD_PutStr(106,102,"< 16-bit color",RGB565(255,255,0));
+//	LCD_Rect(19,89,82,98,RGB565(0,0,255));
+//	LCD_BMP(20,90,80,96,&Face565[0]);
+//	LCD_PutStr(106,102,"< 16-bit color",RGB565(255,255,0));
 
 	LCD_PutStr(5,220,"(c) Dimon",RGB565(255,55,55));
 
 	uint8_t i;
 
 	for (i = 0; i<256; i++) {
-		LCD_VLine(i,190,194,RGB565(i,0,0));
-		LCD_VLine(i,195,199,RGB565(0,i,0));
-		LCD_VLine(i,200,204,RGB565(0,0,i));
+		LCD_VLine(i,190,199,RGB565(i,0,0));
+		LCD_VLine(i,200,209,RGB565(0,i,0));
+		LCD_VLine(i,210,219,RGB565(0,0,i));
 	}
 
 	while(1);

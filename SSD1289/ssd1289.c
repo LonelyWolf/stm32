@@ -2,6 +2,7 @@
 #include <delay.h>
 #include <ssd1289.h>
 #include <string.h>
+#include <math.h>
 
 
 uint16_t RGB565(uint8_t R,uint8_t G,uint8_t B) {
@@ -52,18 +53,14 @@ uint16_t LCD_read_data(void) {
 	GPIO_Init(GPIOB,&PORT);
 
 	// Read 16-bits from LCD
-	GPIOB->BSRR = LCD_WR;                  // pull LCD_WR to high
-	GPIOB->BRR = LCD_RS;                  // LCD_RS high (register select = data)
-	GPIOB->BRR = LCD_RD;                   // pull LCD_RD to low (read strobe start)
-	GPIOB->BRR = LCD_CS;                   // LCD_CS low (chip select pull)
-	Delay_us(1);                           // 250ns by datasheet
-	GPIOB->BSRR = LCD_RD;                  // pull LCD_RD to high (read strobe end)
-	Delay_us(1);                           // 250ns by datasheet
-	GPIOB->BRR = LCD_RD;                   // pull LCD_RD to low (read strobe start)
-	Delay_us(1);                           // 250ns by datasheet
-	GPIOB->BSRR = LCD_RD;                  // pull LCD_RD to high (read strobe end)
-	GPIOB->BSRR = LCD_CS;                  // LCD_CS high (chip select release)
-	//data = (uint16_t)GPIOA->IDR;          // get data from PortA
+	GPIOB->BSRR = LCD_WR;                    // pull LCD_WR to high
+	GPIOB->BRR = LCD_RS;                     // LCD_RS high (register select = data)
+	GPIOB->BRR = LCD_RD;                     // pull LCD_RD to low (read strobe start)
+	GPIOB->BRR = LCD_CS;                     // LCD_CS low (chip select pull)
+	Delay_us(1);                             // 250ns by datasheet
+	GPIOB->BSRR = LCD_RD;                    // pull LCD_RD to high (read strobe end)
+	GPIOB->BSRR = LCD_CS;                    // LCD_CS high (chip select release)
+	//data = (uint16_t)GPIOA->IDR;            // get data from PortA
 	data  = ((uint16_t)GPIOA->IDR) & 0x1fff; // get data [0..12] bits from PortA (actual LCD_DB00..LCD_DB12)
 	data |= (uint16_t)(GPIOB->IDR << 13);    // get data [13..15] bits from PortA (actual LCD_DB13..LCD_DB15)
 
@@ -147,7 +144,7 @@ void LCD_Init(void) {
     // 11.BGR = Components order(1 = BGR; 0 = RGB)
     // 09.TB  = Output shift direction of Gate driver (1 = G0->G319; 0 = G319->G0)
     // 08..00.MUX = Number of lines (0..319)
-    LCD_WriteReg(0x0001,(1<<14)|(1<<13)|(1<<11)|(1<<9)|(1<<8)|(1<<5)|(1<<4)|(1<<3)|(1<<2)|(1<<1)|(1<<0));
+    LCD_WriteReg(0x0001,(0<<14)|(1<<13)|(1<<11)|(0<<9)|(1<<8)|(1<<5)|(1<<4)|(1<<3)|(1<<2)|(1<<1)|(1<<0));
     LCD_WriteReg(0x0010,0x0000);
     LCD_WriteReg(0x0005,0x0000);
     LCD_WriteReg(0x0006,0x0000);
@@ -229,8 +226,8 @@ void LCD_VLine(uint16_t X, uint16_t Y0, uint16_t Y1, uint16_t Color) {
 }
 
 void LCD_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color) {
-	int16_t dX = X2-X1;
-	int16_t dY = Y2-Y1;
+	int16_t dX = X2 - X1;
+	int16_t dY = Y2 - Y1;
 	int16_t dXsym = (dX > 0) ? 1 : -1;
 	int16_t dYsym = (dY > 0) ? 1 : -1;
 
@@ -277,6 +274,92 @@ void LCD_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color) {
 		}
 	}
 	LCD_Pixel(X1,Y1,Color);
+}
+
+#define ipart_(X) ((int)(X))
+#define round_(X) ((int)(((float)(X))+0.5))
+#define fpart_(X) (((float)(X))-(float)ipart_(X))
+#define rfpart_(X) (1.0-fpart_(X))
+#define swap_(a, b) do{ __typeof__(a) tmp;  tmp = a; a = b; b = tmp; }while(0)
+
+static void dla_plot(int x, int y, uint8_t r, uint8_t g, uint8_t b, float br) {
+	r = (uint8_t)round_(br*r);
+	g = (uint8_t)round_(br*g);
+	b = (uint8_t)round_(br*b);
+
+	LCD_Pixel(x,y,RGB565(r,g,b));
+}
+
+void LCD_LineAA(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color) {
+	float dX = (float)X2 - (float)X1;
+	float dY = (float)Y2 - (float)Y1;
+
+	uint8_t R,G,B;
+
+	R = (uint8_t)(Color >> 11) << 3;
+	G = (uint8_t)((Color >> 5) & 0x3f) << 2;
+	B = (uint8_t)(Color & 0x1f) << 3;
+
+	if (dX == 0) { if (Y2>Y1) LCD_VLine(X1,Y1,Y2,Color); else LCD_VLine(X1,Y2,Y1,Color); return; }
+	if (dY == 0) { if (X2>X1) LCD_HLine(X1,X2,Y1,Color); else LCD_HLine(X2,X1,Y1,Color); return; }
+
+	LCD_SetWindow(0,0,320,240);
+
+	float dx = (float)X2 - (float)X1;
+	float dy = (float)Y2 - (float)Y1;
+	if (fabs(dx) > fabs(dy)) {
+		if (X2 < X1) { swap_(X1,X2); swap_(Y1,Y2); }
+		float gradient = dy / dx;
+		float xend = round_(X1);
+		float yend = Y1 + gradient*(xend - X1);
+		float xgap = rfpart_(X1 + 0.5f);
+		int xpxl1 = xend;
+		int ypxl1 = ipart_(yend);
+		dla_plot(xpxl1,ypxl1,R,G,B,rfpart_(yend)*xgap);
+		dla_plot(xpxl1,ypxl1+1,R,G,B,fpart_(yend)*xgap);
+		float intery = yend + gradient;
+
+		xend = round_(X2);
+		yend = Y2 + gradient*(xend - X2);
+		xgap = fpart_(X2+0.5f);
+		int xpxl2 = xend;
+		int ypxl2 = ipart_(yend);
+		dla_plot(xpxl2,ypxl2,R,G,B,rfpart_(yend)*xgap);
+		dla_plot(xpxl2,ypxl2 + 1,R,G,B,fpart_(yend)*xgap);
+
+		int x;
+		for (x = xpxl1+1; x <= (xpxl2-1); x++) {
+			dla_plot(x,ipart_(intery),R,G,B,rfpart_(intery));
+			dla_plot(x,ipart_(intery)+1,R,G,B,fpart_(intery));
+			intery += gradient;
+		}
+	} else {
+		if ( Y2 < Y1 ) { swap_(X1,X2); swap_(Y1,Y2); }
+		float gradient = dx / dy;
+		float yend = round_(Y1);
+		float xend = X1 + gradient*(yend - Y1);
+		float ygap = rfpart_(Y1+0.5f);
+		int ypxl1 = yend;
+		int xpxl1 = ipart_(xend);
+		dla_plot(xpxl1,ypxl1,R,G,B,rfpart_(xend)*ygap);
+		dla_plot(xpxl1,ypxl1+1,R,G,B,fpart_(xend)*ygap);
+		float interx = xend + gradient;
+
+		yend = round_(Y2);
+		xend = X2 + gradient*(yend - Y2);
+		ygap = fpart_(Y2+0.5f);
+		int ypxl2 = yend;
+		int xpxl2 = ipart_(xend);
+		dla_plot(xpxl2,ypxl2,R,G,B,rfpart_(xend)*ygap);
+		dla_plot(xpxl2,ypxl2+1,R,G,B,fpart_(xend)*ygap);
+
+		int y;
+		for(y=ypxl1+1; y <= (ypxl2-1); y++) {
+			dla_plot(ipart_(interx),y,R,G,B,rfpart_(interx));
+			dla_plot(ipart_(interx)+1,y,R,G,B,fpart_(interx));
+			interx += gradient;
+		}
+	}
 }
 
 void LCD_Rect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color) {

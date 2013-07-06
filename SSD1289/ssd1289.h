@@ -26,6 +26,7 @@ void LCD_Clear(uint16_t C);
 void LCD_HLine(uint16_t X0, uint16_t X1, uint16_t Y, uint16_t Color);
 void LCD_VLine(uint16_t X, uint16_t Y0, uint16_t Y1, uint16_t Color);
 void LCD_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color);
+void LCD_LineAA(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color);
 void LCD_Rect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color);
 void LCD_FillRect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color);
 void LCD_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color);
