@@ -30,6 +30,7 @@ void LCD_LineAA(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint16_t Color);
 void LCD_Rect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color);
 void LCD_FillRect(uint16_t X, uint16_t Y, uint16_t W, uint16_t H, uint16_t Color);
 void LCD_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color);
+void LCD_FillEllipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color);
 
 // Text
 void LCD_PutChar(uint16_t X, uint16_t Y, uint8_t Char, uint16_t Color);
