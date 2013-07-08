@@ -12,14 +12,14 @@ uint16_t RGB565(uint8_t R,uint8_t G,uint8_t B) {
 void LCD_write_command(uint16_t cmd) {
 	GPIOB->BRR = LCD_CS;       // LCD_CS low (chip select pull)
 	GPIOB->BRR = LCD_RS;       // LCD_RS low (register select = instruction)
-	//GPIOA->ODR = cmd;       // put cmd to PortA (full length)
+	//GPIOA->ODR = cmd;         // put cmd to PortA (full length)
     // put cmd [0..12] bits to PortA (actual LCD_DB00..LCD_DB12)
     // put cmd [13..15] bits to PortB (actual LCD_DB13..LCD_DB15)
     GPIOA->ODR = cmd & 0x1fff;
     GPIOB->ODR = (GPIOB->ODR & 0xfff8) | (cmd >> 13);
     GPIOB->BRR = LCD_WR;       // pull LCD_WR to low (write strobe start)
-    asm volatile ("nop");
-//	Delay_us(1);               // 66ns by datasheet
+    // Write strobe 66ns long by datasheet. GPIO speed on STM32F103 at 72MHz slower -> delay is unnecessary
+    // asm volatile ("nop");
 	GPIOB->BSRR = LCD_WR;      // pull LCD_WR to high (write strobe end)
 	GPIOB->BSRR = LCD_CS;      // LCD_CS high (chip select release)
 }
@@ -27,20 +27,20 @@ void LCD_write_command(uint16_t cmd) {
 void LCD_write_data(uint16_t data) {
 	GPIOB->BRR = LCD_CS;        // LCD_CS low (chip select pull)
 	GPIOB->BSRR = LCD_RS;       // LCD_RS high (register select = data)
-	//GPIOA->ODR = data;       // put data to PortA
+	//GPIOA->ODR = data;         // put data to PortA
     // put data [0..12] bits to PortA (actual LCD_DB00..LCD_DB12)
     // put data [13..15] bits to PortB (actual LCD_DB13..LCD_DB15)
     GPIOA->ODR =  data & 0x1fff;
     GPIOB->ODR = (GPIOB->ODR & 0xfff8) | (data >> 13);
 	GPIOB->BRR = LCD_WR;        // pull LCD_WR to low (write strobe start)
-    asm volatile ("nop");
-//	Delay_us(1);                // 66ns by datasheet
+    // Write strobe 66ns long by datasheet. GPIO speed on STM32F103 at 72MHz slower -> delay is unnecessary
+    // asm volatile ("nop");
 	GPIOB->BSRR = LCD_WR;       // pull LCD_WR to high (write strobe end)
 	GPIOB->BSRR = LCD_CS;       // LCD_CS high (chip select release)
 }
 
 uint16_t LCD_read_data(void) {
-	uint16_t data = 0;
+	volatile uint16_t data = 0;
 
 	// Set data pins as input
 	GPIO_InitTypeDef PORT;
@@ -53,16 +53,15 @@ uint16_t LCD_read_data(void) {
 	GPIO_Init(GPIOB,&PORT);
 
 	// Read 16-bits from LCD
-	GPIOB->BSRR = LCD_WR;                    // pull LCD_WR to high
-	GPIOB->BRR = LCD_RS;                     // LCD_RS high (register select = data)
-	GPIOB->BRR = LCD_RD;                     // pull LCD_RD to low (read strobe start)
 	GPIOB->BRR = LCD_CS;                     // LCD_CS low (chip select pull)
-	Delay_us(1);                             // 250ns by datasheet
+	GPIOB->BSRR = LCD_RS;                    // LCD_RS high (register select = data)
+	GPIOB->BRR = LCD_RD;                     // pull LCD_RD to low (read strobe start)
+	Delay_us(2);
+	//data = (uint16_t)GPIOA->IDR;             // get data from PortA (full length)
+	data  = (uint16_t)GPIOA->IDR & 0x1fff;   // get data [0..12] bits from PortA (actual LCD_DB00..LCD_DB12)
+	data |= (uint16_t)GPIOB->IDR << 13;      // get data [13..15] bits from PortA (actual LCD_DB13..LCD_DB15)
 	GPIOB->BSRR = LCD_RD;                    // pull LCD_RD to high (read strobe end)
 	GPIOB->BSRR = LCD_CS;                    // LCD_CS high (chip select release)
-	//data = (uint16_t)GPIOA->IDR;            // get data from PortA
-	data  = ((uint16_t)GPIOA->IDR) & 0x1fff; // get data [0..12] bits from PortA (actual LCD_DB00..LCD_DB12)
-	data |= (uint16_t)(GPIOB->IDR << 13);    // get data [13..15] bits from PortA (actual LCD_DB13..LCD_DB15)
 
 	// Set data pins as output
 	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
@@ -81,7 +80,6 @@ void LCD_WriteReg(uint16_t reg, uint16_t data) {
 
 uint16_t LCD_ReadReg(uint16_t reg) {
 	LCD_write_command(reg);
-	GPIOB->BSRR = LCD_RS;       // LCD_RS high (register select = data)
 	return LCD_read_data();
 }
 
@@ -389,11 +387,42 @@ void LCD_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color)
 	long dXt2 = B2*2, dYt2 = A2*2;
 	while (Yc >= 0 && Xc <= A) {
 		LCD_Pixel(X+Xc,Y+Yc,Color);
-		if (Xc != 0 || Yc != 0) LCD_Pixel(X-Xc,Y-Yc,Color);
-		if (Xc != 0 && Yc != 0) {
-			LCD_Pixel(X+Xc,Y-Yc,Color);
-			LCD_Pixel(X-Xc,Y+Yc,Color);
+		LCD_Pixel(X-Xc,Y+Yc,Color);
+		LCD_Pixel(X+Xc,Y-Yc,Color);
+		LCD_Pixel(X-Xc,Y-Yc,Color);
+		if (t + Xc*B2 <= C1 || t + Yc*A2 <= C3) {
+			Xc++;
+			dXt += dXt2;
+			t   += dXt;
+		} else if (t - Yc*A2 > C2) {
+			Yc--;
+			dYt += dYt2;
+			t   += dYt;
+		} else {
+			Xc++;
+			Yc--;
+			dXt += dXt2;
+			dYt += dYt2;
+			t   += dXt;
+			t   += dYt;
 		}
+	}
+}
+
+void LCD_FillEllipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, uint16_t Color) {
+	LCD_SetWindow(0,0,320,240);
+
+	int16_t Xc = 0, Yc = B;
+	long A2 = (long)A*A, B2 = (long)B*B;
+	long C1 = -(A2/4 + A % 2 + B2);
+	long C2 = -(B2/4 + B % 2 + A2);
+	long C3 = -(B2/4 + B % 2);
+	long t = -A2*Yc;
+	long dXt = B2*Xc*2, dYt = -A2*Yc*2;
+	long dXt2 = B2*2, dYt2 = A2*2;
+	while (Yc >= 0 && Xc <= A) {
+		LCD_HLine(X-Xc,X+Xc,Y+Yc,Color);
+		LCD_HLine(X-Xc,X+Xc,Y-Yc,Color);
 		if (t + Xc*B2 <= C1 || t + Yc*A2 <= C3) {
 			Xc++;
 			dXt += dXt2;
