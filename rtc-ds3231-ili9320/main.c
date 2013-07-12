@@ -232,8 +232,8 @@ void USART_SendBufHex(char *buf, unsigned int bufsize) {
 	char ch;
 	for (i = 0; i < bufsize; i++) {
 		ch = *buf++;
-		USART_SendChar("0123456789ABCDEF"[(ch & 0x0f) % 0x10]);
 		USART_SendChar("0123456789ABCDEF"[(ch >> 4)   % 0x10]);
+		USART_SendChar("0123456789ABCDEF"[(ch & 0x0f) % 0x10]);
 	}
 }
 
