@@ -50,6 +50,7 @@
 #define SD_CMD_APP_CMD                             ((uint8_t)55)
 #define SD_CMD_GEN_CMD                             ((uint8_t)56)
 #define SD_CMD_READ_OCR                            ((uint8_t)58) /* Read OCR register */
+#define SD_CMD_CRC_ON_OFF                          ((uint8_t)59) /* On/Off CRC check by SD Card */
 #define SD_CMD_NO_CMD                              ((uint8_t)64)
 
 /* Following commands are SD Card Specific commands.
@@ -81,9 +82,19 @@
 /* Masks for R6 Response */
 #define SD_CHECK_PATTERN                ((uint32_t)0x000001AA)
 
+/* Supported memory cards */
+#define SD_UNKNOWN_SD_CARD              ((uint32_t)0x0)
+#define SD_STD_CAPACITY_SD_CARD_V1_0    ((uint32_t)0x1)
+#define SD_STD_CAPACITY_SD_CARD_V2_0    ((uint32_t)0x2)
+#define SD_MULTIMEDIA_CARD              ((uint32_t)0x3)
+#define SD_HIGH_CAPACITY_SD_CARD        ((uint32_t)0x4)
+
 
 void SD_Init(void);
 uint8_t SD_SendRecv(uint8_t data);
 uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg);
 uint8_t SD_CardInit(void);
 uint8_t SD_GetVersion(void);
+uint8_t* SD_Read_CSD(void);
+uint8_t* SD_Read_CID(void);
+uint8_t* SD_Read_Block(uint32_t addr);

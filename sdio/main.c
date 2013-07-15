@@ -1,10 +1,7 @@
 #include <stm32f10x_gpio.h>
 #include <stm32f10x_rcc.h>
 #include <stm32f10x_usart.h>
-#include <delay.h>
 #include <sdcard.h>
-
-
 
 
 void USART_SendChar(char ch) {
@@ -16,13 +13,18 @@ void USART_SendStr(char *str) {
 	while (*str) USART_SendChar(*str++);
 }
 
-void USART_SendBuf(char *buf, unsigned int bufsize) {
-	unsigned int i;
-	for (i = 0; i < bufsize; i++) USART_SendChar(*buf++);
+void USART_SendBuf(char *buf, uint16_t bufsize) {
+	uint16_t i;
+	char ch;
+	for (i = 0; i < bufsize; i++) {
+		ch = *buf++;
+		USART_SendChar(ch > 32 ? ch : '.');
+//		USART_SendChar(*buf++);
+	}
 }
 
-void USART_SendBufHex(char *buf, unsigned int bufsize) {
-	unsigned int i;
+void USART_SendBufHex(char *buf, uint16_t bufsize) {
+	uint16_t i;
 	char ch;
 	for (i = 0; i < bufsize; i++) {
 		ch = *buf++;
@@ -66,11 +68,24 @@ int main(void)
 	USART_SendStr("SD_CardInit: ");
 	b = SD_CardInit();
 	USART_SendBufHex((char*)&b,1);
-	USART_SendChar('\n');
-	USART_SendStr("Card version: ");
+	USART_SendStr("\nCard version: ");
 	v = SD_GetVersion();
 	USART_SendBufHex((char*)&v,1);
+
+	uint8_t* CSD_tab = SD_Read_CSD();
+	uint8_t* CID_tab = SD_Read_CID();
+
+	USART_SendStr("\nCSD: ");
+	USART_SendBufHex((char*)CSD_tab,16);
+	USART_SendStr("\nCID: ");
+	USART_SendBufHex((char*)CID_tab,16);
+
+	USART_SendStr("\nMBR: ");
+	uint8_t* sector = SD_Read_Block(0x00000000);
+	USART_SendBuf((char*)sector,512);
+	USART_SendStr("\n");
+
 	USART_SendChar('\n');
 
-    while(1);
+	while(1);
 }
