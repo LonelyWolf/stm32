@@ -90,11 +90,19 @@
 #define SD_HIGH_CAPACITY_SD_CARD        ((uint32_t)0x4)
 
 
+extern uint8_t  SD_CardType;
+extern uint32_t SD_CardCapacity;
+extern uint8_t  SD_MaxBusClkFreq;
+extern uint8_t  SD_CSD[16];
+extern uint8_t  SD_CID[16];
+extern uint8_t  SD_sector[512];
+
+
 void SD_Init(void);
 uint8_t SD_SendRecv(uint8_t data);
 uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg);
 uint8_t SD_CardInit(void);
 uint8_t SD_GetVersion(void);
-uint8_t* SD_Read_CSD(void);
-uint8_t* SD_Read_CID(void);
-uint8_t* SD_Read_Block(uint32_t addr);
+uint8_t SD_Read_CSD(void);
+uint8_t SD_Read_CID(void);
+uint8_t SD_Read_Block(uint32_t addr);

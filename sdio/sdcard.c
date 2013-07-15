@@ -1,11 +1,13 @@
 #include <sdcard.h>
 
 
-static uint8_t SD_CardType = SD_UNKNOWN_SD_CARD;
-static uint8_t CSD_tab[16];     // CSD buffer
-static uint8_t CID_tab[16];     // CID buffer
-static uint8_t sector[512];     // sector buffer
-static uint8_t SD_CardSize = 0; // Card capacity
+uint8_t  SD_CardType = SD_UNKNOWN_SD_CARD;         // SD Card type
+uint32_t SD_CardCapacity;                          // SD Card capacity
+uint8_t  SD_MaxBusClkFreq = 0;                     // Max. card bus frequency
+
+uint8_t  SD_CSD[16];                               // CSD buffer
+uint8_t  SD_CID[16];                               // CID buffer
+uint8_t  SD_sector[512];                           // sector buffer
 
 
 static uint8_t CRC7_one(uint8_t t, uint8_t data) {
@@ -142,7 +144,7 @@ uint8_t SD_CardInit(void) {
 		r3 |= SD_SendRecv(0xff) << 8;
 		r3 |= SD_SendRecv(0xff);
 
-		if ((r3 & 0x01ff) != 0x01aa) return 0xfb; // SDv2 pattern mismatch -> unsupported SD card
+		if ((r3 & 0x01ff) != (SD_CHECK_PATTERN & 0x01ff)) return 0xfb; // SDv2 pattern mismatch -> unsupported SD card
 
 		// CMD55: Send leading command for ACMD<n> command.
 		// CMD41: APP_SEND_OP_COND. For only SDC - initiate initialization process.
@@ -222,7 +224,12 @@ uint8_t SD_GetVersion(void) {
 	return SD_CardType;
 }
 
-uint8_t* SD_Read_CSD(void) {
+// return:
+// 0x00 -- read OK
+// 0x01..0xfe -- error response to CMD9
+// 0xff -- timeout
+uint8_t SD_Read_CSD(void) {
+	uint32_t wait;
 	uint8_t i, response;
 
 	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_RESET); // pull CS to low
@@ -230,18 +237,27 @@ uint8_t* SD_Read_CSD(void) {
 	response = SD_SendCmd(SD_CMD_SEND_CSD,0); // CMD9
 	if (response != 0x00) {
 		// Something wrong happened, fill buffer with zeroes
-		for (i = 0; i < 16; i++) CSD_tab[i] = response;
+		for (i = 0; i < 16; i++) SD_CSD[i] = 0x00;
+		return response;
 	} else {
+		wait = 0; response = 0;
+		while (++wait <= 0x1ff && response != 0xfe)	response = SD_SendRecv(0xff);
+		if (wait >= 0x1ff) return 0xff;
 		// Read 16 bytes of CSD register
-		for (i = 0; i < 16; i++) CSD_tab[i] = SD_SendRecv(0xff);
+		for (i = 0; i < 16; i++) SD_CSD[i] = SD_SendRecv(0xff);
 	}
 
 	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
 
-	return &CSD_tab[0];
+	return 0;
 }
 
-uint8_t* SD_Read_CID(void) {
+// return:
+// 0x00 -- read OK
+// 0x01..0xfe -- error response to CMD10
+// 0xff -- timeout
+uint8_t SD_Read_CID(void) {
+	uint32_t wait;
 	uint8_t i, response;
 
 	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_RESET); // pull CS to low
@@ -249,18 +265,41 @@ uint8_t* SD_Read_CID(void) {
 	response = SD_SendCmd(SD_CMD_SEND_CID,0); // CMD10
 	if (response != 0x00) {
 		// Something wrong happened, fill buffer with zeroes
-		for (i = 0; i < 16; i++) CID_tab[i] = response;
+		for (i = 0; i < 16; i++) SD_CID[i] = 0x00;
+		return response;
 	} else {
+		wait = 0; response = 0;
+		while (++wait <= 0x1ff && response != 0xfe)	response = SD_SendRecv(0xff);
+		if (wait >= 0x1ff) return 0xff;
 		// Read 16 bytes of CID register
-		for (i = 0; i < 16; i++) CID_tab[i] = SD_SendRecv(0xff);
+		for (i = 0; i < 16; i++) SD_CID[i] = SD_SendRecv(0xff);
 	}
 
 	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
 
-	return &CID_tab[0];
+	// Parse some stuff from CID
+	SD_MaxBusClkFreq = SD_CSD[4];
+
+	uint32_t devsize,devsizemul,rdblocklen;
+	devsize  = (SD_CSD[6] & 0x03) << 10;
+	devsize |= SD_CSD[7] << 2;
+	devsize |= (SD_CSD[6] & 0xc0) >> 6;
+	devsizemul =  (SD_CSD[9] & 0x03) << 3;
+	devsizemul |= (SD_CSD[10] & 0x80) >> 7;
+	rdblocklen = SD_CSD[5] & 0x0f;
+	SD_CardCapacity =  devsize + 1;
+	SD_CardCapacity *= (1 << (devsizemul + 2));
+	SD_CardCapacity *= (1 << rdblocklen);
+
+	return 0;
 }
 
-uint8_t* SD_Read_Block(uint32_t addr) {
+// return:
+// 0x00 -- read OK
+// 0xfe -- error response to CMD17
+// 0xff -- timeout
+uint8_t SD_Read_Block(uint32_t addr) {
+	uint32_t wait;
 	uint16_t i;
 	uint8_t response;
 
@@ -269,13 +308,17 @@ uint8_t* SD_Read_Block(uint32_t addr) {
 	response = SD_SendCmd(SD_CMD_READ_SINGLE_BLOCK,addr); // CMD17
 	if (response != 0x00) {
 		// Something wrong happened, fill buffer with zeroes
-		for (i = 0; i < 512; i++) sector[i] = 0;
+		for (i = 0; i < 512; i++) SD_sector[i] = 0;
+		return 0xfe; // SD_CMD_READ_SINGLE_BLOCK command returns bad response
 	} else {
+		wait = 0; response = 0;
+		while (++wait <= 0x1ff && response != 0xfe)	response = SD_SendRecv(0xff);
+		if (wait >= 0x1ff) return 0xff;
 		// Read 512 bytes of sector
-		for (i = 0; i < 512; i++) sector[i] = SD_SendRecv(0xff);
+		for (i = 0; i < 512; i++) SD_sector[i] = SD_SendRecv(0xff);
 	}
 
 	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
 
-	return &sector[0];
+	return 0;
 }
