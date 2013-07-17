@@ -38,6 +38,8 @@ uint8_t  SD_MaxBusClkFreq = 0;                     // Max. card bus frequency
 uint8_t  SD_CSD[16];                               // CSD buffer
 uint8_t  SD_CID[16];                               // CID buffer
 uint8_t  SD_sector[512];                           // sector buffer
+uint16_t SD_CRC16_rcv;                             // last received CRC16
+uint16_t SD_CRC16_cmp;                             // last computed CRC16
 
 
 static uint8_t CRC7_one(uint8_t t, uint8_t data) {
@@ -54,12 +56,30 @@ static uint8_t CRC7_one(uint8_t t, uint8_t data) {
 }
 
 uint8_t CRC7_buf(const uint8_t * p, uint8_t len) {
-	int j;
+	uint8_t j,crc = 0;
 
-	uint8_t crc = 0;
 	for (j = 0; j < len; j++) crc = CRC7_one(crc,p[j]);
 
 	return crc >> 1;
+}
+
+static uint16_t CRC16_one(uint16_t crc, uint8_t ser_data) {
+	crc  = (uint8_t)(crc >> 8)|(crc << 8);
+	crc ^= ser_data;
+	crc ^= (uint8_t)(crc & 0xff) >> 4;
+	crc ^= (crc << 8) << 4;
+	crc ^= ((crc & 0xff) << 4) << 1;
+
+	return crc;
+}
+
+uint16_t CRC16_buf(const uint8_t * p, uint32_t len) {
+	uint32_t i;
+	uint16_t crc = 0;
+
+	for (i = 0; i < len; i++) crc = CRC16_one(crc,p[i]);
+
+	return crc;
 }
 
 void SD_SPI_Init(uint16_t prescaler) {
@@ -122,11 +142,9 @@ uint8_t SD_SendRecv(uint8_t data) {
 }
 
 uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg) {
-	uint8_t wait = 0, response, crc = 0;
+	uint8_t wait, response, crc = 0;
 
 	SD_SendRecv(0xff); // This dummy send necessary for some cards
-
-	/* NOTE: for SDHC address must be corrected from byte to block! */
 
 	// Send: [8b]Command -> [32b]Argument -> [8b]CRC
 	SD_SendRecv(cmd | 0x40);
@@ -155,7 +173,7 @@ uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg) {
 //   0xfc - bad response for CMD58
 //   0xfb - SDv2 pattern mismatch (in response to CMD8)
 uint8_t SD_CardInit(void) {
-	uint32_t wait = 0,r3;
+	uint32_t wait = 0, r3;
 	uint8_t response;
 
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_RESET); // pull CS to low
@@ -180,7 +198,6 @@ uint8_t SD_CardInit(void) {
 
 	if (response == 0x01) {
 		// SDv2 or later
-
 		// Read R7 responce
 		r3 =  SD_SendRecv(0xff) << 24;
 		r3 |= SD_SendRecv(0xff) << 16;
@@ -286,6 +303,13 @@ uint8_t SD_Read_CSD(void) {
 		for (i = 0; i < 16; i++) SD_CSD[i] = SD_SendRecv(0xff);
 	}
 
+	// Receive 16-bit CRC (some cards demand this)
+	SD_CRC16_rcv  = SD_SendRecv(0xff) << 8;
+	SD_CRC16_rcv |= SD_SendRecv(0xff);
+
+	// // Calculate CRC16 of received buffer
+	SD_CRC16_cmp = CRC16_buf(&SD_CSD[0],16);
+
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
 	return 0;
@@ -314,6 +338,13 @@ uint8_t SD_Read_CID(void) {
 		for (i = 0; i < 16; i++) SD_CID[i] = SD_SendRecv(0xff);
 	}
 
+	// Receive 16-bit CRC (some cards demand this)
+	SD_CRC16_rcv  = SD_SendRecv(0xff) << 8;
+	SD_CRC16_rcv |= SD_SendRecv(0xff);
+
+	// // Calculate CRC16 of received buffer
+	SD_CRC16_cmp = CRC16_buf(&SD_CID[0],16);
+
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
 	// Parse some stuff from CID
@@ -335,7 +366,7 @@ uint8_t SD_Read_CID(void) {
 
 // return:
 // 0x00 -- read OK
-// 0xfe -- error response to CMD17
+// 0x01..0xfe -- error response from CMD17
 // 0xff -- timeout
 uint8_t SD_Read_Block(uint32_t addr) {
 	uint32_t wait;
@@ -348,7 +379,7 @@ uint8_t SD_Read_Block(uint32_t addr) {
 	if (response != 0x00) {
 		// Something wrong happened, fill buffer with zeroes
 		for (i = 0; i < 512; i++) SD_sector[i] = 0;
-		return 0xfe; // SD_CMD_READ_SINGLE_BLOCK command returns bad response
+		return response; // SD_CMD_READ_SINGLE_BLOCK command returns bad response
 	} else {
 		wait = 0; response = 0;
 		while (++wait <= 0x1ff && response != 0xfe)	response = SD_SendRecv(0xff);
@@ -356,6 +387,13 @@ uint8_t SD_Read_Block(uint32_t addr) {
 		// Read 512 bytes of sector
 		for (i = 0; i < 512; i++) SD_sector[i] = SD_SendRecv(0xff);
 	}
+
+	// Receive 16-bit CRC (some cards demand this)
+	SD_CRC16_rcv  = SD_SendRecv(0xff) << 8;
+	SD_CRC16_rcv |= SD_SendRecv(0xff);
+
+	// // Calculate CRC16 of received buffer
+	SD_CRC16_cmp = CRC16_buf(&SD_sector[0],512);
 
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 

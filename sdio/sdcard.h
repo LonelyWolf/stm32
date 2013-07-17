@@ -94,6 +94,8 @@ extern uint8_t  SD_MaxBusClkFreq;
 extern uint8_t  SD_CSD[16];
 extern uint8_t  SD_CID[16];
 extern uint8_t  SD_sector[512];
+extern uint16_t SD_CRC16_rcv;
+extern uint16_t SD_CRC16_cmp;
 
 
 void SD_Init(void);
