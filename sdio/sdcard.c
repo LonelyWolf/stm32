@@ -1,4 +1,34 @@
+#include <stm32f10x_gpio.h>
+#include <stm32f10x_rcc.h>
+#include <stm32f10x_spi.h>
 #include <sdcard.h>
+
+
+#if _SD_SPI == 1
+	#define SD_SPI       SPI1
+	#define SD_CS_PIN    GPIO_Pin_4     // PA4
+	#define SD_SCK_PIN   GPIO_Pin_5     // PA5
+	#define SD_MISO_PIN  GPIO_Pin_6     // PA6
+	#define SD_MOSI_PIN  GPIO_Pin_7     // PA7
+	#define SD_PORT      GPIOA
+	#define SD_CS_PORT   SD_PORT
+#elif _SD_SPI == 2
+	#define SD_SPI       SPI2
+	#define SD_CS_PIN    GPIO_Pin_12    // PB12
+	#define SD_SCK_PIN   GPIO_Pin_13    // PB13
+	#define SD_MISO_PIN  GPIO_Pin_14    // PB14
+	#define SD_MOSI_PIN  GPIO_Pin_15    // PB15
+	#define SD_PORT      GPIOB
+	#define SD_CS_PORT   SD_PORT
+#elif _SD_SPI == 3
+	#define SD_SPI       SPI3
+	#define SD_CS_PIN    GPIO_Pin_6     // PB6
+	#define SD_SCK_PIN   GPIO_Pin_3     // PB3  (JTDO)
+	#define SD_MISO_PIN  GPIO_Pin_4     // PB4  (NJTRST)
+	#define SD_MOSI_PIN  GPIO_Pin_5     // PB5
+	#define SD_PORT      GPIOB
+	#define SD_CS_PORT   SD_PORT
+#endif
 
 
 uint8_t  SD_CardType = SD_UNKNOWN_SD_CARD;         // SD Card type
@@ -43,37 +73,50 @@ void SD_SPI_Init(uint16_t prescaler) {
 	SPI.SPI_DataSize = SPI_DataSize_8b;
 	SPI.SPI_FirstBit = SPI_FirstBit_MSB;
 	SPI.SPI_NSS = SPI_NSS_Soft;
-	SPI_Init(SPI1,&SPI);
+	SPI_Init(SD_SPI,&SPI);
+
 	// NSS must be set to '1' due to NSS_Soft settings (otherwise it will be Multimaster mode).
-	SPI_NSSInternalSoftwareConfig(SPI1,SPI_NSSInternalSoft_Set);
+	SPI_NSSInternalSoftwareConfig(SD_SPI,SPI_NSSInternalSoft_Set);
 }
 
 void SD_Init(void) {
+#if _SD_SPI == 1
+	// SPI1
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA,ENABLE);
-	// Configure SPI1 pins (PA5 = SCK, PA6 = MISO, PA7 = MOSI)
+#elif _SD_SPI == 2
+	// SPI2
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB,ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2,ENABLE);
+#elif _SD_SPI == 3
+	// SPI3
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO,ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3,ENABLE);
+	GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE); // Disable JTAG for use PB3
+#endif
 	GPIO_InitTypeDef PORT;
+	// Configure SPI pins
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
-	PORT.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7; // SCK,MISO,MOSI AF with PP
+	PORT.GPIO_Pin = SD_SCK_PIN | SD_MISO_PIN | SD_MOSI_PIN;
 	PORT.GPIO_Mode = GPIO_Mode_AF_PP;
-	GPIO_Init(GPIOA,&PORT);
-	// Configure CS (PA3) pin for output with Push-Pull
-	PORT.GPIO_Pin = GPIO_Pin_3;
+	GPIO_Init(SD_PORT,&PORT);
+	// Configure CS pin as output with Push-Pull
+	PORT.GPIO_Pin = SD_CS_PIN;
 	PORT.GPIO_Mode = GPIO_Mode_Out_PP;
-	GPIO_Init(GPIOA,&PORT);
-
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull SD pin -> Deselect SD
+	GPIO_Init(SD_CS_PORT,&PORT);
 
 	SD_SPI_Init(SPI_BaudRatePrescaler_256); // set SPI at lowest possible speed
-	SPI_Cmd(SPI1,ENABLE);
+	SPI_Cmd(SD_SPI,ENABLE);
+
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull SD pin -> Deselect SD
 }
 
 uint8_t SD_SendRecv(uint8_t data) {
 	uint8_t miso;
 
-	while (SPI_I2S_GetFlagStatus(SPI1,SPI_I2S_FLAG_TXE) == RESET);
-	SPI_I2S_SendData(SPI1,data);
-	while (SPI_I2S_GetFlagStatus(SPI1,SPI_I2S_FLAG_RXNE) == RESET);
-	miso = SPI_I2S_ReceiveData(SPI1);
+	while (SPI_I2S_GetFlagStatus(SD_SPI,SPI_I2S_FLAG_TXE) == RESET);
+	SPI_I2S_SendData(SD_SPI,data);
+	while (SPI_I2S_GetFlagStatus(SD_SPI,SPI_I2S_FLAG_RXNE) == RESET);
+	miso = SPI_I2S_ReceiveData(SD_SPI);
 
 	return miso;
 }
@@ -115,7 +158,7 @@ uint8_t SD_CardInit(void) {
 	uint32_t wait = 0,r3;
 	uint8_t response;
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_RESET); // pull CS to low
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_RESET); // pull CS to low
 
 	// Must send at least 74 clock ticks to SD Card
 	for (wait = 0; wait < 8; wait++) SD_SendRecv(0xff);
@@ -215,13 +258,9 @@ uint8_t SD_CardInit(void) {
 		if (response != 0x00) return 0xfd; // Set block size failed
 	}
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
 	return 0;
-}
-
-uint8_t SD_GetVersion(void) {
-	return SD_CardType;
 }
 
 // return:
@@ -232,7 +271,7 @@ uint8_t SD_Read_CSD(void) {
 	uint32_t wait;
 	uint8_t i, response;
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_RESET); // pull CS to low
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_RESET); // pull CS to low
 
 	response = SD_SendCmd(SD_CMD_SEND_CSD,0); // CMD9
 	if (response != 0x00) {
@@ -247,7 +286,7 @@ uint8_t SD_Read_CSD(void) {
 		for (i = 0; i < 16; i++) SD_CSD[i] = SD_SendRecv(0xff);
 	}
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
 	return 0;
 }
@@ -260,7 +299,7 @@ uint8_t SD_Read_CID(void) {
 	uint32_t wait;
 	uint8_t i, response;
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_RESET); // pull CS to low
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_RESET); // pull CS to low
 
 	response = SD_SendCmd(SD_CMD_SEND_CID,0); // CMD10
 	if (response != 0x00) {
@@ -275,7 +314,7 @@ uint8_t SD_Read_CID(void) {
 		for (i = 0; i < 16; i++) SD_CID[i] = SD_SendRecv(0xff);
 	}
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
 	// Parse some stuff from CID
 	SD_MaxBusClkFreq = SD_CSD[4];
@@ -303,7 +342,7 @@ uint8_t SD_Read_Block(uint32_t addr) {
 	uint16_t i;
 	uint8_t response;
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_RESET); // pull CS to low
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_RESET); // pull CS to low
 
 	response = SD_SendCmd(SD_CMD_READ_SINGLE_BLOCK,addr); // CMD17
 	if (response != 0x00) {
@@ -318,7 +357,7 @@ uint8_t SD_Read_Block(uint32_t addr) {
 		for (i = 0; i < 512; i++) SD_sector[i] = SD_SendRecv(0xff);
 	}
 
-	GPIO_WriteBit(GPIOA,GPIO_Pin_3,Bit_SET); // pull CS to high
+	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
 	return 0;
 }

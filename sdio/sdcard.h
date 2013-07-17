@@ -1,7 +1,5 @@
-#include <stm32f10x_gpio.h>
-#include <stm32f10x_rcc.h>
-#include <stm32f10x_spi.h>
-
+/* Which SPI use */
+#define _SD_SPI 3
 
 /* SDIO Commands  Index */
 #define SD_CMD_GO_IDLE_STATE                       ((uint8_t)0)
@@ -102,7 +100,6 @@ void SD_Init(void);
 uint8_t SD_SendRecv(uint8_t data);
 uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg);
 uint8_t SD_CardInit(void);
-uint8_t SD_GetVersion(void);
 uint8_t SD_Read_CSD(void);
 uint8_t SD_Read_CID(void);
 uint8_t SD_Read_Block(uint32_t addr);
