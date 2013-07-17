@@ -1,3 +1,5 @@
+#define _UART_PORT 5
+
 #define HEX_CHARS      "0123456789ABCDEF"
 
 void UART_Init(void);

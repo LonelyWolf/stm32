@@ -5,21 +5,67 @@
 #include <uart.h>
 
 
+#if _UART_PORT == 1
+	#define UART_PORT         USART1
+	#define UART_TX_PIN       GPIO_Pin_9    // PA9  (USART1_TX)
+	#define UART_RX_PIN       GPIO_Pin_10   // PA10 (USART1_RX)
+	#define UART_GPIO_PORT_TX GPIOA
+	#define UART_GPIO_PORT_RX UART_GPIO_PORT_TX
+#elif _UART_PORT == 2
+	#define UART_PORT         USART2
+	#define UART_TX_PIN       GPIO_Pin_2    // PA2 (USART2_TX)
+	#define UART_RX_PIN       GPIO_Pin_3    // PA3 (USART2_RX)
+	#define UART_GPIO_PORT_TX GPIOA
+	#define UART_GPIO_PORT_RX UART_GPIO_PORT_TX
+#elif _UART_PORT == 3
+	#define UART_PORT         USART3
+	#define UART_TX_PIN       GPIO_Pin_10    // PB10 (USART3_TX)
+	#define UART_RX_PIN       GPIO_Pin_11    // PB11 (USART3_RX)
+	#define UART_GPIO_PORT_TX GPIOB
+	#define UART_GPIO_PORT_RX UART_GPIO_PORT_TX
+#elif _UART_PORT == 4
+	#define UART_PORT         UART4
+	#define UART_TX_PIN       GPIO_Pin_10    // PC10 (UART4_TX)
+	#define UART_RX_PIN       GPIO_Pin_11    // PC11 (UART4_RX)
+	#define UART_GPIO_PORT_TX GPIOC
+	#define UART_GPIO_PORT_RX UART_GPIO_PORT_TX
+#elif _UART_PORT == 5
+	#define UART_PORT         UART5
+	#define UART_TX_PIN       GPIO_Pin_12    // PC12 (UART5_TX)
+	#define UART_RX_PIN       GPIO_Pin_2     // PD2  (UART5_RX)
+	#define UART_GPIO_PORT_TX GPIOC
+	#define UART_GPIO_PORT_RX GPIOD
+#endif
+
 void UART_Init(void) {
 	GPIO_InitTypeDef PORT;
 
-	// UART init
+	// U(S)ART init
+#if _UART_PORT == 1
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_USART1,ENABLE);
+#elif _UART_PORT == 2
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2,ENABLE);
+#elif _UART_PORT == 3
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB,ENABLE);
-	PORT.GPIO_Pin = GPIO_Pin_10;
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3,ENABLE);
+#elif _UART_PORT == 4
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC,ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_UART4,ENABLE);
+#elif _UART_PORT == 5
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC | RCC_APB2Periph_GPIOD,ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_UART5,ENABLE);
+#endif
+
+	PORT.GPIO_Pin = UART_TX_PIN;
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
 	PORT.GPIO_Mode = GPIO_Mode_AF_PP; // TX as AF with Push-Pull
-	GPIO_Init(GPIOB,&PORT);
-	PORT.GPIO_Pin = GPIO_Pin_11;
+	GPIO_Init(UART_GPIO_PORT_TX,&PORT);
+	PORT.GPIO_Pin = UART_RX_PIN;
 	PORT.GPIO_Speed = GPIO_Speed_50MHz;
 	PORT.GPIO_Mode = GPIO_Mode_IN_FLOATING; // RX as in without pull-up
-	GPIO_Init(GPIOB,&PORT);
+	GPIO_Init(UART_GPIO_PORT_RX,&PORT);
 
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3,ENABLE);
 	USART_InitTypeDef UART;
 	UART.USART_BaudRate = 115200;
 	UART.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // No flow control
@@ -27,13 +73,13 @@ void UART_Init(void) {
 	UART.USART_Parity = USART_Parity_No; // No parity check
 	UART.USART_StopBits = USART_StopBits_1; // 1 stop bit
 	UART.USART_WordLength = USART_WordLength_8b; // 8-bit frame
-	USART_Init(USART3,&UART);
-	USART_Cmd(USART3,ENABLE);
+	USART_Init(UART_PORT,&UART);
+	USART_Cmd(UART_PORT,ENABLE);
 }
 
 void UART_SendChar(char ch) {
-	while (!USART_GetFlagStatus(USART3,USART_FLAG_TC)); // wait for "Transmission Complete" flag cleared
-	USART_SendData(USART3,ch);
+	while (!USART_GetFlagStatus(UART_PORT,USART_FLAG_TC)); // wait for "Transmission Complete" flag cleared
+	USART_SendData(UART_PORT,ch);
 }
 
 void UART_SendHex8(uint16_t num) {
