@@ -34,6 +34,9 @@
 uint8_t  SD_CardType = SD_UNKNOWN_SD_CARD;         // SD Card type
 uint32_t SD_CardCapacity;                          // SD Card capacity
 uint8_t  SD_MaxBusClkFreq = 0;                     // Max. card bus frequency
+uint8_t  SD_MID = 0;                               // SD Card Maunufacturer ID
+uint16_t SD_OID = 0;                               // SD Card OEM/Application ID
+
 
 uint8_t  SD_CSD[16];                               // CSD buffer
 uint8_t  SD_CID[16];                               // CID buffer
@@ -218,8 +221,6 @@ uint8_t SD_CardInit(void) {
 		SD_CardType = SD_STD_CAPACITY_SD_CARD_V2_0; // SDv2;
 
 		// Read OCR register
-		//wait = 0; response = 0x00;
-		//while (++wait < 0xfe && response != 0x00) response = SD_SendCmd(SD_CMD_READ_OCR,0x00000000); // CMD58
 		response = SD_SendCmd(SD_CMD_READ_OCR,0x00000000); // CMD58
 		if (response == 0x00) {
 			// Get R3 response
@@ -312,6 +313,29 @@ uint8_t SD_Read_CSD(void) {
 
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
+	// Parse some stuff from CID
+	SD_MaxBusClkFreq = SD_CSD[3];
+	uint32_t c_size,c_size_mult;
+	if (SD_CardType != SD_MULTIMEDIA_CARD) {
+		if (SD_CSD[0] >> 6 == 0x01) {
+			// CSD Version 2.0
+			c_size  = (SD_CSD[7] & 0x3f) << 16;
+			c_size |= SD_CSD[8] << 8;
+			c_size |= SD_CSD[7];
+			SD_CardCapacity = c_size << 9; // = c_size * 512
+		} else {
+			// CSD Version 1.0
+			c_size  = (SD_CSD[6] & 0x03) << 10;
+			c_size |= (uint32_t)SD_CSD[7] << 2;
+			c_size |= SD_CSD[8] >> 6;
+			c_size_mult  = (SD_CSD[9] & 0x03) << 1;
+			c_size_mult |= SD_CSD[10] >> 7;
+			SD_CardCapacity = c_size << 10;
+		}
+	} else {
+		SD_CardCapacity = 0;
+	}
+
 	return 0;
 }
 
@@ -347,20 +371,6 @@ uint8_t SD_Read_CID(void) {
 
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_SET); // pull CS to high
 
-	// Parse some stuff from CID
-	SD_MaxBusClkFreq = SD_CSD[4];
-
-	uint32_t devsize,devsizemul,rdblocklen;
-	devsize  = (SD_CSD[6] & 0x03) << 10;
-	devsize |= SD_CSD[7] << 2;
-	devsize |= (SD_CSD[6] & 0xc0) >> 6;
-	devsizemul =  (SD_CSD[9] & 0x03) << 3;
-	devsizemul |= (SD_CSD[10] & 0x80) >> 7;
-	rdblocklen = SD_CSD[5] & 0x0f;
-	SD_CardCapacity =  devsize + 1;
-	SD_CardCapacity *= (1 << (devsizemul + 2));
-	SD_CardCapacity *= (1 << rdblocklen);
-
 	return 0;
 }
 
@@ -375,6 +385,7 @@ uint8_t SD_Read_Block(uint32_t addr) {
 
 	GPIO_WriteBit(SD_CS_PORT,SD_CS_PIN,Bit_RESET); // pull CS to low
 
+	if (SD_CardType != SD_HIGH_CAPACITY_SD_CARD) addr <<= 9; // Convert block number to byte offset
 	response = SD_SendCmd(SD_CMD_READ_SINGLE_BLOCK,addr); // CMD17
 	if (response != 0x00) {
 		// Something wrong happened, fill buffer with zeroes

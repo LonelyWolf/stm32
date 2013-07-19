@@ -1,9 +1,11 @@
 #define _UART_PORT 5
 
+#define DEC_CHARS      "0123456789"
 #define HEX_CHARS      "0123456789ABCDEF"
 
 void UART_Init(void);
 void UART_SendChar(char ch);
+void UART_SendInt(uint32_t num);
 void UART_SendHex8(uint16_t num);
 void UART_SendHex16(uint16_t num);
 void UART_SendHex32(uint32_t num);

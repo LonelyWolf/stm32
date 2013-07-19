@@ -82,6 +82,13 @@ void UART_SendChar(char ch) {
 	USART_SendData(UART_PORT,ch);
 }
 
+void UART_SendInt(uint32_t num) {
+	char str[10]; // 10 chars max for UINT32_MAX
+	int i = 0;
+	do str[i++] = num % 10 + '0'; while ((num /= 10) > 0);
+	for (i--; i >= 0; i--) UART_SendChar(str[i]);
+}
+
 void UART_SendHex8(uint16_t num) {
 	UART_SendChar(HEX_CHARS[(num >> 4)   % 0x10]);
 	UART_SendChar(HEX_CHARS[(num & 0x0f) % 0x10]);

@@ -35,31 +35,31 @@ int main(void)
 	UART_SendStr("\nMax bus clk.: ");
 	UART_SendHex32(SD_MaxBusClkFreq);
 	UART_SendStr("\nDevice size: ");
-	UART_SendHex32(SD_CardCapacity);
+	UART_SendInt(SD_CardCapacity >> 10);
+	UART_SendStr("Mb\n");
 
-	UART_SendStr("\nMBR:\n");
-	response = SD_Read_Block(0x00000000);
+	response = SD_Read_Block(0);
 	if (response != 0x00) {
 		UART_SendStr("error = ");
 		UART_SendHex8(response);
 	} else {
 		UART_SendBufHexFancy((char*)&SD_sector[0],512,32,'.');
-		UART_SendStr("Received CRC16 = ");
+		UART_SendStr("CRC16: ");
 		UART_SendHex16(SD_CRC16_rcv);
-		UART_SendStr(" Calculated CRC16 = ");
+		UART_SendStr(" == ");
 		UART_SendHex16(SD_CRC16_cmp);
 	}
 	UART_SendChar('\n');
 
-	response = SD_Read_Block(0x200);
+	response = SD_Read_Block(1);
 	if (response != 0x00) {
 		UART_SendStr("error = ");
 		UART_SendHex8(response);
 	} else {
 		UART_SendBufHexFancy((char*)&SD_sector[0],512,32,'.');
-		UART_SendStr("Received CRC16 = ");
+		UART_SendStr("CRC16: ");
 		UART_SendHex16(SD_CRC16_rcv);
-		UART_SendStr(" Calculated CRC16 = ");
+		UART_SendStr(" == ");
 		UART_SendHex16(SD_CRC16_cmp);
 	}
 	UART_SendChar('\n');
