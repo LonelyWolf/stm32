@@ -4,33 +4,6 @@
 #include <sdcard.h>
 
 
-#if _SD_SPI == 1
-	#define SD_SPI       SPI1
-	#define SD_CS_PIN    GPIO_Pin_4     // PA4
-	#define SD_SCK_PIN   GPIO_Pin_5     // PA5
-	#define SD_MISO_PIN  GPIO_Pin_6     // PA6
-	#define SD_MOSI_PIN  GPIO_Pin_7     // PA7
-	#define SD_PORT      GPIOA
-	#define SD_CS_PORT   SD_PORT
-#elif _SD_SPI == 2
-	#define SD_SPI       SPI2
-	#define SD_CS_PIN    GPIO_Pin_12    // PB12
-	#define SD_SCK_PIN   GPIO_Pin_13    // PB13
-	#define SD_MISO_PIN  GPIO_Pin_14    // PB14
-	#define SD_MOSI_PIN  GPIO_Pin_15    // PB15
-	#define SD_PORT      GPIOB
-	#define SD_CS_PORT   SD_PORT
-#elif _SD_SPI == 3
-	#define SD_SPI       SPI3
-	#define SD_CS_PIN    GPIO_Pin_6     // PB6
-	#define SD_SCK_PIN   GPIO_Pin_3     // PB3  (JTDO)
-	#define SD_MISO_PIN  GPIO_Pin_4     // PB4  (NJTRST)
-	#define SD_MOSI_PIN  GPIO_Pin_5     // PB5
-	#define SD_PORT      GPIOB
-	#define SD_CS_PORT   SD_PORT
-#endif
-
-
 uint8_t  SD_CardType = SD_UNKNOWN_SD_CARD;         // SD Card type
 uint32_t SD_CardCapacity;                          // SD Card capacity
 uint8_t  SD_MaxBusClkFreq = 0;                     // Max. card bus frequency
