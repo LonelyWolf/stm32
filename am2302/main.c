@@ -15,9 +15,6 @@ int main(void)
 	UART_SendStr("\nSTM32F103RET6 is online.\n");
 
 	DHT22_Init();
-	UART_SendStr("Give a few seconds to AM2302 for powerup stabilization...\n");
-	Delay_ms(2000); // Wait 2 seconds for AM2302 to stabilize after powerup
-	UART_SendStr("Let's talk with AM2302...\n");
 	response = DHT22_GetReadings();
 	if (response != DHT22_RCV_OK) {
 		UART_SendStr("DHT22_GetReadings() error = ");
