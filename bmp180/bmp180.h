@@ -1,5 +1,5 @@
 /* I2C to use for communications with BMP180 */
-#define _I2C_PORT 2
+#define _I2C_PORT 1
 
 #if _I2C_PORT == 1
 	#define I2C_PORT         I2C1
@@ -62,6 +62,7 @@ BMP180_Calibration_TypeDef BMP180_Calibration;
 
 
 uint8_t BMP180_Init(uint32_t SPI_Clock_Speed);
+void BMP180_Reset();
 
 uint8_t BMP180_WriteReg(uint8_t reg, uint8_t value);
 uint8_t BMP180_ReadReg(uint8_t reg);

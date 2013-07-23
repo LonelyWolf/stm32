@@ -34,6 +34,10 @@ uint8_t BMP180_Init(uint32_t SPI_Clock_Speed) {
 	return 0;
 }
 
+void BMP180_Reset() {
+	BMP180_WriteReg(BMP180_SOFT_RESET_REG,0xb6); // Do software reset
+}
+
 uint8_t BMP180_WriteReg(uint8_t reg, uint8_t value) {
 	I2C_GenerateSTART(I2C_PORT,ENABLE);
 	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
@@ -111,7 +115,7 @@ uint16_t BMP180_Read_UT(void) {
 	uint16_t UT;
 
 	BMP180_WriteReg(BMP180_CTRL_MEAS_REG,BMP180_T_MEASURE);
-	Delay_ms(6); // Wait for 4.5ms by datasheet (OSS=0)
+	Delay_ms(6); // Wait for 4.5ms by datasheet
 
 	I2C_AcknowledgeConfig(I2C_PORT,ENABLE); // Enable I2C acknowledge
 	I2C_GenerateSTART(I2C_PORT,ENABLE); // Send START condition
@@ -136,29 +140,31 @@ uint16_t BMP180_Read_UT(void) {
 
 uint32_t BMP180_Read_PT(uint8_t oss) {
 	uint32_t PT;
-	uint8_t oss_cmd,delay;
+	uint8_t cmd,delay;
 
 	switch(oss) {
 	case 0:
-		oss_cmd = BMP180_P0_MEASURE;
+		cmd = BMP180_P0_MEASURE;
 		delay   = 6;
 		break;
 	case 1:
-		oss_cmd = BMP180_P1_MEASURE;
+		cmd = BMP180_P1_MEASURE;
 		delay   = 9;
 		break;
 	case 2:
-		oss_cmd = BMP180_P2_MEASURE;
+		cmd = BMP180_P2_MEASURE;
 		delay   = 15;
 		break;
 	case 3:
-		oss_cmd = BMP180_P3_MEASURE;
+		cmd = BMP180_P3_MEASURE;
 		delay   = 27;
 		break;
 	}
 
-	BMP180_WriteReg(BMP180_CTRL_MEAS_REG,oss_cmd);
+	BMP180_WriteReg(BMP180_CTRL_MEAS_REG,cmd);
 	Delay_ms(delay);
+//	BMP180_WriteReg(0xf4,0x34);
+//	Delay_ms(27);
 
 	I2C_AcknowledgeConfig(I2C_PORT,ENABLE); // Enable I2C acknowledge
 	I2C_GenerateSTART(I2C_PORT,ENABLE); // Send START condition

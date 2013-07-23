@@ -57,11 +57,13 @@ int main(void)
 
 	uint32_t u_temp,u_pres;
 	int32_t rt,rp;
+
 	u_temp = BMP180_Read_UT();
-	u_pres = BMP180_Read_PT(0);
 	//u_temp = 27898;
-	//u_pres = 23843;
 	rt = BMP180_Calc_RT(u_temp);
+
+	u_pres = BMP180_Read_PT(0);
+	//u_pres = 23843;
 	rp = BMP180_Calc_RP(u_pres,0);
 
 	UART_SendStr("Uncompensated temperature = "); UART_SendInt(u_temp); UART_SendChar('\n');
