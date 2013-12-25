@@ -1,5 +1,5 @@
 /* I2C to use for communications with BMP180 */
-#define _I2C_PORT 1
+#define _I2C_PORT 2
 
 #if _I2C_PORT == 1
 	#define I2C_PORT         I2C1
