@@ -254,9 +254,9 @@ uint32_t Si4703_GetChannel(void) {
 
 	Si4703_Read();
 	Channel = Si4703_REGs[Si4703_READCHANNEL] & 0x03ff;
+	Channel += ((Si4703_REGs[Si4703_SYSCONFIG2] & ((1<<Si4703_SC2_BAND1) | (1<<Si4703_SC2_BAND0))) == 0) ? 875 : 760;
 
-	return Channel + ((Si4703_REGs[Si4703_SYSCONFIG2] & ((1<<Si4703_SC2_BAND1) | (1<<Si4703_SC2_BAND0))) == 0) ? 875 : 760;
-//	return Channel + 875;
+	return Channel;
 }
 
 // Seek for next station
@@ -340,16 +340,14 @@ int main(void) {
 //    Si4703_SetChannel(1045); // Nashe radio (RDS)
 //    Si4703_SetChannel(1079); // Radio Melodia
 
-	Si4703_SetChannel(902);
+	Si4703_SetChannel(1065);
 
 	Si4703_Read();
-	UART_SendStr((Si4703_REGs[Si4703_RSSI] & (1<<Si4703_RSSI_ST)) == 0 ? "MONO\n" : "STEREO\n");
-	UART_SendStr("Signal: "); UART_SendInt(Si4703_REGs[Si4703_RSSI] & 0x007f); UART_SendStr("dBuV\n");
-	int32_t freq = Si4703_GetChannel();
+	uint32_t freq = Si4703_GetChannel();
     UART_SendStr("Freq: "); UART_SendInt(freq / 10); UART_SendChar('.');
     UART_SendInt(freq % 10); UART_SendStr("MHz\n");
 
-    Si4703_Seek(Si4703_SEEK_UP,Si4703_WRAP_ON);
+    Si4703_Seek(Si4703_SEEK_DOWN,Si4703_WRAP_ON);
 
     Si4703_Read();
 	UART_SendStr((Si4703_REGs[Si4703_RSSI] & (1<<Si4703_RSSI_ST)) == 0 ? "MONO\n" : "STEREO\n");
