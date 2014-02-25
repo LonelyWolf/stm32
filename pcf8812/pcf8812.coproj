@@ -99,7 +99,7 @@
     <File name="delay.c" path="delay.c" type="1"/>
     <File name="stm_lib/inc/stm32f10x_gpio.h" path="stm_lib/inc/stm32f10x_gpio.h" type="1"/>
     <File name="main.c" path="main.c" type="1"/>
-    <File name="pcf8812.h" path="pcf8812.h" type="1"/>
     <File name="stm_lib/inc/stm32f10x_usart.h" path="stm_lib/inc/stm32f10x_usart.h" type="1"/>
+    <File name="pcf8812.h" path="pcf8812.h" type="1"/>
   </Files>
 </Project>

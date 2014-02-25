@@ -37,6 +37,16 @@
 #define RES_H() GPIO_SetBits(PCF8812_RES_PORT,PCF8812_RES_PIN)
 
 
+typedef enum {
+	transparent  = 0,
+	opaque       = 1
+} Opaque_TypeDef;
+
+typedef enum {
+	PSet = 1,
+	PReset = 0
+} PSetReset_TypeDef;
+
 
 extern uint8_t vRAM[917]; // Display buffer
 
@@ -53,4 +63,13 @@ void PCF8812_Flush(void);
 void PCF8812_Fill(uint8_t pattern);
 void PCF8812_SetPixel(uint8_t X, uint8_t Y);
 void PCF8812_ResetPixel(uint8_t X, uint8_t Y);
-
+void PCF8812_HLine(uint8_t X1, uint8_t X2, uint8_t Y, PSetReset_TypeDef SR);
+void PCF8812_VLine(uint8_t X, uint8_t Y1, uint8_t Y2, PSetReset_TypeDef SR);
+void PCF8812_Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR);
+void PCF8812_FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR);
+void PCF8812_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2);
+void PCF8812_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B);
+void PCF8812_PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, Opaque_TypeDef bckgnd);
+void PCF8812_PutStr5x7(uint8_t X, uint8_t Y, char *str, Opaque_TypeDef bckgnd);
+void PCF8812_PutInt5x7(uint8_t X, uint8_t Y, uint32_t num, Opaque_TypeDef bckgnd);
+void PCF8812_PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, Opaque_TypeDef bckgnd);
