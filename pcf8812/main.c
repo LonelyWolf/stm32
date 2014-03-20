@@ -4,8 +4,6 @@
 #include <delay.h>
 #include <pcf8812.h>
 
-#include <slava.h>
-
 
 int main(void) {
 	// Init PCF8812 pins
