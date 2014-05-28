@@ -41,13 +41,13 @@ void GPS_SendCommand(char *cmd) {
 	UART_SendChar('\n');
 }
 
-// Find NMEA message in buffer
+// Find NMEA sentence in buffer
 // input:
 //   buf - pointer to buffer with NMEA packet
 //   start - position in buffer to start search
 //   buf_size - size of buffer
 // output:
-//   position of message beginning or 0 if no message found
+//   position of sentence beginning or 0 if no sentence found
 NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size) {
 	uint16_t pos = start;
 	uint32_t hdr;
@@ -61,15 +61,15 @@ NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf
 		if (buf[pos] == '$' && buf[pos + 1] == 'G' && buf[pos + 2] == 'P') {
 			result.start = pos + 3;
 
-			// Find end of message
-			if (pos + 6 > buf_size) return result; // Message doesn't have ending
+			// Find end of sentence
+			if (pos + 6 > buf_size) return result; // sentence doesn't have ending
 
 			pos += 4;
 			do {
 				if (buf[pos] == '\r' && buf[pos + 1] == '\n') {
 					result.end = pos + 1;
 
-					// Message have ending, now determine type of message
+					// sentence have ending, now determine type of sentence
 					hdr = (buf[result.start] << 16) |
 							(buf[result.start + 1] << 8) |
 							(buf[result.start + 2]);
@@ -182,6 +182,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 	uint8_t GSV_msg;   // GSV sentence number
 	uint8_t GSV_sats;  // Total number of satellites in view
 
+	GPSData.time_valid = FALSE;
+	GPSData.datetime_valid = FALSE;
+
 	switch (Sentence.type) {
 	case NMEA_RMC:
 		// $GPRMC - Recommended minimum specific GPS/Transit data
@@ -266,12 +269,17 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 			GPSData.time  = atos_len(&buf[pos],2) * 3600;
 			GPSData.time += atos_len(&buf[pos + 2],2) * 60;
 			GPSData.time += atos_len(&buf[pos + 4],2);
+			GPSData.time_valid = TRUE;
 			pos += 11;
-		} else pos++;
+		} else {
+			GPSData.time = 0;
+			pos++;
+		}
 
 		// Date: day
 		if (buf[pos] != ',') {
-			GPSData.date = atos_char(&buf[pos],&pos) * 1000000;
+			GPSData.date = atos_len(&buf[pos],2) * 1000000;
+			pos += 3;
 		} else {
 			GPSData.date = 1000000;
 			pos++;
@@ -279,7 +287,8 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		// Date: month
 		if (buf[pos] != ',') {
-			GPSData.date += atos_char(&buf[pos],&pos) * 10000;
+			GPSData.date += atos_len(&buf[pos],2) * 10000;
+			pos += 3;
 		} else {
 			GPSData.date += 10000;
 			pos++;
@@ -287,14 +296,13 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		// Date: year
 		if (buf[pos] != ',') {
-			GPSData.date += atos_char(&buf[pos],&pos);
-		} else {
-			GPSData.date += 2014;
-			pos++;
-		}
+			GPSData.date += atos_len(&buf[pos],4);
+		} else GPSData.date += 2014;
+
+		if (GPSData.time != 0 && GPSData.date != 01012014) GPSData.datetime_valid = TRUE;
 
 		// Local time zone offset
-		// .....
+		// ..... (not supported by EB-500)
 
 		break; // NMEA_ZDA
 	case NMEA_VTG:
@@ -341,8 +349,13 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 			GPSData.time  = atos_len(&buf[pos],2) * 3600;
 			GPSData.time += atos_len(&buf[pos + 2],2) * 60;
 			GPSData.time += atos_len(&buf[pos + 4],2);
+			GPSData.time_valid = TRUE;
 			pos += 11;
-		} else pos++;
+		} else {
+			GPSData.time = 0;
+			GPSData.time_valid = FALSE;
+			pos++;
+		}
 
 		// Latitude + Longitude
 		pos += GPS_ParseCoordinates(&buf[pos]);
@@ -375,12 +388,18 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		// MSL Altitude (mean-sea-level)
 		if (buf[pos] != ',') {
-			// This value can be negative
+			// Only integer part, fractional is useless
+			GPSData.altitude  = atos_char(&buf[pos],&pos);
+			pos += 4;
+/*
 			GPSData.altitude  = atos_char(&buf[pos],&pos) * 1000;
+			// This value can be negative
 			if (GPSData.altitude >= 0)
-				GPSData.altitude += atos_char(&buf[pos],&pos);
+				GPSData.altitude += atos_len(&buf[pos],3);
 			else
-				GPSData.altitude -= atos_char(&buf[pos],&pos);
+				GPSData.altitude -= atos_len(&buf[pos],3);
+			pos += 4;
+*/
 		} else {
 			GPSData.altitude = 0;
 			pos++;

@@ -3,7 +3,7 @@
 #define __GPS_H
 
 
-#define MAX_SATELLITES_VIEW   12  // Maximum number of satellites in view to handle
+#define MAX_SATELLITES_VIEW   16  // Maximum number of satellites in view to handle
 
 
 typedef enum {
@@ -58,6 +58,8 @@ typedef struct {
 	uint32_t date;                // Date (DDMMYYYY)
 	uint8_t  mode;                // Mode indicator (A=Autonomous, D=Differential(DGPS), E=Estimated(DR),
 	                              // R=Coarse pos., S=Simulator, N=Data not valid)
+	bool     time_valid;          // Have valid time
+	bool     datetime_valid;      // Have valid date and time
 	bool     valid;               // GPS status: TRUE if data valid
 } GPS_Data_TypeDef;
 
