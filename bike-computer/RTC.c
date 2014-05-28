@@ -16,8 +16,7 @@ void RTC_Config(void) {
 	RCC_RTCResetCmd(ENABLE); // Reset RTC time
 	RCC_RTCResetCmd(DISABLE);
 	RCC_LSEConfig(RCC_LSE_ON); // Turn on LSE and wait until it's become stable
-//	while(RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET);
-	while(!(RCC->CSR & RCC_CSR_LSERDY));
+	while(!(RCC->CSR & RCC_CSR_LSERDY)); // RCC_GetFlagStatus(RCC_FLAG_LSERDY)
 	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE); // Select RTC clock source
 	RCC_RTCCLKCmd(ENABLE); // Enable RTC clock
 	RTC_WaitForSynchro(); // Wait for RTC APB registers synchronization
@@ -30,8 +29,9 @@ void RTC_Config(void) {
 	RTC_Init(&RTCInit);
 
 	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);
+	// Wakeup counter can be set only when wakeup disabled
 	RTC_WakeUpCmd(DISABLE);
-	RTC_SetWakeUpCounter(0); // Counter can be set only when wakeup disabled
+	RTC_SetWakeUpCounter(0); // 1s wakeup (1s - 1)
 	RTC_ITConfig(RTC_IT_WUT,ENABLE); // Enable wakeup interrupt
 	RTC_WakeUpCmd(ENABLE);
 }

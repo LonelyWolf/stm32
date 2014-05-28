@@ -109,6 +109,7 @@ void UC1701_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B);
 void UC1701_PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, CharType_TypeDef CharType);
 uint16_t UC1701_PutStr5x7(uint8_t X, uint8_t Y, char *str, CharType_TypeDef CharType);
 uint8_t UC1701_PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef CharType);
+uint8_t UC1701_PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
 uint8_t UC1701_PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType_TypeDef CharType);
 uint8_t UC1701_PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_TypeDef CharType);
 uint8_t UC1701_PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);

@@ -2,6 +2,14 @@
 #ifndef __WOLK_H
 #define __WOLK_H
 
+
+// nRF24L01 working parameters
+#define nRF24_RX_Addr                 "WBC" // RX address for nRF24L01
+#define nRF24_RX_Addr_Size                3 // RX address size
+#define nRF24_RF_CHANNEL                 90 // nRF24L01 channel (90CH = 2490MHz)
+#define nRF24_RX_PAYLOAD                 17 // nRF24L01 payload length
+
+
 // Just boolean
 typedef enum {
 	FALSE = 0,
@@ -48,22 +56,20 @@ typedef struct {
 	int32_t  Altitude;         // Current altitude (m)
 	int32_t  MaxAltitude;      // Maximum altitude (m)
 	int32_t  MinAltitude;      // Minimum altitude (m)
+	int32_t  GPSAlt;           // Current GPS altitude (m)
+	int32_t  MaxGPSAlt;        // Maximum GPS altitude (m)
+	int32_t  MinGPSAlt;        // Minimum GPS altitude (m)
+	uint32_t GPSSpeed;         // Current GPS speed (km/h * 100)
+	uint32_t MaxGPSSpeed;      // Maximum GPS speed (km/h * 100)
 } Cur_Data_TypeDef;
 
 typedef struct {
+	GPIO_TypeDef *PORT;       // Button GPIO port
+	uint16_t PIN;             // Button pin
 	uint8_t cntr;             // Number of button clicks
 	BTN_StateTypeDef state;   // Button state
-	uint16_t tim_start;       // Timer counter when button was pressed
 	uint8_t hold_cntr;        // Button pressed counter (how long it's pushed)
 } BTN_TypeDef;
-
-
-
-// nRF24L01 working parameters
-#define nRF24_RX_Addr               "WolkS" // TX address for nRF24L01
-#define nRF24_RX_Addr_Size                5 // TX address size
-#define nRF24_RF_CHANNEL                 90 // nRF24L01 channel (90ch = 2490MHz)
-#define nRF24_RX_PAYLOAD                 17 // nRF24L01 payload length
 
 
 static char * const nRF24_TX_POWERS[] = {"-18dBm","-12dBm","-6dBm","0dBm"};
@@ -75,7 +81,7 @@ extern Cur_Data_TypeDef CurData;                   // Current data (Speed, Caden
 
 // Embedded internal reference voltage calibration value
 // Factory measured at Vdda = 3V (+/- 5mV)
-#define VREFINT_CAL                     ((uint16_t *) (uint32_t)0x1ff80078)
+#define VREFINT_CAL           ((uint16_t *)(uint32_t)0x1ff80078)
 
 
 // Function prototypes

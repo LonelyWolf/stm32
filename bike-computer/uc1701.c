@@ -524,6 +524,18 @@ uint8_t UC1701_PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef Cha
 	return strLen * 6;
 }
 
+uint8_t UC1701_PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType) {
+	char str[11]; // 10 chars max for UINT32_MAX
+	int i = 0;
+
+	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
+
+	int strLen = i;
+	for (i--; i >= 0; i--) UC1701_PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],CharType);
+
+	return strLen * 6;
+}
+
 uint8_t UC1701_PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType_TypeDef CharType) {
 	char str[12];
 	int8_t i;
@@ -667,13 +679,13 @@ uint8_t UC1701_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef 
 	dig = date / 1000000;
 	X += UC1701_PutIntLZ5x7(X,Y,dig,2,CharType);
 	UC1701_PutChar5x7(X,Y,'.',CharType);
-	X += 6;
+	X += 5;
 
 	// Month
 	dig = (date - (dig * 1000000)) / 10000;
 	X += UC1701_PutIntLZ5x7(X,Y,dig,2,CharType);
 	UC1701_PutChar5x7(X,Y,'.',CharType);
-	X += 6;
+	X += 5;
 
 	// Year
 	dig = date % 10000;

@@ -196,7 +196,7 @@ void GUI_DrawNumber(uint8_t X, uint8_t Y, uint32_t number, uint8_t digits, uint8
 // Small size: 71 x 18 | 45 x 18
 // Mid size:   77 x 21 | 50 x 21
 // Big size:  104 x 34 | 67 x 34
-void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef RTC_Time, TimeType_TypeDef TimeType, DigitSize_TypeDef DigitSize) {
+void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_TypeDef TimeType, DigitSize_TypeDef DigitSize) {
 	uint8_t dig1,dig2;
 	uint8_t dig_w;
 
@@ -213,8 +213,8 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef RTC_Time, TimeType_TypeD
 	}
 
 	// Hours
-	dig1 = RTC_Time.RTC_Hours % 10;
-	dig2 = RTC_Time.RTC_Hours / 10;
+	dig1 = RTC_Time->RTC_Hours % 10;
+	dig2 = RTC_Time->RTC_Hours / 10;
 	switch(DigitSize) {
 	case DS_Mid:
 		GUI_MidDig(X,Y,dig2);
@@ -241,8 +241,8 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef RTC_Time, TimeType_TypeD
 
 	// Minutes
 	X += 4;
-	dig1 = RTC_Time.RTC_Minutes % 10;
-	dig2 = RTC_Time.RTC_Minutes / 10;
+	dig1 = RTC_Time->RTC_Minutes % 10;
+	dig2 = RTC_Time->RTC_Minutes / 10;
 	switch(DigitSize) {
 	case DS_Mid:
 		GUI_MidDig(X,Y,dig2);
@@ -278,8 +278,8 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef RTC_Time, TimeType_TypeD
 
 	// Seconds
 	X += 4;
-	dig1 = RTC_Time.RTC_Seconds % 10;
-	dig2 = RTC_Time.RTC_Seconds / 10;
+	dig1 = RTC_Time->RTC_Seconds % 10;
+	dig2 = RTC_Time->RTC_Seconds / 10;
 	switch(DigitSize) {
 	case DS_Mid:
 		GUI_MidDig(X,Y,dig2);
@@ -321,11 +321,11 @@ void GUI_Screen_SensorRAW(void) {
 	UC1701_PutInt5x7(X,Y,nRF24_Packet.tim_SPD,CT_transp);
 	// Packets lost
 	X = 5; Y += 9;
-	UC1701_PutStr5x7(X,Y,"P.Lost:",CT_transp);
-	UC1701_PutInt5x7(X + 42,Y,nRF24_Packet.packets_lost,CT_transp);
+	X += UC1701_PutStr5x7(X,Y,"P.Lost:",CT_transp) - 1;
+	X += UC1701_PutInt5x7(X,Y,nRF24_Packet.packets_lost,CT_transp) + 5;
 	// OBSERVER_TX
-	UC1701_PutStr5x7(X + 78,Y,"OTX:",CT_transp);
-	UC1701_PutHex5x7(X + 102,Y,nRF24_Packet.observe_TX,CT_transp);
+	X += UC1701_PutStr5x7(X,Y,"OTX:",CT_transp) - 1;
+	X += UC1701_PutHex5x7(X,Y,nRF24_Packet.observe_TX,CT_transp);
 	// TX power
 	X = 5; Y += 9;
 	X += UC1701_PutStr5x7(X,Y,"TX.pwr:",CT_transp) - 1;
@@ -382,7 +382,7 @@ void GUI_Screen_CurVal1(void) {
 	UC1701_PutTimeSec5x7(X + 26,Y,CurData.TripTime,CT_opaque);
 }
 
-// Screen with current values (other values)
+// Screen with current values (BMP180 values)
 void GUI_Screen_CurVal2(void) {
 	uint8_t X,Y;
 
@@ -390,10 +390,10 @@ void GUI_Screen_CurVal2(void) {
 	UC1701_Fill(0x00);
 	UC1701_Rect(0,4,scr_width - 1,scr_height - 1,PSet);
 	UC1701_FillRect(3,0,scr_width - 4,8,PSet);
-	UC1701_PutStr5x7(22,1,"Current values",CT_transp_inv);
+	UC1701_PutStr5x7(46,1,"BMP180",CT_transp_inv);
 
 	X = 4; Y = 10;
-	X += UC1701_PutStr5x7(X,Y,"Temperature:",CT_transp);
+	X += UC1701_PutStr5x7(X,Y,"Temperature:",CT_transp) - 1;
 	UC1701_PutTemperature5x7(X,Y,CurData.Temperature,CT_transp);
 	X = 4; Y += 9;
 	X += UC1701_PutStr5x7(X,Y,"Min:",CT_transp) - 1;
@@ -402,8 +402,10 @@ void GUI_Screen_CurVal2(void) {
 	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
 	UC1701_PutTemperature5x7(X,Y,CurData.MaxTemperature,CT_transp);
 
-	X = 4; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Pressure:",CT_transp);
+	UC1701_HLine(1,scr_width - 2,Y + 10,PSet);
+
+	X = 4; Y += 14;
+	X += UC1701_PutStr5x7(X,Y,"Pressure:",CT_transp) - 1;
 	UC1701_PutPressure5x7(X,Y,CurData.Pressure,PT_mmHg,CT_transp);
 	X = 4; Y += 9;
 	X += UC1701_PutStr5x7(X,Y,"Min:",CT_transp) - 1;
@@ -411,6 +413,41 @@ void GUI_Screen_CurVal2(void) {
 	X = 67;
 	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
 	UC1701_PutIntF5x7(X,Y,CurData.MaxPressure * 75 / 1000,1,CT_transp);
+}
+
+// Screen with current values (GPS values)
+void GUI_Screen_CurVal3(void) {
+	uint8_t X,Y;
+
+	// Frame
+	UC1701_Fill(0x00);
+	UC1701_Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+	UC1701_FillRect(3,0,scr_width - 4,8,PSet);
+	UC1701_PutStr5x7(36,1,"GPS stats",CT_transp_inv);
+
+	X = 4; Y = 10;
+	X += UC1701_PutStr5x7(X,Y,"Speed:",CT_transp) - 1;
+	X += UC1701_PutIntF5x7(X,Y,CurData.GPSSpeed,2,CT_transp);
+	UC1701_PutStr5x7(X,Y,"km/h",CT_transp);
+	X = 4; Y += 9;
+	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+	X += UC1701_PutIntF5x7(X,Y,CurData.MaxGPSSpeed,2,CT_transp);
+	UC1701_PutStr5x7(X,Y,"km/h",CT_transp);
+
+	UC1701_HLine(1,scr_width - 2,Y + 10,PSet);
+
+	X = 4; Y += 14;
+	X += UC1701_PutStr5x7(X,Y,"Altitude:",CT_transp) - 1;
+	X += UC1701_PutInt5x7(X,Y,CurData.GPSAlt,CT_transp);
+	UC1701_PutChar5x7(X,Y,'m',CT_transp);
+	X = 4; Y += 9;
+	X += UC1701_PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+	X += UC1701_PutInt5x7(X,Y,CurData.MinGPSAlt,CT_transp);
+	UC1701_PutChar5x7(X,Y,'m',CT_transp);
+	X = 4; Y += 9;
+	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+	X += UC1701_PutInt5x7(X,Y,CurData.MaxGPSAlt,CT_transp);
+	UC1701_PutChar5x7(X,Y,'m',CT_transp);
 }
 
 // Draw speed with 'km/h' mark and AVG speed pace indicator
@@ -571,7 +608,7 @@ void GUI_DrawGPSInfo(void) {
 	else {
 		UC1701_PutInt5x7(X,Y,GPSData.fix,CT_opaque);
 		UC1701_PutChar5x7(X + 6,Y,'D',CT_opaque);
-		X += 11;
+		X += 17;
 	}
 	X += UC1701_PutStr5x7(X,Y,"Qlty:",CT_opaque) - 1;
 	UC1701_PutChar5x7(X,Y,GPSData.fix_quality + '0',CT_opaque);
@@ -586,7 +623,7 @@ void GUI_DrawGPSInfo(void) {
 
 	X = 0; Y += 8;
 	X += UC1701_PutStr5x7(X,Y,"Alt:",CT_opaque) - 1;
-	X += UC1701_PutIntF5x7(X,Y,GPSData.altitude,3,CT_opaque) + 5;
+	X += UC1701_PutInt5x7(X,Y,GPSData.altitude,CT_opaque) + 5;
 	X += UC1701_PutStr5x7(X,Y,"Spd:",CT_opaque) - 1;
 	X += UC1701_PutIntF5x7(X,Y,GPSData.speed,2,CT_opaque);
 
