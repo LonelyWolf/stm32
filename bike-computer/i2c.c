@@ -4,9 +4,15 @@
 #include <i2c.h>
 
 
-void I2C2_Init(uint32_t Clock) {
+// Init I2C2 peripheral
+// input:
+//   Clock - I2C speed (Hz)
+// return:
+//   I2C_ERROR if there was a timeout during I2C initialization, I2C_SUCCESS otherwise
+I2C_Status I2C2_Init(uint32_t Clock) {
 	GPIO_InitTypeDef PORT;
 	I2C_InitTypeDef I2CInit;
+	volatile uint32_t TimeOut;
 
 	// Init I2C2
 	RCC_AHBPeriphClockCmd(I2C2_PERIPH,ENABLE);
@@ -32,7 +38,12 @@ void I2C2_Init(uint32_t Clock) {
 	I2C_Cmd(I2C2_PORT,ENABLE); // Enable I2C2
 	I2C_Init(I2C2_PORT,&I2CInit); // Configure I2C2
 
-	while(I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BUSY)); // Wait until I2C free
+	// Wait until I2C free
+	TimeOut = 0;
+	while (I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BUSY) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
+
+	return I2C_SUCCESS;
 }
 
 // Send data to I2C port
@@ -41,32 +52,49 @@ void I2C2_Init(uint32_t Clock) {
 //   nbytes - number of bytes to transmit
 //   SlaveAddress - address of slave device
 // return:
-//   ErrorCode ???
-uint8_t I2C2_Write(const uint8_t* buf, uint32_t nbytes, uint8_t SlaveAddress, I2C_STOP_TypeDef stop) {
+//   I2C_ERROR if there was a timeout during I2C operations, I2C_SUCCESS otherwise
+I2C_Status I2C2_Write(const uint8_t* buf, uint32_t nbytes, uint8_t SlaveAddress, I2C_STOP_TypeDef stop) {
+	volatile uint32_t TimeOut;
+
 	// Initiate start sequence
 	I2C_GenerateSTART(I2C2_PORT,ENABLE);
-	while (!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
+	// Wait for EV5
+	TimeOut = 0;
+	while (!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_MODE_SELECT) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 	// Send slave address EV5
 	I2C_Send7bitAddress(I2C2_PORT,SlaveAddress,I2C_Direction_Transmitter);
-	while (!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)); // Wait for EV6
+	// Wait for EV6
+	TimeOut = 0;
+	while (!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 	// Send first byte EV8
 	I2C_SendData(I2C2_PORT,*buf++);
 
 	while (--nbytes) {
-		while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF)); // Wait for BTF flag set
+		// Wait for BTF flag set
+		TimeOut = 0;
+		while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+		if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 		I2C_SendData(I2C2_PORT,*buf++);
 	}
-	while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF)); // Wait for BTF flag set
+	// Wait for BTF flag set
+	TimeOut = 0;
+	while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 	if (stop == I2C_STOP) {
 		// End transmission
 		I2C_GenerateSTOP(I2C2_PORT,ENABLE);
-		while(I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_STOPF)); // Wait for STOP flag
+		// Wait for STOP flag
+		TimeOut = 0;
+		while (I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_STOPF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+		if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 	}
 
-	return 0;
+	return I2C_SUCCESS;
 }
 
 // Read data from I2C port
@@ -75,18 +103,26 @@ uint8_t I2C2_Write(const uint8_t* buf, uint32_t nbytes, uint8_t SlaveAddress, I2
 //   nbytes - number of bytes to receive
 //   SlaveAddress - address of slave device
 // return:
-//   ErrorCode ???
-uint8_t I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress) {
+//   I2C_ERROR if there was a timeout during I2C operations, I2C_SUCCESS otherwise
+I2C_Status I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress) {
+	volatile uint32_t TimeOut;
+
 	I2C_AcknowledgeConfig(I2C2_PORT,ENABLE); // Enable Acknowledgment
 	I2C_NACKPositionConfig(I2C2_PORT,I2C_NACKPosition_Current); // Clear POS flag
 
 	// Initiate start sequence
 	I2C_GenerateSTART(I2C2_PORT,ENABLE);
-	while(!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
+	// Wait for EV5
+	TimeOut = 0;
+	while (!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_MODE_SELECT) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 	// Send slave address
 	I2C_Send7bitAddress(I2C2_PORT,SlaveAddress,I2C_Direction_Receiver); // Send slave address
-	while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_ADDR)); // Wait for EV6
+	// Wait for EV6
+	TimeOut = 0;
+	while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_ADDR) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 	// There are can be three cases:
 	//   read 1 byte
@@ -101,7 +137,10 @@ uint8_t I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress) {
 		(void) I2C2_PORT->SR2;
 		I2C_GenerateSTOP(I2C2_PORT,ENABLE); // Send STOP condition
 		__enable_irq();
-		while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_RXNE)); // Wait for RxNE flag (receive buffer not empty) EV7
+		// Wait for RxNE flag (receive buffer not empty) EV7
+		TimeOut = 0;
+		while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_RXNE) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+		if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 		*buf++ = I2C_ReceiveData(I2C2_PORT); // Receive byte
 	} else if (nbytes == 2) {
 		// Receive 2 bytes (AN2824 figure 2)
@@ -111,7 +150,10 @@ uint8_t I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress) {
 		(void) I2C2_PORT->SR2; // Clear ADDR
 		I2C_AcknowledgeConfig(I2C2_PORT,DISABLE); // Clear ACK bit
 		__enable_irq();
-		while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF)); // Wait for BTF flag set (byte transfer finished) EV7_3
+		// Wait for BTF flag set (byte transfer finished) EV7_3
+		TimeOut = 0;
+		while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+		if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 		__disable_irq();
 		I2C_GenerateSTOP(I2C2_PORT,ENABLE); // Send STOP condition
@@ -124,10 +166,15 @@ uint8_t I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress) {
 		(void) I2C2_PORT->SR2; // Clear ADDR flag
 		while (nbytes-- != 3) {
 			// Wait for BTF (cannot guarantee 1 transfer completion time)
-			while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF));
+			TimeOut = 0;
+			while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+			if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 			*buf++ = I2C_ReceiveData(I2C2_PORT);
 		}
-		while(!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF)); // Wait for BTF flag set (byte transfer finished) EV7_2
+		// Wait for BTF flag set (byte transfer finished) EV7_2
+		TimeOut = 0;
+		while (!I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_BTF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+		if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
 		I2C_AcknowledgeConfig(I2C2_PORT,DISABLE); // Clear ACK bit
 
@@ -137,13 +184,19 @@ uint8_t I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress) {
 		__enable_irq();
 
 		*buf++ = I2C_ReceiveData(I2C2_PORT); // Receive byte N-1
-		while(!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_BYTE_RECEIVED)); // Wait for last byte received
+		// Wait for last byte received
+		TimeOut = 0;
+		while (!I2C_CheckEvent(I2C2_PORT,I2C_EVENT_MASTER_BYTE_RECEIVED) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+		if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 		*buf++ = I2C_ReceiveData(I2C2_PORT); // Receive last byte
 
 		nbytes = 0;
 	}
 
-	while(I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_STOPF)); // Wait for STOP flag
+	// Wait for STOP flag
+	TimeOut = 0;
+	while (I2C_GetFlagStatus(I2C2_PORT,I2C_FLAG_STOPF) && TimeOut < I2C_WAIT_TIMEOUT) TimeOut++;
+	if (TimeOut == I2C_WAIT_TIMEOUT) return I2C_ERROR;
 
-	return 0;
+	return I2C_SUCCESS;
 }

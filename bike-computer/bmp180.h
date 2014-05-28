@@ -48,6 +48,10 @@ typedef struct {
 	uint8_t OSS_cmd;
 } BMP180_OSS_TypeDef;
 
+typedef enum {
+	BMP180_ERROR   = 0,
+	BMP180_SUCCESS = !BMP180_ERROR
+} BMP180_RESULT;
 
 BMP180_Calibration_TypeDef BMP180_Calibration; // Calibration parameters from E2PROM of BMP180
 
@@ -62,11 +66,13 @@ static const BMP180_OSS_TypeDef BMP_OSS[] = {
 
 
 // Function prototypes
-uint8_t BMP180_Init(uint32_t SPI_Clock_Speed);
-void BMP180_Reset();
-
 void BMP180_WriteReg(uint8_t reg, uint8_t value);
 uint8_t BMP180_ReadReg(uint8_t reg);
+
+uint8_t BMP180_Init(uint32_t SPI_Clock_Speed);
+
+BMP180_RESULT BMP180_Check(void);
+void BMP180_Reset();
 
 void BMP180_ReadCalibration(void);
 

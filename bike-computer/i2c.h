@@ -13,6 +13,11 @@
 
 
 typedef enum {
+	I2C_ERROR   = 0,
+	I2C_SUCCESS = !I2C_ERROR
+} I2C_Status;
+
+typedef enum {
 	I2C_STOP   = 0,
 	I2C_NOSTOP = !I2C_STOP
 } I2C_STOP_TypeDef;
@@ -23,10 +28,13 @@ typedef enum {
 } I2C_START_TypeDef;
 
 
-// Function prototypes
-void I2C2_Init(uint32_t Clock);
+#define I2C_WAIT_TIMEOUT  (uint16_t)0x5000     // Timeout for I2C operations
 
-uint8_t I2C2_Write(const uint8_t* buf, uint32_t nbytes, uint8_t SlaveAddress, I2C_STOP_TypeDef stop);
-uint8_t I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress);
+
+// Function prototypes
+I2C_Status I2C2_Init(uint32_t Clock);
+
+I2C_Status I2C2_Write(const uint8_t* buf, uint32_t nbytes, uint8_t SlaveAddress, I2C_STOP_TypeDef stop);
+I2C_Status I2C2_Read(uint8_t *buf, uint32_t nbytes, uint8_t SlaveAddress);
 
 #endif // __I2C2_H

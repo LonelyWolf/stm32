@@ -7,25 +7,36 @@
 #include <bmp180.h>
 
 
-void BMP180_Reset() {
-	BMP180_WriteReg(BMP180_SOFT_RESET_REG,0xb6); // Do software reset
-}
-
 void BMP180_WriteReg(uint8_t reg, uint8_t value) {
 	uint8_t buf[2];
 
 	buf[0] = reg;
 	buf[1] = value;
-	I2C2_Write(&buf[0],2,BMP180_ADDR,I2C_STOP); // Send register address and value
+	I2C2_Write(&buf[0],2,BMP180_ADDR,I2C_STOP);
 }
 
 uint8_t BMP180_ReadReg(uint8_t reg) {
-	uint8_t value;
+	uint8_t value = 0; // Initialize value in case of I2C timeout
 
-	I2C2_Write(&reg,1,BMP180_ADDR,I2C_NOSTOP); // Send register address
-	I2C2_Read(&value,1,BMP180_ADDR); // Receive register value
+	// Send register address
+	I2C2_Write(&reg,1,BMP180_ADDR,I2C_NOSTOP);
+	// Read register value
+	I2C2_Read(&value,1,BMP180_ADDR);
 
 	return value;
+}
+
+BMP180_RESULT BMP180_Check(void) {
+	uint8_t value;
+
+	value = BMP180_ReadReg(BMP180_CHIP_ID_REG);
+
+	return (value == 0x55) ? BMP180_SUCCESS : BMP180_ERROR;
+}
+
+void BMP180_Reset() {
+	// Order BMP180 to do software reset
+	BMP180_WriteReg(BMP180_SOFT_RESET_REG,0xb6);
 }
 
 void BMP180_ReadCalibration(void) {
