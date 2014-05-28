@@ -1,8 +1,12 @@
-#include "string.h"
+#include <misc.h> // NVIC
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_usart.h>
+#include <stm32l1xx_dma.h>
 #include <uart.h>
+
+
+uint8_t USART_FIFO[FIFO_BUFFER_SIZE];       // DMA FIFO receive buffer from USART
 
 
 // Initialize and configure UART peripheral with specified baudrate
@@ -11,6 +15,8 @@
 void UART2_Init(uint32_t baudrate) {
 	GPIO_InitTypeDef PORT;
 	USART_InitTypeDef UART;
+	NVIC_InitTypeDef NVICInit;
+	DMA_InitTypeDef  DMAInit;
 
 	// UART peripheral clock enable
 	RCC_AHBPeriphClockCmd(UART_PORT_PERIPH,ENABLE);
@@ -31,6 +37,7 @@ void UART2_Init(uint32_t baudrate) {
 	PORT.GPIO_Pin   = UART_RX_PIN;
 	GPIO_Init(UART_GPIO_PORT,&PORT);
 
+	// UART port
 	UART.USART_BaudRate = baudrate;
 	UART.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // No flow control
 	UART.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // RX+TX mode
@@ -39,6 +46,32 @@ void UART2_Init(uint32_t baudrate) {
 	UART.USART_StopBits = USART_StopBits_1; // 1 stop bit
 	USART_Init(UART_PORT,&UART);
 	USART_Cmd(UART_PORT,ENABLE);
+
+	// USART2 IRQ
+	USART_ITConfig(UART_PORT,USART_IT_RXNE,ENABLE); // Enable USART2
+	NVICInit.NVIC_IRQChannel = USART2_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x02; // high priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x02; // high priority
+	NVIC_Init(&NVICInit);
+
+	USART_DMACmd(UART_PORT,USART_DMAReq_Rx,ENABLE); // Enable DMA for USART2 RX
+
+	// UART RX DMA configuration
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1,ENABLE); // Enable DMA1 peripheral clock
+	DMAInit.DMA_BufferSize = FIFO_BUFFER_SIZE;
+	DMAInit.DMA_DIR = DMA_DIR_PeripheralSRC; // Copy from peripheral
+	DMAInit.DMA_M2M = DMA_M2M_Disable; // Memory-to-memory disable
+	DMAInit.DMA_MemoryBaseAddr = (uint32_t)&USART_FIFO[0]; // Pointer to memory buffer
+	DMAInit.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte; // Write bytes to memory
+	DMAInit.DMA_MemoryInc = DMA_MemoryInc_Enable; // Enable memory counter per write
+	DMAInit.DMA_Mode = DMA_Mode_Normal; // Non-circular mode
+	DMAInit.DMA_PeripheralBaseAddr = (uint32_t)(&UART_PORT->DR); // Pointer to USART_DR register
+	DMAInit.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte; // Read bytes from peripheral
+	DMAInit.DMA_PeripheralInc = DMA_PeripheralInc_Disable; // Do not increment peripheral pointer
+	DMAInit.DMA_Priority = DMA_Priority_High; // High priority
+	DMA_Init(DMA1_Channel6,&DMAInit); // USART2_RX connected to DMA1_Channel6 (from datasheet table 54)
+	DMA_ITConfig(DMA1_Channel6,DMA_IT_TC,ENABLE); // Enable DMA transfer complete interrupt
 }
 
 void UART_SendChar(char ch) {
@@ -111,32 +144,5 @@ void UART_SendBufHex(char *buf, uint16_t bufsize) {
 		ch = *buf++;
 		UART_SendChar(HEX_CHARS[(ch >> 4)   % 0x10]);
 		UART_SendChar(HEX_CHARS[(ch & 0x0f) % 0x10]);
-	}
-}
-
-void UART_SendBufHexFancy(char *buf, uint16_t bufsize, uint8_t column_width, char subst) {
-	uint16_t i = 0,len,pos;
-	char buffer[column_width];
-
-	while (i < bufsize) {
-		// Line number
-		UART_SendHex16(i);
-		UART_SendChar(':'); UART_SendChar(' '); // Faster and less code than USART_SendStr(": ");
-
-		// Copy one line
-		if (i+column_width >= bufsize) len = bufsize - i; else len = column_width;
-		memcpy(buffer,&buf[i],len);
-
-		// Hex data
-		pos = 0;
-		while (pos < len) UART_SendHex8(buffer[pos++]);
-		UART_SendChar(' ');
-
-		// Raw data
-		pos = 0;
-		do UART_SendChar(buffer[pos] > 32 ? buffer[pos] : subst); while (++pos < len);
-		UART_SendChar('\n');
-
-		i += len;
 	}
 }

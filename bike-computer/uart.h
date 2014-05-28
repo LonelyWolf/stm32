@@ -9,7 +9,12 @@
 #define UART_PORT_PERIPH  RCC_AHBPeriph_GPIOA
 
 
+#define FIFO_BUFFER_SIZE  1024  // FIFO buffer size
 #define HEX_CHARS         "0123456789ABCDEF"
+
+
+// Public variables
+extern uint8_t USART_FIFO[];
 
 
 // Function prototypes
