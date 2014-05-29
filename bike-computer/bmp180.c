@@ -7,6 +7,10 @@
 #include <bmp180.h>
 
 
+// Write new value to BMP180 register
+// input:
+//   reg - register number
+//   value - new register value
 void BMP180_WriteReg(uint8_t reg, uint8_t value) {
 	uint8_t buf[2];
 
@@ -15,6 +19,11 @@ void BMP180_WriteReg(uint8_t reg, uint8_t value) {
 	I2C2_Write(&buf[0],2,BMP180_ADDR,I2C_STOP);
 }
 
+// Read BMP180 register
+// input:
+//   reg - register number
+// return:
+//   register value
 uint8_t BMP180_ReadReg(uint8_t reg) {
 	uint8_t value = 0; // Initialize value in case of I2C timeout
 
@@ -26,6 +35,9 @@ uint8_t BMP180_ReadReg(uint8_t reg) {
 	return value;
 }
 
+// Check if BMP180 present on I2C bus
+// return:
+//   BMP180_SUCCESS if BMP180 present, BMP180_ERROR otherwise (not present or it was an I2C timeout)
 BMP180_RESULT BMP180_Check(void) {
 	uint8_t value;
 
@@ -34,11 +46,19 @@ BMP180_RESULT BMP180_Check(void) {
 	return (value == 0x55) ? BMP180_SUCCESS : BMP180_ERROR;
 }
 
+// Order BMP180 to do a software reset
 void BMP180_Reset() {
-	// Order BMP180 to do software reset
 	BMP180_WriteReg(BMP180_SOFT_RESET_REG,0xb6);
 }
 
+// Get version of BMP180 chip
+// return:
+//   BMP180 chip version or zero if no BMP180 present on the I2C bus or it was an I2C timeout
+uint8_t BMP180_GetVersion(void) {
+	return BMP180_ReadReg(BMP180_VERSION_REG);
+}
+
+// Read calibration registers
 void BMP180_ReadCalibration(void) {
 	uint8_t buffer[BMP180_PROM_DATA_LEN];
 
@@ -59,19 +79,40 @@ void BMP180_ReadCalibration(void) {
 	BMP180_Calibration.MD  = (buffer[20] << 8) | buffer[21];
 }
 
-uint16_t BMP180_Read_UT(void) {
+// Get uncompensated temperature value
+// input:
+//   UT = pointer to uncompensated temperature value
+// return:
+//   BMP180_ERROR if it was an I2C timeout, BMP180_SUCCESS otherwise
+BMP180_RESULT BMP180_Read_UT(uint16_t *UT) {
 	uint8_t buf[2];
 
 	BMP180_WriteReg(BMP180_CTRL_MEAS_REG,BMP180_T_MEASURE);
 	Delay_ms(6); // Wait for 4.5ms by datasheet
 
 	buf[0] = BMP180_ADC_OUT_MSB_REG;
-	I2C2_Write(&buf[0],1,BMP180_ADDR,I2C_NOSTOP); // Send ADC MSB register address
-	I2C2_Read(&buf[0],2,BMP180_ADDR); // Read ADC MSB and LSB
-	return (buf[0] << 8) | buf[1];
+	// Send ADC MSB register address
+	if (!I2C2_Write(&buf[0],1,BMP180_ADDR,I2C_NOSTOP)) {
+		*UT = 0;
+		return BMP180_ERROR;
+	}
+	// Read ADC MSB and LSB
+	if (I2C2_Read(&buf[0],2,BMP180_ADDR)) {
+		*UT = (buf[0] << 8) | buf[1];
+		return BMP180_SUCCESS;
+	} else {
+		*UT = 0;
+		return BMP180_ERROR;
+	}
 }
 
-uint32_t BMP180_Read_PT(uint8_t oss) {
+// Get uncompensated pressure value
+// input:
+//   PT = pointer to uncompensated pressure value
+//   oss - oversampling level [0..3]
+// return:
+//   BMP180_ERROR if it was an I2C timeout, BMP180_SUCCESS otherwise
+BMP180_RESULT BMP180_Read_PT(uint32_t *PT, uint8_t oss) {
 	uint8_t buf[3];
 
 	// Start pressure measurement
@@ -80,23 +121,57 @@ uint32_t BMP180_Read_PT(uint8_t oss) {
 
 	// Read pressure value
 	buf[0] = BMP180_ADC_OUT_MSB_REG;
-	I2C2_Write(&buf[0],1,BMP180_ADDR,I2C_NOSTOP); // Send ADC MSB register address
-	I2C2_Read(&buf[0],3,BMP180_ADDR); // Read MSB, LSB, XLSB bytes
-
-	return ((buf[0] << 16) | (buf[1] << 8) | buf[0]) >> (8 - oss);
+	// Send ADC MSB register address
+	if (!I2C2_Write(&buf[0],1,BMP180_ADDR,I2C_NOSTOP)) {
+		*PT = 0;
+		return BMP180_ERROR;
+	}
+	// Read MSB, LSB, XLSB bytes
+	if (I2C2_Read(&buf[0],3,BMP180_ADDR)) {
+		*PT = ((buf[0] << 16) | (buf[1] << 8) | buf[0]) >> (8 - oss);
+		return BMP180_SUCCESS;
+	} else {
+		*PT = 0;
+		return BMP180_ERROR;
+	}
 }
 
-uint32_t BMP180_Read_PT_3AVG(void) {
-	uint32_t UP;
+// Get round average pressure value from three measurements with highest oversampling
+// input:
+//   PT = pointer to uncompensated pressure value
+// return:
+//   BMP180_ERROR if it was an I2C timeout, BMP180_SUCCESS otherwise
+BMP180_RESULT BMP180_Read_PT_3AVG(uint32_t *UP) {
+	uint32_t RAW = 0;
+	uint8_t i = 0;
+	uint8_t cntr = 0;
 
-	// Measure pressure 3 times with maximum oversampling and return averaging value
-	UP  = BMP180_Read_PT(3);
-	UP += BMP180_Read_PT(3);
-	UP += BMP180_Read_PT(3);
+	// Measure pressure with maximum oversampling
+	// Acquire 3 values, but no more than 10 measures
+	*UP = 0;
+	do {
+		if (BMP180_Read_PT(&RAW,3)) {
+			*UP += RAW;
+			i++;
+		}
+		cntr++;
+	} while (i < 3 && cntr < 10);
 
-	return UP / 3;
+	if (i > 0) {
+		RAW = *UP / i;
+		*UP = RAW;
+		return BMP180_SUCCESS;
+	} else {
+		*UP = 0;
+		return BMP180_ERROR;
+	}
 }
 
+// Calculate the real temperature from an uncompensated temperature value
+// input:
+//   UT - uncompensated temperature value
+// return:
+//   real temperature value
 int16_t BMP180_Calc_RT(uint16_t UT) {
 	BMP180_Calibration.B5  = (((int32_t)UT - (int32_t)BMP180_Calibration.AC6) * (int32_t)BMP180_Calibration.AC5) >> 15;
 	BMP180_Calibration.B5 += ((int32_t)BMP180_Calibration.MC << 11) / (BMP180_Calibration.B5 + BMP180_Calibration.MD);
@@ -104,6 +179,14 @@ int16_t BMP180_Calc_RT(uint16_t UT) {
 	return (BMP180_Calibration.B5 + 8) >> 4;
 }
 
+// Calculate the real pressure from an uncompensated pressure value
+// input:
+//   UP - uncompensated pressure value
+//   oss - oversampling level of measured pressure
+// return:
+//   real pressure value
+// note:
+//   BMP180_Calc_RT() must be called before call this function
 int32_t BMP180_Calc_RP(uint32_t UP, uint8_t oss) {
 	int32_t B3,B6,X3,p;
 	uint32_t B4,B7;
@@ -120,7 +203,78 @@ int32_t BMP180_Calc_RP(uint32_t UP, uint8_t oss) {
 	return p;
 }
 
+// Get temperature value from sensor
+// return:
+//   temperature in tens of Celsius degree (232 -> 23.2C) if success
+//   32767 if it was I2C timeout
+int16_t BMP180_GetTemperature(void) {
+	uint16_t UT;
+
+	if (BMP180_Read_UT(&UT)) {
+		return BMP180_Calc_RT(UT);
+	} else {
+		return 32767;
+	}
+}
+
+// Get pressure value from sensor
+// input:
+//   mode - BMP180 measure accuracy mode
+// return:
+//   pressure value (Pa) if success
+//   0 if it was I2C timeout
+int32_t BMP180_GetPressure(BMP180_Mode_TypeDef mode) {
+	uint32_t UP;
+	uint16_t UT;
+
+	if (!BMP180_Read_UT(&UT)) return 0;
+	BMP180_Calc_RT(UT); // Temperature must calculated before calculating pressure
+	if (mode == BMP180_ADVRES) {
+		// Advanced resolution mode (software oversampling)
+		if (BMP180_Read_PT_3AVG(&UP))
+			return BMP180_Calc_RP(UP,3);
+		else
+			return 0;
+	} else {
+		if (BMP180_Read_PT(&UP,(uint8_t)mode))
+			return BMP180_Calc_RP(UP,(uint8_t)mode);
+		else
+			return 0;
+	}
+}
+
+// Get pressure and temperature values from sensor
+// input:
+//   RT - pointer to temperature value
+//   RP - pointer to pressure value
+//   mode - BMP180 measure accuracy mode
+// return:
+//   BMP180_ERROR if it was an I2C timeout, BMP180_SUCCESS otherwise
+BMP180_RESULT BMP180_GetReadings(int16_t *RT, int32_t *RP, BMP180_Mode_TypeDef mode) {
+	uint32_t UP;
+	uint16_t UT;
+
+	if (!BMP180_Read_UT(&UT)) return BMP180_ERROR;
+	*RT = BMP180_Calc_RT(UT); // Temperature must calculated before calculating pressure
+	if (mode == BMP180_ADVRES) {
+		// Advanced resolution mode (software oversampling)
+		if (BMP180_Read_PT_3AVG(&UP)) {
+			*RP = BMP180_Calc_RP(UP,3);
+			return BMP180_SUCCESS;
+		} else return BMP180_ERROR;
+	} else {
+		if (BMP180_Read_PT(&UP,(uint8_t)mode)) {
+			*RP = BMP180_Calc_RP(UP,(uint8_t)mode);
+			return BMP180_SUCCESS;
+		} else return BMP180_ERROR;
+	}
+}
+
 // Fast integer Pa -> mmHg conversion (Pascals to millimeters of mercury)
+// input:
+//    hPa - pressure in pascals
+// return:
+//    pressure in millimeter of mercury
 int32_t BMP180_hPa_to_mmHg(int32_t hPa) {
 	// 1 hPa = 0.75006375541921 mmHg
 	return (int32_t)((hPa * 0.7500637554) / 10.0);
@@ -128,6 +282,10 @@ int32_t BMP180_hPa_to_mmHg(int32_t hPa) {
 }
 
 // Fast integer hPa -> Altitude conversion (Pascals to Meters)
+// input:
+//   hPa - pressure (pascals)
+// return:
+//   altitude (meters)
 int32_t BMP180_hPa_to_Altitude(int32_t hPa) {
 //	i = (uint32_t)(4433000 * (1 - powf(pressure_history[0]/101325.0,0.19029495)));
 	return (((745 * (11390 - (hPa / 10))) / 256 + 46597) * (11390 - (hPa / 10))) / 65536 - 966;

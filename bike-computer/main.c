@@ -73,6 +73,9 @@ int32_t altitude_history[128];              // Last 128 altitude values
 uint8_t _altitude_duty_cycle;               // Altitude measurement duty cycle
 int32_t altitude_home;                      // Home altitude
 
+int16_t _raw_temp;                          // Temporary variable for temperature
+int32_t _raw_press;                         // Temporary variable for presssure
+
 bool _new_GPS;                              // TRUE if received new GPS packet
 uint8_t GPS_buf[FIFO_BUFFER_SIZE];          // Buffer with data from EB500
 uint16_t GPS_buf_cntr;                      // Number of bytes contained in GPS buffer
@@ -382,9 +385,7 @@ int main(void) {
 //  Boot section
 /////////////////////////////////////////////////////////////////////////
 
-	// Variables initialization
-	LCD_brightness = 50;
-
+	// Variables initialization ------------------------------
 	memset(&nRF24_RX_Buf,0,nRF24_RX_PAYLOAD);
 	memset(&nRF24_Packet,0,sizeof(nRF24_Packet));
 	memset(&CurData,0,sizeof(CurData));
@@ -409,7 +410,6 @@ int main(void) {
 
 	_bmp180_present = FALSE;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
-	altitude_home = 178;
 
 	_current_screen = 0;
 
@@ -422,16 +422,14 @@ int main(void) {
 	_no_signal_time = 0;
 	_idle_time = 0;
 
+	// These values will be stored in EEPROM in future
 	_time_GMT_offset = 3;
-
 	WheelCircumference = 206;
+	altitude_home = 178;
+	LCD_brightness = 50;
 
-//	memset(&BTN1,0,sizeof(BTN1));
-//	memset(&BTN2,0,sizeof(BTN2));
-//	memset(&BTN3,0,sizeof(BTN3));
-//	memset(&BTN4,0,sizeof(BTN4));
+	// Buttons initialization
 	for (i = 0; i < 4; i++) memset(&BTN[i],0,sizeof(BTN[i]));
-
 	BTN[0].PORT = BTN1_PORT;
 	BTN[0].PIN  = BTN1_PIN;
 	BTN[1].PORT = BTN2_PORT;
@@ -440,6 +438,9 @@ int main(void) {
 	BTN[2].PIN  = BTN3_PIN;
 	BTN[3].PORT = BTN4_PORT;
 	BTN[3].PIN  = BTN4_PIN;
+
+	// -------------------- end of variables initialization
+
 
 	// Configure GPIO
 	// Enable PORTA and PORTC peripheral
@@ -553,16 +554,26 @@ int main(void) {
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
     		UC1701_PutChar5x7(42,24,'v',CT_opaque);
-    		i = BMP180_ReadReg(BMP180_VERSION_REG);
+    		i = BMP180_GetVersion();
     		UC1701_PutInt5x7(48,24,i,CT_opaque);
-    		_bmp180_present = TRUE;
     		BMP180_ReadCalibration();
-    		CurData.Temperature = BMP180_Calc_RT(BMP180_Read_UT());
-    		CurData.MinTemperature = CurData.Temperature;
-    		CurData.Pressure = BMP180_Calc_RP(BMP180_Read_PT(3),3);
-    		CurData.MinPressure = CurData.Pressure;
-    		UC1701_PutTemperature5x7(60,24,CurData.Temperature,CT_opaque);
-    		UC1701_PutPressure5x7(60,32,CurData.Pressure,PT_mmHg,CT_opaque);
+    		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {
+       			CurData.Temperature = _raw_temp;
+    			CurData.MinTemperature = CurData.Temperature;
+        		CurData.Pressure = _raw_press;
+        		CurData.MinPressure = CurData.Pressure;
+        		UC1701_PutTemperature5x7(60,24,CurData.Temperature,CT_opaque);
+        		UC1701_PutPressure5x7(60,32,CurData.Pressure,PT_mmHg,CT_opaque);
+    		} else {
+    			CurData.Temperature = 0;
+    			CurData.MinTemperature =  32767;
+    			CurData.MaxTemperature = -32767;
+    			CurData.Pressure = 0;
+    			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
+    			UC1701_PutStr5x7(60,24,"Readings",CT_opaque);
+    			UC1701_PutStr5x7(60,32,"failed",CT_opaque);
+    		}
+    		_bmp180_present = TRUE;
     	} else {
     		UC1701_PutStr5x7(42,24,"Not present",CT_opaque);
     	}
@@ -683,7 +694,7 @@ int main(void) {
 	RTC_SetDate(RTC_Format_BIN,&RTC_Date);
 
 	if (_bmp180_present) {
-		altitude_history[0] = BMP180_hPa_to_Altitude(BMP180_Calc_RP(BMP180_Read_PT_3AVG(),3));
+		altitude_history[0] = BMP180_hPa_to_Altitude(BMP180_GetPressure(BMP180_ADVRES));
 	}
 
 //	GPS_SendCommand("$PMTK104*"); // Reset EB500 to factory settings
@@ -721,22 +732,25 @@ int main(void) {
 
 			if (_bmp180_present) {
 				if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) {
-					CurData.Temperature = BMP180_Calc_RT(BMP180_Read_UT());
-					if (CurData.Temperature > CurData.MaxTemperature) CurData.MaxTemperature = CurData.Temperature;
-					if (CurData.Temperature < CurData.MinTemperature) CurData.MinTemperature = CurData.Temperature;
+					if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {
+						CurData.Temperature = _raw_temp;
+						if (CurData.Temperature > CurData.MaxTemperature) CurData.MaxTemperature = CurData.Temperature;
+						if (CurData.Temperature < CurData.MinTemperature) CurData.MinTemperature = CurData.Temperature;
 
-					CurData.Pressure = BMP180_Calc_RP(BMP180_Read_PT_3AVG(),3);
-					if (CurData.Pressure > CurData.MaxPressure) CurData.MaxPressure = CurData.Pressure;
-					if (CurData.Pressure < CurData.MinPressure) CurData.MinPressure = CurData.Pressure;
+						CurData.Pressure = _raw_press;
+						if (CurData.Pressure > CurData.MaxPressure) CurData.MaxPressure = CurData.Pressure;
+						if (CurData.Pressure < CurData.MinPressure) CurData.MinPressure = CurData.Pressure;
 
-					CurData.Altitude = BMP180_hPa_to_Altitude(CurData.Pressure);
-					if (CurData.Altitude > CurData.MaxAltitude) CurData.MaxAltitude = CurData.Altitude;
-					if (CurData.Altitude < CurData.MinAltitude) CurData.MinAltitude = CurData.Altitude;
+						CurData.Altitude = BMP180_hPa_to_Altitude(CurData.Pressure);
+						if (CurData.Altitude > CurData.MaxAltitude) CurData.MaxAltitude = CurData.Altitude;
+						if (CurData.Altitude < CurData.MinAltitude) CurData.MinAltitude = CurData.Altitude;
 
-					memmove(&altitude_history[1],&altitude_history[0],sizeof(altitude_history) - sizeof(*altitude_history));
-					altitude_history[0] = CurData.Altitude;
+						memmove(&altitude_history[1],&altitude_history[0],sizeof(altitude_history) - sizeof(*altitude_history));
+						altitude_history[0] = CurData.Altitude;
 
-					_altitude_duty_cycle = 0;
+						// Reset this counter only if readings obtained successfully, otherwise next try will be on next cycle
+						_altitude_duty_cycle = 0;
+					}
 				}
 			}
 
