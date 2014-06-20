@@ -297,9 +297,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 		// Date: year
 		if (buf[pos] != ',') {
 			GPSData.date += atos_len(&buf[pos],4);
-		} else GPSData.date += 2014;
+		} else GPSData.date += 2013;
 
-		if (GPSData.time != 0 && GPSData.date != 01012014) GPSData.datetime_valid = TRUE;
+		if (GPSData.time != 0 && GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
 
 		// Local time zone offset
 		// ..... (not supported by EB-500)
