@@ -68,11 +68,6 @@ typedef enum {
 	scr_180    = 3
 } ScrOrientation_TypeDef;
 
-typedef enum {
-	PT_mmHg = 0,
-	PT_hPa  = !PT_mmHg
-} PressureType_TypeDef;
-
 
 // Public variables
 extern uint16_t scr_width;
@@ -96,28 +91,23 @@ void UC1701_Orientation(uint8_t orientation);
 
 void UC1701_Flush(void);
 void UC1701_Fill(uint8_t pattern);
-void UC1701_SetPixel(uint8_t X, uint8_t Y);
-void UC1701_ResetPixel(uint8_t X, uint8_t Y);
 
-void UC1701_HLine(uint8_t X1, uint8_t X2, uint8_t Y, PSetReset_TypeDef SR);
-void UC1701_VLine(uint8_t X, uint8_t Y1, uint8_t Y2, PSetReset_TypeDef SR);
-void UC1701_Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR);
-void UC1701_FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR);
-void UC1701_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2);
-void UC1701_Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B);
+void SetPixel(uint8_t X, uint8_t Y);
+void ResetPixel(uint8_t X, uint8_t Y);
 
-void UC1701_PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, CharType_TypeDef CharType);
-uint16_t UC1701_PutStr5x7(uint8_t X, uint8_t Y, char *str, CharType_TypeDef CharType);
-uint8_t UC1701_PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef CharType);
-uint8_t UC1701_PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
-uint8_t UC1701_PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType_TypeDef CharType);
-uint8_t UC1701_PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_TypeDef CharType);
-uint8_t UC1701_PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
+void HLine(uint8_t X1, uint8_t X2, uint8_t Y, PSetReset_TypeDef SR);
+void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, PSetReset_TypeDef SR);
+void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR);
+void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR);
+void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2);
+void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B);
 
-uint8_t UC1701_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef CharType);
-uint8_t UC1701_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef CharType);
-uint8_t UC1701_PutPressure5x7(uint8_t X, uint8_t Y, int32_t pressure, PressureType_TypeDef PressureType,
-		CharType_TypeDef CharType);
-void UC1701_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharType_TypeDef CharType);
+void PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, CharType_TypeDef CharType);
+uint16_t PutStr5x7(uint8_t X, uint8_t Y, char *str, CharType_TypeDef CharType);
+uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef CharType);
+uint8_t PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
+uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType_TypeDef CharType);
+uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_TypeDef CharType);
+uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
 
 #endif // __UC1701_H
