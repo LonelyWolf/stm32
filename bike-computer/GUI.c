@@ -20,9 +20,9 @@ void GUI_DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* p
 	for (i = 0; i < W; i++) {
 		for (j = 0; j < H; j++) {
 			if ((pBMP[i + (j / 8) * W] >> (j % 8)) & 0x01) {
-				UC1701_SetPixel(X + i, Y + j);
+				SetPixel(X + i, Y + j);
 			} else {
-				UC1701_ResetPixel(X + i, Y + j);
+				ResetPixel(X + i, Y + j);
 			}
 		}
 	}
@@ -43,147 +43,108 @@ void GUI_SmallDig(uint8_t X, uint8_t Y, uint8_t digit) {
 	GUI_DrawBitmap(X,Y,9,19,&small_digits[(digit * 27)]);
 }
 
-// Draw number
+// Draw number with big digits
 // input:
-//   X, Y - left top corner coordinates
-//   number - number to display (0..99999)
-//   digits - number of digits to draw ([1..5] if no decimal point, [2..5] with decimal point)
+//   X - left horizontal coordinate of number
+//       if this value is negative -> number right horizontal coordinate
+//   Y - top vertical coordinate of number
+//       if this value is negative -> number bottom vertical coordinate
+//   number - number to display
 //   decimals - number of decimal digits (0..4)
 //   DigitSize - type of digit (DS_Big, DS_Mid, DS_Small)
-void GUI_DrawNumber(uint8_t X, uint8_t Y, uint32_t number, uint8_t digits, uint8_t decimals, DigitSize_TypeDef DigitSize) {
-	uint8_t dig1,dig2,dig3,dig4,dig5;
-	uint8_t dig_w,dig_h;
-	uint8_t width;
-	uint16_t tmp;
-
-	// Some foolproof
-	if (decimals > 4) decimals = 4;
-	if (number > 99999) number = 99999;
-
-	dig5 = number % 10;
-	tmp  = number / 10;
-	dig4 = tmp % 10;
-	tmp  = tmp / 10;
-	dig3 = tmp % 10;
-	tmp  = tmp / 10;
-	dig2 = tmp % 10;
-	tmp  = tmp / 10;
-	dig1 = tmp % 10;
+void GUI_DrawNumber(int8_t X, int8_t Y, int32_t Number, uint8_t Decimals,
+		DigitSize_TypeDef DigitSize) {
+	uint8_t i = 0;
+	int32_t num = Number;
+	uint8_t xx = X;
+	uint8_t dig_w,dig_h; // Digit width and height
+	uint8_t dig_int; // Interval between digits
+	uint8_t dec_w,dec_h; // Decimal point width and height
+	const uint8_t *dig_offset; // Offset to digit bitmap
+	uint16_t dig_len; // Length of digit bitmap
+	uint8_t buf[12];
+	uint8_t strLen; // String length
+	uint8_t neg; // Negative flag
+	uint8_t minus_w,minus_h; // Width and height of minus sign
+	uint8_t minus_t; // Top coordinate of minus sign
+	uint8_t num_width; // Number width
 
 	switch(DigitSize) {
 	case DS_Mid:
-		width = 63;
+		dig_w = 10;
 		dig_h = 22;
-		dig_w = 12;
+		dig_len = 30;
+		dig_offset = mid_digits;
+		dig_int = 1;
+		dec_w = 2;
+		dec_h = 3;
+		minus_w = 5;
+		minus_h = 2;
+		minus_t = 9;
 		break;
 	case DS_Small:
-		width = 58;
+		dig_w = 9;
 		dig_h = 19;
-		dig_w = 11;
+		dig_len = 27;
+		dig_offset = small_digits;
+		dig_int = 1;
+		dec_w = 2;
+		dec_h = 3;
+		minus_w = 4;
+		minus_h = 2;
+		minus_t = 8;
 		break;
 	default:
-		width = 83;
+		dig_w = 14;
 		dig_h = 34;
-		dig_w = 16;
+		dig_len = 70;
+		dig_offset = big_digits;
+		dig_int = 2;
+		dec_w = 3;
+		dec_h = 4;
+		minus_w = 6;
+		minus_h = 4;
+		minus_t = 15;
 		break;
 	}
 
-	// Maximum width with decimal point and measurement unit
-	X += width - (5 - digits) * dig_w;
-	if (!decimals) X -= 3;
+	if (num < 0) {
+		neg  = 1;
+		num *= -1;
+	} else neg = 0;
 
-	// Fifth digit
-	X -= dig_w;
-	switch(DigitSize) {
-	case DS_Mid:
-		GUI_MidDig(X,Y,dig5);
-		break;
-	case DS_Small:
-		GUI_SmallDig(X,Y,dig5);
-		break;
-	default:
-		GUI_BigDig(X,Y,dig5);
-		break;
+	do buf[i++] = num % 10; while ((num /= 10) > 0);
+	strLen = i;
+	if (strLen <= Decimals) {
+		for (i = strLen; i <= Decimals; i++) buf[i] = 0;
+		strLen = Decimals + 1;
 	}
-	// Decimal point
-	if (decimals == 1) {
-		X -= 3;
-		UC1701_FillRect(X - 1,Y + dig_h - 3,X + 1,Y + dig_h - 1,PSet);
-	}
-	if ((decimals < 1) && (number < 10)) return;
 
-	// Fourth digit
-	X -= dig_w;
-	switch(DigitSize) {
-	case DS_Mid:
-		GUI_MidDig(X,Y,dig4);
-		break;
-	case DS_Small:
-		GUI_SmallDig(X,Y,dig4);
-		break;
-	default:
-		GUI_BigDig(X,Y,dig4);
-		break;
-	}
-	// Decimal point
-	if (decimals == 2) {
-		X -= 3;
-		UC1701_FillRect(X - 1,Y + dig_h - 3,X + 1,Y + dig_h - 1,PSet);
-	}
-	if ((decimals < 2) && (number < 100)) return;
+	num_width = (dig_w * strLen) + (dig_int * (strLen - 1));
+	if (Decimals) num_width += dec_w + dig_int + 1;
+	if (neg) num_width += minus_w + dig_int + 1;
 
-	// Third digit
-	X -= dig_w;
-	switch(DigitSize) {
-	case DS_Mid:
-		GUI_MidDig(X,Y,dig3);
-		break;
-	case DS_Small:
-		GUI_SmallDig(X,Y,dig3);
-		break;
-	default:
-		GUI_BigDig(X,Y,dig3);
-		break;
-	}
-	// Decimal point
-	if (decimals == 3) {
-		X -= 3;
-		UC1701_FillRect(X - 1,Y + dig_h - 3,X + 1,Y + dig_h - 1,PSet);
-	}
-	if ((decimals < 3) && (number < 1000)) return;
+	// If X negative -> adjust number left horizontal coordinate
+	if (X < 0) xx = (-1 * X) - num_width + 1;
 
-	// Second digit
-	X -= dig_w;
-	switch(DigitSize) {
-	case DS_Mid:
-		GUI_MidDig(X,Y,dig2);
-		break;
-	case DS_Small:
-		GUI_SmallDig(X,Y,dig2);
-		break;
-	default:
-		GUI_BigDig(X,Y,dig2);
-		break;
-	}
-	// Decimal point
-	if (decimals == 4) {
-		X -= 3;
-		UC1701_FillRect(X - 1,Y + dig_h - 3,X + 1,Y + dig_h - 1,PSet);
-	}
-	if ((decimals < 4) && (number < 10000)) return;
+	// If Y negative -> adjust number top horizontal coordinate
+	if (Y < 0) Y = (-1 * Y) - dig_h + 1;
 
-	// First digit
-	X -= dig_w;
-	switch(DigitSize) {
-	case DS_Mid:
-		GUI_MidDig(X,Y,dig1);
-		break;
-	case DS_Small:
-		GUI_SmallDig(X,Y,dig1);
-		break;
-	default:
-		GUI_BigDig(X,Y,dig1);
-		break;
+	// Draw minus only if number is non zero
+	if (neg && Number) {
+		FillRect(xx,Y + minus_t,xx + minus_w,Y + minus_t + minus_h,PSet);
+		xx += minus_w + dig_int + 1;
+	}
+
+	// Draw number
+	for (i = 0; i < strLen; i++) {
+		GUI_DrawBitmap(xx,Y,dig_w,dig_h,&dig_offset[dig_len * buf[strLen - i - 1]]);
+		xx += dig_w + dig_int;
+		if (strLen - i - 1 == Decimals && Decimals) {
+			// Decimal point
+			FillRect(xx,Y + dig_h - dec_h,xx + dec_w,Y + dig_h - 1,PSet);
+			xx += dec_w + dig_int + 1;
+		}
 	}
 }
 
@@ -220,22 +181,22 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 		GUI_MidDig(X,Y,dig2);
 		GUI_MidDig(X + dig_w,Y,dig1);
 		X += dig_w * 2;
-		UC1701_FillRect(X,Y + 4,X + 1,Y + 8,PSet);
-		UC1701_FillRect(X,Y + 13,X + 1,Y + 17,PSet);
+		FillRect(X,Y + 4,X + 1,Y + 8,PSet);
+		FillRect(X,Y + 13,X + 1,Y + 17,PSet);
 		break;
 	case DS_Small:
 		GUI_SmallDig(X,Y,dig2);
 		GUI_SmallDig(X + dig_w,Y,dig1);
 		X += dig_w * 2;
-		UC1701_FillRect(X,Y + 3,X + 1,Y + 7,PSet);
-		UC1701_FillRect(X,Y + 11,X + 1,Y + 15,PSet);
+		FillRect(X,Y + 3,X + 1,Y + 7,PSet);
+		FillRect(X,Y + 11,X + 1,Y + 15,PSet);
 		break;
 	default:
 		GUI_BigDig(X,Y,dig2);
 		GUI_BigDig(X + dig_w,Y,dig1);
 		X += dig_w * 2;
-		UC1701_FillRect(X,Y + 8,X + 2,Y + 11,PSet);
-		UC1701_FillRect(X,Y + 22,X + 2,Y + 25,PSet);
+		FillRect(X,Y + 8,X + 2,Y + 11,PSet);
+		FillRect(X,Y + 22,X + 2,Y + 25,PSet);
 		break;
 	}
 
@@ -249,8 +210,8 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 		GUI_MidDig(X + dig_w,Y,dig1);
 		if (TimeType == TT_Full) {
 			X += dig_w * 2;
-			UC1701_FillRect(X,Y + 4,X + 1,Y + 8,PSet);
-			UC1701_FillRect(X,Y + 13,X + 1,Y + 17,PSet);
+			FillRect(X,Y + 4,X + 1,Y + 8,PSet);
+			FillRect(X,Y + 13,X + 1,Y + 17,PSet);
 		}
 		break;
 	case DS_Small:
@@ -258,8 +219,8 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 		GUI_SmallDig(X + dig_w,Y,dig1);
 		if (TimeType == TT_Full) {
 			X += dig_w * 2;
-			UC1701_FillRect(X,Y + 3,X + 1,Y + 7,PSet);
-			UC1701_FillRect(X,Y + 11,X + 1,Y + 15,PSet);
+			FillRect(X,Y + 3,X + 1,Y + 7,PSet);
+			FillRect(X,Y + 11,X + 1,Y + 15,PSet);
 		}
 		break;
 	default:
@@ -268,8 +229,8 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 		GUI_BigDig(X + dig_w,Y,dig1);
 		if (TimeType == TT_Full) {
 			X += dig_w * 2;
-			UC1701_FillRect(X,Y + 8,X + 2,Y + 11,PSet);
-			UC1701_FillRect(X,Y + 22,X + 2,Y + 25,PSet);
+			FillRect(X,Y + 8,X + 2,Y + 11,PSet);
+			FillRect(X,Y + 22,X + 2,Y + 25,PSet);
 		}
 		break;
 	}
@@ -306,41 +267,37 @@ void GUI_Screen_SensorRAW(void) {
 
 	// Frame
 	UC1701_Fill(0x00);
-	UC1701_Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	UC1701_FillRect(3,0,scr_width - 4,8,PSet);
-	UC1701_PutStr5x7(19,1,"Sensor RAW data",CT_transp_inv);
+	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+	FillRect(3,0,scr_width - 4,8,PSet);
+	PutStr5x7(19,1,"Sensor RAW data",CT_transp_inv);
 	// Cadence data
 	X = 5; Y = 10;
-	X += UC1701_PutStr5x7(X,Y,"CDC:",CT_transp) - 1;
-	UC1701_PutInt5x7(X,Y,nRF24_Packet.tim_CDC,CT_transp);
+	X += PutStr5x7(X,Y,"CDC:",CT_transp) - 1;
+	PutInt5x7(X,Y,nRF24_Packet.tim_CDC,CT_transp);
 	// Speed data
 	X = 5; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"SPD c:",CT_transp) - 1;
-	X += UC1701_PutInt5x7(X,Y,nRF24_Packet.cntr_SPD,CT_transp) + 8;
-	X += UC1701_PutStr5x7(X,Y,"t:",CT_transp) - 1;
-	UC1701_PutInt5x7(X,Y,nRF24_Packet.tim_SPD,CT_transp);
+	X += PutStr5x7(X,Y,"SPD c:",CT_transp) - 1;
+	X += PutInt5x7(X,Y,nRF24_Packet.cntr_SPD,CT_transp) + 8;
+	X += PutStr5x7(X,Y,"t:",CT_transp) - 1;
+	PutInt5x7(X,Y,nRF24_Packet.tim_SPD,CT_transp);
 	// Packets lost
 	X = 5; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"P.Lost:",CT_transp) - 1;
-	X += UC1701_PutInt5x7(X,Y,nRF24_Packet.packets_lost,CT_transp) + 5;
+	X += PutStr5x7(X,Y,"P.Lost:",CT_transp) - 1;
+	X += PutInt5x7(X,Y,nRF24_Packet.packets_lost,CT_transp) + 5;
 	// OBSERVER_TX
-	X += UC1701_PutStr5x7(X,Y,"OTX:",CT_transp) - 1;
-	X += UC1701_PutHex5x7(X,Y,nRF24_Packet.observe_TX,CT_transp);
-	// TX power
-	X = 5; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"TX.pwr:",CT_transp) - 1;
-	UC1701_PutStr5x7(X,Y,nRF24_TX_POWERS[nRF24_Packet.tx_power],CT_transp);
+	X += PutStr5x7(X,Y,"OTX:",CT_transp) - 1;
+	X += PutHex5x7(X,Y,nRF24_Packet.observe_TX,CT_transp);
 	// Wakeups
 	X = 5; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Wake:",CT_transp) - 1;
-	UC1701_PutInt5x7(X,Y,nRF24_Packet.cntr_wake,CT_transp);
+	X += PutStr5x7(X,Y,"Wake:",CT_transp) - 1;
+	PutInt5x7(X,Y,nRF24_Packet.cntr_wake,CT_transp);
 	X = 76;
-	X += UC1701_PutStr5x7(X,Y,"RT:",CT_transp) - 1;
-	UC1701_PutInt5x7(X,Y,nRF24_Packet.ride_time,CT_transp);
+	X += PutStr5x7(X,Y,"RT:",CT_transp) - 1;
+	PutInt5x7(X,Y,nRF24_Packet.ride_time,CT_transp);
 	// Battery
 	X = 5; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Battery:",CT_transp) - 1;
-	UC1701_PutChar5x7(X + UC1701_PutIntF5x7(X,Y,nRF24_Packet.vrefint,2,CT_transp),Y,'V',CT_transp);
+	X += PutStr5x7(X,Y,"Battery:",CT_transp) - 1;
+	PutChar5x7(X + PutIntF5x7(X,Y,nRF24_Packet.vrefint,2,CT_transp),Y,'V',CT_transp);
 }
 
 // Screen with current values (trip data)
@@ -349,37 +306,37 @@ void GUI_Screen_CurVal1(void) {
 
 	// Frame
 	UC1701_Fill(0x00);
-	UC1701_Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	UC1701_FillRect(3,0,scr_width - 4,8,PSet);
-	UC1701_PutStr5x7(22,1,"Current values",CT_transp_inv);
+	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+	FillRect(3,0,scr_width - 4,8,PSet);
+	PutStr5x7(22,1,"Current values",CT_transp_inv);
 
 	X = 7; Y = 10;
-	UC1701_PutStr5x7(X,Y,"SPD:",CT_transp);
-	UC1701_PutIntF5x7(X + 23,Y,CurData.Speed,1,CT_transp);
+	PutStr5x7(X,Y,"SPD:",CT_transp);
+	PutIntF5x7(X + 23,Y,CurData.Speed,1,CT_transp);
 	X += 54;
-	UC1701_PutStr5x7(X,Y,"CDC:",CT_transp);
-	UC1701_PutInt5x7(X + 23,Y,CurData.Cadence,CT_transp);
+	PutStr5x7(X,Y,"CDC:",CT_transp);
+	PutInt5x7(X + 23,Y,CurData.Cadence,CT_transp);
 	X = 7; Y += 9;
-	UC1701_PutStr5x7(X,Y,"A.S:",CT_transp);
-	UC1701_PutIntF5x7(X + 23,Y,CurData.AvgSpeed,1,CT_transp);
+	PutStr5x7(X,Y,"A.S:",CT_transp);
+	PutIntF5x7(X + 23,Y,CurData.AvgSpeed,1,CT_transp);
 	X += 54;
-	UC1701_PutStr5x7(X,Y,"A.C:",CT_transp);
-	UC1701_PutInt5x7(X + 23,Y,CurData.AvgCadence,CT_transp);
+	PutStr5x7(X,Y,"A.C:",CT_transp);
+	PutInt5x7(X + 23,Y,CurData.AvgCadence,CT_transp);
 	X = 7; Y += 9;
-	UC1701_PutStr5x7(X,Y,"M.S:",CT_transp);
-	UC1701_PutIntF5x7(X + 23,Y,CurData.MaxSpeed,1,CT_transp);
+	PutStr5x7(X,Y,"M.S:",CT_transp);
+	PutIntF5x7(X + 23,Y,CurData.MaxSpeed,1,CT_transp);
 	X += 54;
-	UC1701_PutStr5x7(X,Y,"M.C:",CT_transp);
-	UC1701_PutInt5x7(X + 23,Y,CurData.MaxCadence,CT_transp);
+	PutStr5x7(X,Y,"M.C:",CT_transp);
+	PutInt5x7(X + 23,Y,CurData.MaxCadence,CT_transp);
 	X = 7; Y += 9;
-	UC1701_PutStr5x7(X,Y,"T.D:",CT_transp);
-	UC1701_PutInt5x7(X + 23,Y,CurData.TripDist,CT_transp);
+	PutStr5x7(X,Y,"T.D:",CT_transp);
+	PutInt5x7(X + 23,Y,CurData.TripDist,CT_transp);
 	X = 7; Y += 9;
-	UC1701_PutStr5x7(X,Y,"Odo:",CT_transp);
-	UC1701_PutInt5x7(X + 23,Y,CurData.Odometer,CT_transp);
+	PutStr5x7(X,Y,"Odo:",CT_transp);
+	PutInt5x7(X + 23,Y,CurData.Odometer,CT_transp);
 	X = 7; Y += 9;
-	UC1701_PutStr5x7(X,Y,"Time",CT_transp);
-	UC1701_PutTimeSec5x7(X + 26,Y,CurData.TripTime,CT_opaque);
+	PutStr5x7(X,Y,"Time",CT_transp);
+	GUI_PutTimeSec5x7(X + 26,Y,CurData.TripTime,CT_opaque);
 }
 
 // Screen with current values (BMP180 values)
@@ -388,31 +345,31 @@ void GUI_Screen_CurVal2(void) {
 
 	// Frame
 	UC1701_Fill(0x00);
-	UC1701_Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	UC1701_FillRect(3,0,scr_width - 4,8,PSet);
-	UC1701_PutStr5x7(46,1,"BMP180",CT_transp_inv);
+	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+	FillRect(3,0,scr_width - 4,8,PSet);
+	PutStr5x7(46,1,"BMP180",CT_transp_inv);
 
 	X = 4; Y = 10;
-	X += UC1701_PutStr5x7(X,Y,"Temperature:",CT_transp) - 1;
-	UC1701_PutTemperature5x7(X,Y,CurData.Temperature,CT_transp);
+	X += PutStr5x7(X,Y,"Temperature:",CT_transp) - 1;
+	GUI_PutTemperature5x7(X,Y,CurData.Temperature,CT_transp);
 	X = 4; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-	UC1701_PutTemperature5x7(X,Y,CurData.MinTemperature,CT_transp);
+	X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+	GUI_PutTemperature5x7(X,Y,CurData.MinTemperature,CT_transp);
 	X = 67;
-	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	UC1701_PutTemperature5x7(X,Y,CurData.MaxTemperature,CT_transp);
+	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+	GUI_PutTemperature5x7(X,Y,CurData.MaxTemperature,CT_transp);
 
-	UC1701_HLine(1,scr_width - 2,Y + 10,PSet);
+	HLine(1,scr_width - 2,Y + 10,PSet);
 
 	X = 4; Y += 14;
-	X += UC1701_PutStr5x7(X,Y,"Pressure:",CT_transp) - 1;
-	UC1701_PutPressure5x7(X,Y,CurData.Pressure,PT_mmHg,CT_transp);
+	X += PutStr5x7(X,Y,"Pressure:",CT_transp) - 1;
+	GUI_PutPressure5x7(X,Y,CurData.Pressure,PT_mmHg,CT_transp);
 	X = 4; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-	UC1701_PutIntF5x7(X,Y,CurData.MinPressure * 75 / 1000,1,CT_transp);
+	X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+	PutIntF5x7(X,Y,CurData.MinPressure * 75 / 1000,1,CT_transp);
 	X = 67;
-	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	UC1701_PutIntF5x7(X,Y,CurData.MaxPressure * 75 / 1000,1,CT_transp);
+	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+	PutIntF5x7(X,Y,CurData.MaxPressure * 75 / 1000,1,CT_transp);
 }
 
 // Screen with current values (GPS values)
@@ -421,33 +378,33 @@ void GUI_Screen_CurVal3(void) {
 
 	// Frame
 	UC1701_Fill(0x00);
-	UC1701_Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	UC1701_FillRect(3,0,scr_width - 4,8,PSet);
-	UC1701_PutStr5x7(36,1,"GPS stats",CT_transp_inv);
+	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+	FillRect(3,0,scr_width - 4,8,PSet);
+	PutStr5x7(36,1,"GPS stats",CT_transp_inv);
 
 	X = 4; Y = 10;
-	X += UC1701_PutStr5x7(X,Y,"Speed:",CT_transp) - 1;
-	X += UC1701_PutIntF5x7(X,Y,CurData.GPSSpeed,2,CT_transp);
-	UC1701_PutStr5x7(X,Y,"km/h",CT_transp);
+	X += PutStr5x7(X,Y,"Speed:",CT_transp) - 1;
+	X += PutIntF5x7(X,Y,CurData.GPSSpeed,2,CT_transp);
+	PutStr5x7(X,Y,"km/h",CT_transp);
 	X = 4; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	X += UC1701_PutIntF5x7(X,Y,CurData.MaxGPSSpeed,2,CT_transp);
-	UC1701_PutStr5x7(X,Y,"km/h",CT_transp);
+	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+	X += PutIntF5x7(X,Y,CurData.MaxGPSSpeed,2,CT_transp);
+	PutStr5x7(X,Y,"km/h",CT_transp);
 
-	UC1701_HLine(1,scr_width - 2,Y + 10,PSet);
+	HLine(1,scr_width - 2,Y + 10,PSet);
 
 	X = 4; Y += 14;
-	X += UC1701_PutStr5x7(X,Y,"Altitude:",CT_transp) - 1;
-	X += UC1701_PutInt5x7(X,Y,CurData.GPSAlt,CT_transp);
-	UC1701_PutChar5x7(X,Y,'m',CT_transp);
+	X += PutStr5x7(X,Y,"Altitude:",CT_transp) - 1;
+	X += PutInt5x7(X,Y,CurData.GPSAlt,CT_transp);
+	PutChar5x7(X,Y,'m',CT_transp);
 	X = 4; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-	X += UC1701_PutInt5x7(X,Y,CurData.MinGPSAlt,CT_transp);
-	UC1701_PutChar5x7(X,Y,'m',CT_transp);
+	X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+	X += PutInt5x7(X,Y,CurData.MinGPSAlt,CT_transp);
+	PutChar5x7(X,Y,'m',CT_transp);
 	X = 4; Y += 9;
-	X += UC1701_PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	X += UC1701_PutInt5x7(X,Y,CurData.MaxGPSAlt,CT_transp);
-	UC1701_PutChar5x7(X,Y,'m',CT_transp);
+	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+	X += PutInt5x7(X,Y,CurData.MaxGPSAlt,CT_transp);
+	PutChar5x7(X,Y,'m',CT_transp);
 }
 
 // Draw speed with 'km/h' mark and AVG speed pace indicator
@@ -456,10 +413,11 @@ void GUI_Screen_CurVal3(void) {
 //   speed - speed value (max 999 -> 99.9 km/h)
 //   avg - average speed value for pace indicator
 // Size: 54 x 33
-void GUI_DrawSpeed(uint8_t X, uint8_t Y, uint32_t speed, uint32_t avg) {
-	UC1701_FillRect(X,Y,X + 54,Y + 33,PReset);
-	GUI_DrawNumber(X,Y,speed / 10,2,0,DS_Big);
-	UC1701_FillRect(X + 31,Y + 31,X + 33,Y + 33,PSet);
+void GUI_DrawSpeed(int8_t X, int8_t Y, uint32_t speed, uint32_t avg) {
+	FillRect(X,Y,X + 54,Y + 33,PReset);
+//	GUI_DrawNumber(X,Y,speed / 10,2,0,DS_Big);
+	GUI_DrawNumber(-(X + 29),Y,speed / 10,0,DS_Big);
+	FillRect(X + 31,Y + 31,X + 33,Y + 33,PSet);
 	GUI_SmallDig(X + 35,Y + 15,speed % 10);
 	GUI_DrawBitmap(X + 34,Y + 3,20,10,&bmp_kmph[0]);
 	if (speed > 0) {
@@ -471,16 +429,6 @@ void GUI_DrawSpeed(uint8_t X, uint8_t Y, uint32_t speed, uint32_t avg) {
 			GUI_DrawBitmap(X + 46,Y + 18,9,13,&bmp_pace_arrow[18]);
 		}
 	}
-}
-
-// Draw big cadence value with 'RPM' mark
-// input:
-//   X, Y - left top corner coordinates
-//   cadence - cadence value (max 999)
-void GUI_DrawCadence(uint8_t X, uint8_t Y, uint32_t cadence) {
-	UC1701_FillRect(X,Y,X + 53,Y + 33,PReset);
-	GUI_DrawNumber(X,Y,cadence,3,0,DS_Big);
-	GUI_DrawBitmap(X + 49,Y + 8,5,19,&small_signs[15]);
 }
 
 // Draw ride time (in seconds)
@@ -504,16 +452,16 @@ void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time) {
 	GUI_SmallDig(X,Y,hours / 10);
 	GUI_SmallDig(X + 10,Y,hours % 10);
 	X += 20;
-	UC1701_FillRect(X,Y + 3,X + 1,Y + 7,PSet);
-	UC1701_FillRect(X,Y + 11,X + 1,Y + 15,PSet);
+	FillRect(X,Y + 3,X + 1,Y + 7,PSet);
+	FillRect(X,Y + 11,X + 1,Y + 15,PSet);
 	X += 3;
 
 	// Minutes
 	GUI_SmallDig(X,Y,minutes / 10);
 	GUI_SmallDig(X + 10,Y,minutes % 10);
 	X += 20;
-	UC1701_FillRect(X,Y + 3,X + 1,Y + 7,PSet);
-	UC1701_FillRect(X,Y + 11,X + 1,Y + 15,PSet);
+	FillRect(X,Y + 3,X + 1,Y + 7,PSet);
+	FillRect(X,Y + 11,X + 1,Y + 15,PSet);
 	X += 3;
 
 	// Seconds
@@ -527,9 +475,9 @@ void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time) {
 //   W, H - width and height of graph
 //   data - pointer to array with graph values (must be same or less size of graph width)
 //   GraphType - type of graph (GT_dot, GT_fill, GT_line)
-void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int32_t* data, GraphType_TypeDef GraphType) {
+void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* data, GraphType_TypeDef GraphType) {
 	uint8_t i,bY,pY,YY,offset;
-	int32_t min,max;
+	int16_t min,max;
 	float mY;
 
 	// Find maximal and minimal values
@@ -550,46 +498,19 @@ void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int32_t* da
 	// Draw graph
 	if (GraphType == GT_dot) {
 		// Dots
-		for(i = 0; i < W; i++) UC1701_SetPixel(X + i,bY - (uint32_t)((data[i] - min) * mY) - offset);
+		for(i = 0; i < W; i++) SetPixel(X + i,bY - (uint16_t)((data[i] - min) * mY) - offset);
 	} else if (GraphType == GT_line) {
 		// Continuous line
-		pY = bY - (uint32_t)((data[0] - min) * mY) - offset;
+		pY = bY - (uint16_t)((data[0] - min) * mY) - offset;
 		for(i = 1; i < W; i++) {
-			YY = bY - (uint32_t)((data[i] - min) * mY) - offset;
-			UC1701_Line(X + i - 1,pY,X + i,YY);
+			YY = bY - (uint16_t)((data[i] - min) * mY) - offset;
+			Line(X + i - 1,pY,X + i,YY);
 			pY = YY;
 		}
 	} else {
 		// Filled graph
-		for(i = 0; i < W; i++) UC1701_VLine(X + i,bY - (uint32_t)((data[i] - min) * mY) - offset,bY,PSet);
+		for(i = 0; i < W; i++) VLine(X + i,bY - (uint16_t)((data[i] - min) * mY) - offset,bY,PSet);
 	}
-}
-
-// Draw menu
-void GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, char * Title) {
-	UC1701_FillRect(X,Y,X + W - 1,Y + H - 1,PReset);
-	UC1701_Rect(X + 2,Y + 4,X + W - 3,Y + H - 3,PSet);
-	UC1701_FillRect(X + 5,Y,X + W - 6,Y + 8,PSet);
-	UC1701_PutStr5x7(X + 8,Y + 1,Title,CT_opaque_inv);
-}
-
-// Change some number interface
-void GUI_NumericSet(int32_t Value, int32_t Min, int32_t Max, int32_t Step, char * Title) {
-	UC1701_Fill(0x55);
-	UC1701_FillRect(10,5,scr_width - 11,scr_height - 5,PReset);
-	UC1701_Rect(11,6,scr_width - 12,scr_height - 6,PSet);
-	UC1701_FillRect(11,6,scr_width - 12,14,PSet);
-	UC1701_PutStr5x7(20,7,Title,CT_opaque_inv);
-
-	GUI_DrawNumber(40,30,Value,3,0,DS_Small);
-//	UC1701_PutInt5x7(15,25,Value,CT_opaque);
-}
-
-// Put coordinates in format "Ndd.xxxxxx"
-//void GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint8_t min_i, uint32_t min_f, char ch, CharType_TypeDef CharType) {
-void GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, CharType_TypeDef CharType) {
-	UC1701_PutChar5x7(X,Y,ch,CharType);
-	UC1701_PutIntF5x7(X + 6,Y,(degree * 1000000) + (seconds / 60),6,CharType);
 }
 
 void GUI_DrawGPSInfo(void) {
@@ -598,23 +519,23 @@ void GUI_DrawGPSInfo(void) {
 	UC1701_Fill(0x00);
 
 	X = 0; Y = 0;
-	X += UC1701_PutTimeSec5x7(X,Y,GPSData.time,CT_opaque) + 5;
-	X += UC1701_PutDate5x7(X,Y,GPSData.date,CT_opaque);
+	X += GUI_PutTimeSec5x7(X,Y,GPSData.time,CT_opaque) + 5;
+	X += GUI_PutDate5x7(X,Y,GPSData.date,CT_opaque);
 
 	X = 0; Y += 8;
-	X += UC1701_PutStr5x7(X,Y,"Fix:",CT_opaque) - 1;
+	X += PutStr5x7(X,Y,"Fix:",CT_opaque) - 1;
 	if (GPSData.fix != 2 && GPSData.fix != 3)
-		X += UC1701_PutStr5x7(X,Y,"NA",CT_opaque) + 5;
+		X += PutStr5x7(X,Y,"NA",CT_opaque) + 5;
 	else {
-		UC1701_PutInt5x7(X,Y,GPSData.fix,CT_opaque);
-		UC1701_PutChar5x7(X + 6,Y,'D',CT_opaque);
+		PutInt5x7(X,Y,GPSData.fix,CT_opaque);
+		PutChar5x7(X + 6,Y,'D',CT_opaque);
 		X += 17;
 	}
-	X += UC1701_PutStr5x7(X,Y,"Qlty:",CT_opaque) - 1;
-	UC1701_PutChar5x7(X,Y,GPSData.fix_quality + '0',CT_opaque);
+	X += PutStr5x7(X,Y,"Qlty:",CT_opaque) - 1;
+	PutChar5x7(X,Y,GPSData.fix_quality + '0',CT_opaque);
 	X += 11;
-	X += UC1701_PutStr5x7(X,Y,"Mode:",CT_opaque) - 1;
-	UC1701_PutChar5x7(X,Y,GPSData.mode,CT_opaque);
+	X += PutStr5x7(X,Y,"Mode:",CT_opaque) - 1;
+	PutChar5x7(X,Y,GPSData.mode,CT_opaque);
 
 	X = 0; Y += 8;
 	GUI_PutCoord5x7(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,CT_opaque);
@@ -622,27 +543,425 @@ void GUI_DrawGPSInfo(void) {
 	GUI_PutCoord5x7(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,CT_opaque);
 
 	X = 0; Y += 8;
-	X += UC1701_PutStr5x7(X,Y,"Alt:",CT_opaque) - 1;
-	X += UC1701_PutInt5x7(X,Y,GPSData.altitude,CT_opaque) + 5;
-	X += UC1701_PutStr5x7(X,Y,"Spd:",CT_opaque) - 1;
-	X += UC1701_PutIntF5x7(X,Y,GPSData.speed,2,CT_opaque);
+	X += PutStr5x7(X,Y,"Alt:",CT_opaque) - 1;
+	X += PutInt5x7(X,Y,GPSData.altitude,CT_opaque) + 5;
+	X += PutStr5x7(X,Y,"Spd:",CT_opaque) - 1;
+	X += PutIntF5x7(X,Y,GPSData.speed,2,CT_opaque);
 
 	X = 0; Y += 8;
-	X += UC1701_PutStr5x7(X,Y,"Crs:",CT_opaque) - 1;
-	X += UC1701_PutIntF5x7(X,Y,GPSData.course,2,CT_opaque) + 5;
-	X += UC1701_PutStr5x7(X,Y,"Sat:",CT_opaque) - 1;
-	X += UC1701_PutInt5x7(X,Y,GPSData.sats_used,CT_opaque);
-	UC1701_PutChar5x7(X,Y,'/',CT_opaque);
+	X += PutStr5x7(X,Y,"Crs:",CT_opaque) - 1;
+	X += PutIntF5x7(X,Y,GPSData.course,2,CT_opaque) + 5;
+	X += PutStr5x7(X,Y,"Sat:",CT_opaque) - 1;
+	X += PutInt5x7(X,Y,GPSData.sats_used,CT_opaque);
+	PutChar5x7(X,Y,'/',CT_opaque);
 	X += 6;
-	X += UC1701_PutInt5x7(X,Y,GPSData.sats_view,CT_opaque);
+	X += PutInt5x7(X,Y,GPSData.sats_view,CT_opaque);
 
 	X = 0; Y += 8;
-	X += UC1701_PutStr5x7(X,Y,"PDOP:",CT_opaque) - 1;
-	X += UC1701_PutIntF5x7(X,Y,GPSData.PDOP,2,CT_opaque) + 5;
+	X += PutStr5x7(X,Y,"PDOP:",CT_opaque) - 1;
+	X += PutIntF5x7(X,Y,GPSData.PDOP,2,CT_opaque) + 5;
 
 	X = 0; Y += 8;
-	X += UC1701_PutStr5x7(X,Y,"HDOP:",CT_opaque) - 1;
-	X += UC1701_PutIntF5x7(X,Y,GPSData.HDOP,2,CT_opaque) + 5;
-	X += UC1701_PutStr5x7(X,Y,"VDOP:",CT_opaque) - 1;
-	X += UC1701_PutIntF5x7(X,Y,GPSData.VDOP,2,CT_opaque) + 5;
+	X += PutStr5x7(X,Y,"HDOP:",CT_opaque) - 1;
+	X += PutIntF5x7(X,Y,GPSData.HDOP,2,CT_opaque) + 5;
+	X += PutStr5x7(X,Y,"VDOP:",CT_opaque) - 1;
+	X += PutIntF5x7(X,Y,GPSData.VDOP,2,CT_opaque) + 5;
+}
+
+// Put coordinates in format "Ndd.xxxxxx"
+//void GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint8_t min_i, uint32_t min_f, char ch, CharType_TypeDef CharType) {
+uint8_t GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, CharType_TypeDef CharType) {
+	uint8_t pX = X;
+
+	PutChar5x7(X,Y,ch,CharType);
+	X += 6;
+	X += PutIntF5x7(X,Y,(degree * 1000000) + (seconds / 60),6,CharType);
+
+	return X - pX;
+}
+
+// Draw time with standard 5x7 font
+// input:
+//   X,Y - top left coordinates of text
+//   time - time in seconds (max value = 3599999 seconds or 999:59:59)
+//   CharType - character drawing style
+uint8_t GUI_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef CharType) {
+	uint8_t pX = X;
+	uint16_t hours;
+	uint8_t minutes,seconds;
+
+	hours   = time / 3600;
+	minutes = (time / 60) % 60;
+	seconds = time % 60;
+	if (hours > 999) {
+		hours   = 999;
+		minutes = 59;
+		seconds = 59;
+	}
+
+	if (hours < 10) {
+		PutChar5x7(X,Y,'0',CharType);
+		X += 6;
+	}
+	PutInt5x7(X,Y,hours,CharType);
+	if (hours > 99) X += 6;
+	if (hours > 9)  X += 11; else X += 5;
+	PutChar5x7(X,Y,':',CharType);
+	X += 4;
+
+	if (minutes < 10) {
+		PutChar5x7(X,Y,'0',CharType);
+		X += 6;
+	}
+	PutInt5x7(X,Y,minutes,CharType);
+	if (minutes > 9) X += 11; else X += 5;
+	PutChar5x7(X,Y,':',CharType);
+	X += 4;
+
+	if (seconds < 10) {
+		PutChar5x7(X,Y,'0',CharType);
+		X += 6;
+	}
+	X += PutInt5x7(X,Y,seconds,CharType);
+
+	return X - pX;
+}
+
+// Draw date with standard 5x7 font
+// input:
+//   X,Y - top left coordinates of text
+//   date - date in format DDMMYYYY
+//   CharType - character drawing style
+uint8_t GUI_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef CharType) {
+	uint8_t pX = X;
+	uint16_t dig;
+
+	// Day
+	dig = date / 1000000;
+	X += PutIntLZ5x7(X,Y,dig,2,CharType);
+	PutChar5x7(X,Y,'.',CharType);
+	X += 5;
+
+	// Month
+	dig = (date - (dig * 1000000)) / 10000;
+	X += PutIntLZ5x7(X,Y,dig,2,CharType);
+	PutChar5x7(X,Y,'.',CharType);
+	X += 5;
+
+	// Year
+	dig = date % 10000;
+	X += PutIntLZ5x7(X,Y,dig,4,CharType);
+
+	return X - pX;
+}
+
+// Print pressure with 'mmHg'
+// input:
+//   X,Y - top left coordinates of text
+//   pressure - pressure value in Pa
+//   PressureType - what units pressure should be displayed (PT_hPa, PT_mmHg)
+//   CharType - character drawing style
+uint8_t GUI_PutPressure5x7(uint8_t X, uint8_t Y, int32_t pressure, PressureType_TypeDef PressureType,
+		CharType_TypeDef CharType) {
+	uint8_t pX = X;
+
+	if (PressureType == PT_mmHg) {
+		pressure = pressure * 75 / 1000;
+		X += PutIntF5x7(X,Y,pressure,1,CharType);
+		X += PutStr5x7(X,Y,"mmHg",CharType);
+	} else {
+		X += PutIntF5x7(X,Y,pressure,2,CharType);
+		X += PutStr5x7(X,Y,"hPa",CharType);
+	}
+
+	return X - pX;
+}
+
+// Print temperature value with Celsius sign
+// input:
+//   X,Y - top left coordinates of text
+//   temperature - temperature value in Celsius degree
+//   CharType - character drawing style
+uint8_t GUI_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharType_TypeDef CharType) {
+	uint8_t pX = X;
+
+	if (temperature < 0) {
+		HLine(X,X + 2,Y + 3,PSet);
+		temperature *= -1;
+		X += 4;
+	}
+	X += PutInt5x7(X,Y,temperature / 10,CharType);
+
+	// Decimal point
+	Rect(X,Y + 5,X + 1,Y + 6,PSet);
+	X += 3;
+
+	// Temperature fractional
+	X += PutInt5x7(X,Y,temperature % 10,CharType);
+
+	// Celsius degree sign
+	HLine(X + 1,X + 2,Y,PSet);
+	HLine(X + 1,X + 2,Y + 3,PSet);
+	VLine(X,Y + 1,Y + 2,PSet);
+	VLine(X + 3,Y + 1,Y + 2,PSet);
+	PutChar5x7(X + 5,Y,'C',CharType);
+
+	return X - pX + 10;
+}
+
+// Draw vertical menu with scrolling
+// input:
+//   X,Y - top left menu corner coordinates
+//   W,H - width and height of menu
+//   Menu - pointer to Menu_TypeDef structure, containing menu
+//   StartPos - start menu position
+// return:
+//   selected menu position or 0xff if "Escape" key pressed
+uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef *Menu,
+		uint8_t StartPos) {
+	uint8_t i;
+	int8_t scrPos; // Cursor position related to screen
+	int8_t scrOfs; // Menu scroll (number of first displayed item)
+	uint8_t xx,yy;
+	uint8_t Cr; // Right side of menu cursor
+	uint8_t miYoffs; // First menu item vertical offset
+	uint8_t sbTH; // Height of scrollbar thumb
+	uint8_t sbH; // Height of scrollbar
+	uint8_t sbTY; // Vertical position of scrollbar thumb
+	uint8_t scrItems; // Visible menu items on screen
+
+	// Compute locals for less further calculations
+	Cr = X + W - 3;
+	scrItems = (H - 4) / MenuItemHeight;
+	if (scrItems < Menu->NumItems) {
+		sbTH = ((H - 5) * scrItems ) / Menu->NumItems;
+		if (sbTH < 2) sbTH = 2;
+		Cr -= 4;
+		sbH = H - 5;
+	} else {
+		sbTH = 0;
+		sbH  = 0;
+	}
+	if (scrItems > Menu->NumItems) scrItems = Menu->NumItems;
+	miYoffs = ((H - 6 - (scrItems * MenuItemHeight)) / 2) - 1;
+
+	if (StartPos > Menu->NumItems) StartPos = 0;
+	if (StartPos >= scrItems) {
+		if (StartPos <= Menu->NumItems - scrItems) {
+			scrPos = (scrItems * StartPos) / Menu->NumItems;
+			scrOfs = StartPos - scrPos;
+		} else {
+			scrOfs = Menu->NumItems - scrItems;
+			scrPos = StartPos - scrOfs;
+		}
+	} else {
+		scrPos = StartPos;
+		scrOfs = 0;
+	}
+
+	// Menu frame
+	Rect(X,Y,X + W - 1,Y + H - 1,PSet);
+
+	while(1) {
+		// Clear menu background
+		FillRect(X + 1,Y + 1,X + W - 2,Y + H - 2,PReset);
+
+		// Menu items
+		yy = Y + 4 + miYoffs;
+		for (i = scrOfs; i < scrOfs + scrItems; i++) {
+			xx = X + 5;
+			// If MenuAlign given something except MA_left - it will be centered
+			if (Menu->MenuAlign == MA_left) {
+				sbTY = 0;
+			} else {
+				sbTY = ((Cr - X - 4) / 2) - (stringlen(Menu->Items[i].ItemName) * 3);
+			}
+			if (i - scrOfs == scrPos) {
+				// Menu item under cursor
+				FillRect(X + 2,yy,Cr,yy + MenuItemHeight - 1,PSet);
+				PutStr5x7(xx + sbTY,yy + 1,Menu->Items[i].ItemName,CT_transp_inv);
+			} else {
+				// Menu item
+				PutStr5x7(xx + sbTY,yy + 1,Menu->Items[i].ItemName,CT_opaque);
+			}
+			yy += MenuItemHeight;
+		}
+
+		// Scrollbar
+		if (sbH > 0) {
+			sbTY = Y + 2 + (((scrPos + scrOfs) * (sbH - sbTH)) / (Menu->NumItems - 1));
+			VLine(X + W - 4,Y + 2,Y + 2 + sbH,PSet);
+			VLine(X + W - 5,sbTY,sbTY + sbTH,PSet);
+			VLine(X + W - 3,sbTY,sbTY + sbTH,PSet);
+		}
+
+		UC1701_Flush();
+
+		// Wait for key press
+		while (!BTN[0].cntr && !BTN[1].cntr && !BTN[2].cntr && !BTN[3].cntr &&
+				BTN[0].state != BTN_Hold && BTN[1].state != BTN_Hold) {
+//		    PWR->CR |= 1 << 2; // Clear the WUF wakeup flag
+//		    __WFI();
+		}
+
+		// Up button
+		if (BTN[0].cntr || BTN[0].state == BTN_Hold) {
+			scrPos--;
+			if (scrPos < 0) {
+				scrPos = 0;
+				scrOfs--;
+				if (scrOfs < 0) {
+					if (Menu->MenuScroll == MS_normal) {
+						scrOfs = 0;
+						scrPos = 0;
+					} else {
+						scrOfs = Menu->NumItems - scrItems;
+						scrPos = scrItems - 1;
+					}
+				}
+			}
+			BTN[0].cntr = 0;
+		}
+
+		// Down button
+		if (BTN[1].cntr || BTN[1].state == BTN_Hold) {
+			scrPos++;
+			if (scrPos > scrItems - 1) {
+				scrPos = scrItems - 1;
+				scrOfs++;
+				if (scrOfs > Menu->NumItems - scrItems) {
+					if (Menu->MenuScroll == MS_normal) {
+						scrPos = scrItems - 1;
+						scrOfs = Menu->NumItems - scrItems;
+					} else {
+						scrPos = 0;
+						scrOfs = 0;
+					}
+				}
+			}
+			BTN[1].cntr = 0;
+		}
+
+		// "Enter" button
+		if (BTN[2].cntr) {
+			BTN[2].cntr = 0;
+			return scrPos + scrOfs;
+		}
+
+		// "Escape" button
+		if (BTN[3].cntr) {
+			BTN[3].cntr = 0;
+			return 0xff;
+		}
+
+	}
+}
+
+// Adjust numeric value with up/down buttons
+// input:
+//   X - left horizontal coordinate of dialog
+//       if this value is negative -> dialog right horizontal coordinate
+//   Y - top vertical coordinate of dialog
+//       if this value is negative -> dialog bottom vertical coordinate
+//   W - width of dialog (zero for auto size)
+//   H - height of dialog (zero for auto size)
+//   Value - start numeric value
+//   Min - minimum value
+//   Max - maximum value
+//   Step - step change of numeric value
+//   unit - unit to add to value
+//   CallBack - pointer to function, which will be called on every Value change
+void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
+		int32_t Min, int32_t Max, int32_t Step, char *unit, funcPtr_TypeDef CallBack) {
+	uint8_t i;
+	uint8_t vY; // Numeric value vertical coordinate
+	uint8_t mid; // Middle horizontal position
+	int32_t val = *Value; // Value to change
+	uint8_t frame_width = W;
+	uint8_t frame_height = H;
+
+	// Check range
+	if (val > Max || val < Min) val = Min + ((Max - Min) >> 1);
+
+	// Calculate dialog width
+	if (W == 0) {
+		i = stringlen(unit) + numlen(Min);
+		mid = stringlen(unit) + numlen(Max);
+		if (i > mid) mid = i;
+		frame_width = (mid * 6) + 3;
+	}
+
+	// Calculate dialog height
+	if (H == 0) frame_height = 29;
+
+	// If X negative -> adjust dialog left horizontal coordinate
+	if (X < 0) X = (-1 * X) - frame_width;
+
+	// If Y negative -> adjust dialog top horizontal coordinate
+	if (Y < 0) Y = (-1 * Y) - frame_height + 1;
+
+	// Middle of dialog
+	vY = Y + ((frame_height - 4) / 2) - 1;
+	mid = X + (frame_width / 2) + 1; // Middle of the dialog window
+
+	// Dialog frame
+	Rect(X,Y,X + frame_width,Y + frame_height - 1,PSet);
+
+	while(1) {
+		// Call a callback function
+		if (CallBack) CallBack(val);
+
+		// Clear dialog background
+		FillRect(X + 1,Y + 1,X + frame_width - 1,Y + frame_height - 2,PReset);
+
+		// Draw up/down arrows
+		for (i = 6; i > 0; i --) {
+			if (val + Step <= Max) HLine(mid - i,mid + i - 1,vY + i - 10,PSet);
+			if (val - Step >= Min) HLine(mid - i,mid + i - 1,vY - i + 16,PSet);
+		}
+
+		// Draw value
+		i = mid - ((stringlen(unit) + numlen(val)) * 3);
+		FillRect(X + 1,vY - 2,X + frame_width - 1,vY + 8,PSet);
+		i += PutInt5x7(i,vY,val,CT_transp_inv) + 1;
+		PutStr5x7(i,vY,unit,CT_transp_inv);
+		UC1701_Flush();
+
+		// Wait for key press
+		while (!BTN[0].cntr && !BTN[1].cntr && !BTN[2].cntr && !BTN[3].cntr &&
+				BTN[0].state != BTN_Hold && BTN[1].state != BTN_Hold) {
+//		    PWR->CR |= 1 << 2; // Clear the WUF wakeup flag
+//		    __WFI();
+		}
+
+		// Up button
+		if (BTN[0].cntr || BTN[0].state == BTN_Hold) {
+			val += Step;
+			if (val > Max) val = Max;
+			BTN[0].cntr = 0;
+		}
+
+		// Down button
+		if (BTN[1].cntr || BTN[1].state == BTN_Hold) {
+			val -= Step;
+			if (val < Min) val = Min;
+			BTN[1].cntr = 0;
+		}
+
+		// "Enter" button
+		if (BTN[2].cntr) {
+			BTN[2].cntr = 0;
+			*Value = val;
+			if (CallBack) CallBack(*Value);
+			return;
+		}
+
+		// "Escape" button
+		if (BTN[3].cntr) {
+			BTN[3].cntr = 0;
+			// Restore old value by calling callback function with original value
+			if (CallBack) CallBack(*Value);
+			return;
+		}
+	}
 }
