@@ -3,14 +3,16 @@
 #define __DELAY_H
 
 
-#define DELAY_TICK_FREQUENCY_US 1000000   /* = 1MHz -> microseconds delay */
-#define DELAY_TICK_FREQUENCY_MS 1000      /* = 1kHz -> milliseconds delay */
+#define DELAY_TIM               TIM6
+#define DELAY_TIM_PERIPH        RCC_APB1Periph_TIM6
+#define DELAY_TIM_IRQN          TIM6_IRQn
 
 
-static __IO uint32_t TimingDelay; // __IO -- volatile
+typedef void (*funcCallback_TypeDef)(void);
 
 
 // Function prototypes
+void Delay_Init(funcCallback_TypeDef func_CallBack);
 void Delay_ms(uint32_t nTime);
 void Delay_us(uint32_t nTime);
 

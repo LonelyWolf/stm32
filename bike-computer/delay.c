@@ -1,22 +1,57 @@
 #include <stm32l1xx_rcc.h>
+#include <misc.h>
+
 #include <delay.h>
 
 
-// SysTick interrupt handler
-void SysTick_Handler() {
-	if (TimingDelay != 0) { TimingDelay--; }
+funcCallback_TypeDef delay_CallBack;
+
+
+// TIM6 IRQ handler
+void TIM6_IRQHandler(void) {
+	DELAY_TIM->SR = 0xfffe; // Clear the TIMx's interrupt pending bit (TIM6 rises only UPDATE IT)
+	if (delay_CallBack) delay_CallBack(); // Call callback function if it non NULL
 }
 
-// Do delay for mSecs milliseconds
+// Init delay timer
+void Delay_Init(funcCallback_TypeDef func_CallBack) {
+	NVIC_InitTypeDef NVICInit;
+
+	// Configure basic timer TIM6
+	RCC_APB1PeriphClockCmd(DELAY_TIM_PERIPH,ENABLE); // Enable TIMx peripheral
+	DELAY_TIM->CR1 |= TIM_CR1_ARPE; // Auto-preload enable
+	DELAY_TIM->PSC  = 1600; // TIMx prescaler [ PSC = APB1clock / (PWMfreq * OVFCounter) ]
+	DELAY_TIM->ARR  = 9999; // TIMx auto reload value
+	DELAY_TIM->EGR  = 1; // Generate an update event to reload the prescaler value immediately
+	// TIMx IRQ
+	NVICInit.NVIC_IRQChannel = DELAY_TIM_IRQN;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x07; // middle priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x07; // middle priority
+	NVIC_Init(&NVICInit);
+
+	delay_CallBack = func_CallBack;
+	if (delay_CallBack) DELAY_TIM->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
+	DELAY_TIM->CR1 |= TIM_CR1_CEN; // Counter enable
+}
+
+// Loop delay for 1 millisecond
+void Delay_msec(void) {
+	volatile uint16_t tStart;
+	volatile uint16_t tEnd;
+	volatile uint16_t tDiff;
+
+	tStart = DELAY_TIM->CNT;
+	do {
+		tEnd = DELAY_TIM->CNT;
+		if (tEnd < tStart) tDiff = 9999 - tStart + tEnd; else tDiff = tEnd - tStart;
+	} while (tDiff < 19);
+}
+
+// Loop delay for mSecs milliseconds
 void Delay_ms(uint32_t mSecs) {
-	SysTick_Config(SystemCoreClock / DELAY_TICK_FREQUENCY_MS);
-	TimingDelay = mSecs + 1;
-	while (TimingDelay != 0);
-}
-
-// Do delay for nSecs microseconds
-void Delay_us(uint32_t uSecs) {
-	SysTick_Config(SystemCoreClock / DELAY_TICK_FREQUENCY_US);
-	TimingDelay = uSecs + 1;
-	while (TimingDelay != 0);
+	while (mSecs > 0) {
+		Delay_msec();
+		mSecs--;
+	}
 }
