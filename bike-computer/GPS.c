@@ -1,4 +1,5 @@
 #include <stm32l1xx_rcc.h>
+#include <string.h> // For memset
 
 #include <uart.h>
 #include <wolk.h>
@@ -518,4 +519,19 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 		// Some banana
 		break;
 	}
+}
+
+// Initialize GPSData variable
+void GPS_InitData(void) {
+	uint32_t i;
+
+	memset(&GPSData,0,sizeof(GPSData));
+	for (i = 0; i < 12; i++) GPS_sats[i] = 0;
+	for (i = 0; i < MAX_SATELLITES_VIEW; i++) {
+		memset(&GPS_sats_view[i],0,sizeof(GPS_Satellite_TypeDef));
+		GPS_sats_view[i].SNR = 255;
+	}
+	GPSData.longitude_char = 'X';
+	GPSData.latitude_char  = 'X';
+	GPSData.mode = 'N';
 }

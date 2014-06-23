@@ -82,5 +82,6 @@ uint8_t GPS_CRC(char *str);
 void GPS_SendCommand(char *cmd);
 NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size);
 void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence);
+void GPS_InitData(void);
 
 #endif // __GPS_H
