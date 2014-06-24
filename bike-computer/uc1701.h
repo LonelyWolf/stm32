@@ -110,4 +110,7 @@ uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType
 uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_TypeDef CharType);
 uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
 
+void PutDigit3x5(uint8_t X, uint8_t Y, uint8_t digit);
+uint8_t PutIntULZ3x5(uint8_t X, uint8_t Y, uint32_t num, uint8_t digits);
+
 #endif // __UC1701_H

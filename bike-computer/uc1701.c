@@ -8,6 +8,7 @@
 #include <uc1701.h>
 
 #include <font5x7.h>
+#include <resources.h>
 
 
 uint16_t                  scr_width        = SCR_W;
@@ -612,4 +613,48 @@ uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType)
 	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],CharType);
 
 	return strLen * 6;
+}
+
+// Draw small digit (3x5)
+// input:
+//   X,Y - digit top left corner coordinate
+//   digit - digit to draw
+void PutDigit3x5(uint8_t X, uint8_t Y, uint8_t digit) {
+	uint8_t i,j;
+	uint8_t ch;
+
+    for (i = 0; i < 3; i++) {
+    	ch = digits_3x5[i + digit * 3];
+    	for (j = 0; j < 5; j++) {
+    		if ((ch >> j) & 0x01) SetPixel(X + i,Y + j); else ResetPixel(X + i,Y + j);
+    	}
+    }
+}
+
+// Put unsigned integer with leading zeros in small 3x5 font
+// input:
+//   X,Y - number top left corner coordinate
+//   num - number to draw
+//   digits - number of leading zeros (0 for none)
+// return:
+//   number width in pixels
+uint8_t PutIntULZ3x5(uint8_t X, uint8_t Y, uint32_t num, uint8_t digits) {
+	uint8_t i = 0;
+	uint8_t strLen;
+	uint8_t str[11];
+
+	do { str[i++] = num % 10; } while ((num /= 10) > 0);
+	strLen = i;
+
+	if (strLen < digits) for (i = 0; i < digits - strLen; i++) {
+		PutDigit3x5(X,Y,0);
+		X += 4;
+	}
+
+	for (i = strLen; i > 0; i--) {
+		PutDigit3x5(X,Y,str[i - 1]);
+		X += 4;
+	}
+
+	if (strLen < digits) return digits * 4; else return strLen * 4;
 }
