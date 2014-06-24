@@ -3,7 +3,7 @@
 #define __GPS_H
 
 
-#define MAX_SATELLITES_VIEW   16  // Maximum number of satellites in view to handle
+#define MAX_SATELLITES_VIEW   12  // Maximum number of satellites in view to handle
 
 
 typedef enum {
@@ -68,6 +68,7 @@ typedef struct {
 	uint8_t  elevation;           // Elevation, degrees (max 90)
 	uint16_t azimuth;             // Azimuth, degrees from true noth (0..359)
 	uint8_t  SNR;                 // SNR, dB (0..99, 255 when not tracking)
+	bool     used;                // TRUE if satellite used in location fix
 } GPS_Satellite_TypeDef;
 
 
@@ -83,5 +84,6 @@ void GPS_SendCommand(char *cmd);
 NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size);
 void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence);
 void GPS_InitData(void);
+void GPS_CheckUsedSats(void);
 
 #endif // __GPS_H

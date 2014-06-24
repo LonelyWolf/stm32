@@ -166,13 +166,18 @@ uint16_t GPS_ParseSatelliteInView(uint8_t *buf, uint8_t sat_num) {
 	}
 
 	// Satellite SNR
-	if (buf[pos] != ',') {
+//	if (buf[pos] != ',') {
+	// Checking for asterisk here is workaround for bug in EB-500 firmware
+	if (buf[pos] != ',' && buf[pos] != '*') {
 		GPS_sats_view[sat_num].SNR = atos_len(&buf[pos],2);
 		pos += 3;
 	} else {
 		GPS_sats_view[sat_num].SNR = 255; // Satellite not tracked
 		pos++;
 	}
+
+	// This must be set after all GPS sentences parsed
+	GPS_sats_view[sat_num].used = FALSE;
 
 	return pos;
 }
@@ -534,4 +539,19 @@ void GPS_InitData(void) {
 	GPSData.longitude_char = 'X';
 	GPSData.latitude_char  = 'X';
 	GPSData.mode = 'N';
+}
+
+// Check which satellites in view used in location fix
+void GPS_CheckUsedSats(void) {
+	uint32_t i,j;
+
+	for (i = 0; i < GPSData.sats_view; i++) {
+		GPS_sats_view[i].used = FALSE;
+		for (j = 0; GPSData.sats_used; j++) {
+			if (GPS_sats[j] == GPS_sats_view[i].PRN) {
+				GPS_sats_view[i].used = TRUE;
+				break;
+			}
+		}
+	}
 }
