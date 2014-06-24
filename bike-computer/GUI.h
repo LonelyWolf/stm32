@@ -56,14 +56,18 @@ typedef void (*funcPtr_TypeDef)(int32_t param);
 void GUI_DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
 void GUI_DrawNumber(int8_t X, int8_t Y, int32_t Number, uint8_t Decimals,	DigitSize_TypeDef DigitSize);
 void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_TypeDef TimeType, DigitSize_TypeDef DigitSize);
+
 void GUI_Screen_SensorRAW(void);
 void GUI_Screen_CurVal1(void);
 void GUI_Screen_CurVal2(void);
 void GUI_Screen_CurVal3(void);
+
 void GUI_DrawSpeed(int8_t X, int8_t Y, uint32_t speed, uint32_t avg);
 void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time);
 void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* data, GraphType_TypeDef GraphType);
 void GUI_DrawGPSInfo(void);
+void GUI_DrawGPSSatsView(void);
+
 uint8_t GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, CharType_TypeDef CharType);
 uint8_t GUI_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef CharType);
 uint8_t GUI_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef CharType);

@@ -7,7 +7,7 @@
 #include <GPS.h>
 
 #include <resources.h>
-
+#include <math.h>
 
 // Draw bitmap
 // input:
@@ -566,6 +566,51 @@ void GUI_DrawGPSInfo(void) {
 	X += PutIntF5x7(X,Y,GPSData.HDOP,2,CT_opaque) + 5;
 	X += PutStr5x7(X,Y,"VDOP:",CT_opaque) - 1;
 	X += PutIntF5x7(X,Y,GPSData.VDOP,2,CT_opaque) + 5;
+}
+
+// Draw satellites in view bar graph
+void GUI_DrawGPSSatsView(void) {
+	uint8_t i;
+	uint8_t X;
+	uint8_t Y;
+	uint8_t sats = GPSData.sats_view;
+	uint8_t max_SNR = 40;
+
+	UC1701_Fill(0x00);
+
+	// Used satellites can be no more than 12 (from $GPGGA)
+	if (sats > 12) sats = 12;
+
+	// Find maximal SNR
+	for (i = 0; i < sats; i++) {
+		if (GPS_sats_view[i].SNR > max_SNR && GPS_sats_view[i].SNR != 255) max_SNR = GPS_sats_view[i].SNR;
+	}
+
+	// Draw scale
+	HLine(0,scr_width - 1,50,PSet);
+	VLine(scr_width - 9,0,63,PSet);
+	for (i = 0; i < 5; i++) {
+		PutIntULZ3x5(scr_width - 7,44 - (i * 11),i * (max_SNR / 4),2);
+		SetPixel(scr_width - 10,i * 11 + 2);
+	}
+	for (i = 0; i < 11; i++) VLine(8 + (i * 10),51,63,PSet);
+
+	if (!GPSData.sats_view) {
+		X = PutStr5x7(12,21,"No satellites",CT_opaque);
+		for (i = 0; i < 12; i++) PutIntULZ3x5(i * 10,52,0,2); // Just for decoration
+		return;
+	}
+
+	// Satellites SNR graphs
+	for (i = 0; i < sats; i++) {
+		X = i * 10;
+		if (GPS_sats_view[i].SNR != 255) {
+			Y = 48 - ((GPS_sats_view[i].SNR * 48) / max_SNR);
+			if (GPS_sats_view[i].used) FillRect(X,Y,X + 6,50,PSet); else Rect(X,Y,X + 6,50,PSet);
+		}
+		PutIntULZ3x5(X,52,GPS_sats_view[i].PRN,2);
+		if (GPS_sats_view[i].SNR != 255) PutIntULZ3x5(X,59,GPS_sats_view[i].SNR,2);
+	}
 }
 
 // Put coordinates in format "Ndd.xxxxxx"
