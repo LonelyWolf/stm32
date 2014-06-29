@@ -7,6 +7,11 @@
 
 
 GPS_Data_TypeDef GPSData;                   // Parsed GPS information
+bool GPS_new_data;                          // TRUE if received new GPS packet
+uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
+NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
+uint8_t GPS_sentences_parsed;               // NMEA sentences parsed
+uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 uint8_t GPS_sats[12];                       // IDs of satellites used in position fix
 // Information about satellites in view (can be increased if receiver able handle more)
 GPS_Satellite_TypeDef GPS_sats_view[MAX_SATELLITES_VIEW];

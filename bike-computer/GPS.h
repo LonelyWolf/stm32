@@ -3,6 +3,7 @@
 #define __GPS_H
 
 
+#define GPS_BUFFER_SIZE     1024  // Size of GPS buffer (must be equal to or greater than FIFO buffer)
 #define MAX_SATELLITES_VIEW   12  // Maximum number of satellites in view to handle
 
 
@@ -73,9 +74,15 @@ typedef struct {
 
 
 // Public variables
-extern GPS_Data_TypeDef GPSData;  // Parsed GPS data
-extern uint8_t GPS_sats[];        // IDs of satellites used in position fix
-extern GPS_Satellite_TypeDef GPS_sats_view[];   // Information about satellites in view
+extern GPS_Data_TypeDef GPSData;                   // Parsed GPS information
+extern bool GPS_new_data;                          // TRUE if received new GPS packet
+extern uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
+extern NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
+extern uint8_t GPS_sentences_parsed;               // NMEA sentences parsed
+extern uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
+extern GPS_Data_TypeDef GPSData;                   // Parsed GPS data
+extern uint8_t GPS_sats[];                         // IDs of satellites used in position fix
+extern GPS_Satellite_TypeDef GPS_sats_view[];      // Information about satellites in view
 
 
 // Function prototypes
