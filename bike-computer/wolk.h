@@ -20,6 +20,10 @@
 #define      BTN4_PORT   GPIOC
 #define      BTN4_PIN    GPIO_Pin_11
 
+#define      BTN_UP      0
+#define      BTN_DOWN    1
+#define      BTN_ENTER   2
+#define      BTN_ESCAPE  3
 
 // Just boolean
 typedef enum {
@@ -103,6 +107,8 @@ extern Settings_TypeDef Settings;                  // Settings which stored in E
 
 
 // Function prototypes
+void SleepWait(void);
+
 uint32_t atos_len(uint8_t *buf, uint8_t len);
 int32_t atos_char(uint8_t *buf, uint16_t *pos);
 uint32_t stringlen(const char *str);
@@ -110,5 +116,8 @@ uint8_t numlen(int32_t num);
 
 void ReadSettings_EEPROM(void);
 void SaveSettings_EEPROM(void);
+
+void WaitForKeyPress(bool Sleep, bool *WaitFlag);
+void ClearKeys(void);
 
 #endif // __WOLK_H

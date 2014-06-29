@@ -1,8 +1,8 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_rtc.h>
 
-#include <wolk.h>
 #include <EEPROM.h>
+#include <wolk.h>
 
 
 nRF24_Packet_TypeDef nRF24_Packet;          // nRF24L01 last received packet
@@ -10,6 +10,13 @@ Cur_Data_TypeDef CurData;                   // Current data (Speed, Cadence, etc
 BTN_TypeDef BTN[4];                         // Buttons
 Settings_TypeDef Settings;                  // Settings which stored in EEPROM
 
+
+// Execute WFI instruction
+void SleepWait(void) {
+//	SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk; // Disable SysTick interrupt
+	PWR->CR |= 1 << 2; // Clear the WUF wakeup flag
+	__WFI();
+}
 
 // Convert characters to number with fixed length
 // input:
@@ -93,24 +100,48 @@ uint8_t numlen(int32_t num) {
 
 // Load settings from EEPROM
 void ReadSettings_EEPROM(void) {
-	Settings_TypeDef settings;
-	uint32_t *ptr = (uint32_t *)&settings;
+	uint32_t *ptr = (uint32_t *)&Settings;
 	uint8_t i;
 
-	for (i = 0; i < sizeof(settings); i += 4) *ptr++ = EEPROM_Read(DATA_EEPROM_START_ADDR + i);
+	for (i = 0; i < sizeof(Settings); i += 4) *ptr++ = EEPROM_Read(DATA_EEPROM_START_ADDR + i);
 }
 
 // Save settings to EEPROM
 void SaveSettings_EEPROM(void) {
-	Settings_TypeDef settings;
-	uint32_t *ptr = (uint32_t *)&settings;
+	uint32_t *ptr = (uint32_t *)&Settings;
 	uint8_t i;
 	uint32_t data;
 
 	EEPROM_Unlock();
-	for (i = 0; i < sizeof(settings); i += 4) {
+	for (i = 0; i < sizeof(Settings); i += 4) {
 		data = *ptr++;
 		if (data != EEPROM_Read(DATA_EEPROM_START_ADDR + i)) EEPROM_Write(DATA_EEPROM_START_ADDR + i,data);
 	}
 	EEPROM_Lock();
+}
+
+// Wait for key press
+// input:
+//   Sleep - execute SleepWait if TRUE
+//   WaitFlag - pointer to bool variable with flag (function exits wait loop when flag set to TRUE)
+// note: WaitFlag ignored if it NULL
+void WaitForKeyPress(bool Sleep, bool *WaitFlag) {
+	if (WaitFlag) {
+		while (!BTN[0].cntr && !BTN[1].cntr && !BTN[2].cntr && !BTN[3].cntr &&
+				BTN[0].state != BTN_Hold && BTN[1].state != BTN_Hold && !(*WaitFlag)) {
+			if (Sleep) SleepWait();
+		}
+	} else {
+		while (!BTN[0].cntr && !BTN[1].cntr && !BTN[2].cntr && !BTN[3].cntr &&
+				BTN[0].state != BTN_Hold && BTN[1].state != BTN_Hold) {
+			if (Sleep) SleepWait();
+		}
+	}
+}
+
+// Clear buttons state
+void ClearKeys(void) {
+	uint8_t i;
+
+	for (i = 0; i < 4; i++)	BTN[i].cntr = 0;
 }
