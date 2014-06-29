@@ -18,10 +18,13 @@ void Delay_Init(funcCallback_TypeDef func_CallBack) {
 	NVIC_InitTypeDef NVICInit;
 
 	// Configure basic timer TIM6
+	// Overflow every half second
+	// One timer tick = 0,00005s = 0.05ms = 50us
 	RCC_APB1PeriphClockCmd(DELAY_TIM_PERIPH,ENABLE); // Enable TIMx peripheral
 	DELAY_TIM->CR1 |= TIM_CR1_ARPE; // Auto-preload enable
-	DELAY_TIM->PSC  = 1600; // TIMx prescaler [ PSC = APB1clock / (PWMfreq * OVFCounter) ]
-	DELAY_TIM->ARR  = 9999; // TIMx auto reload value
+//	DELAY_TIM->PSC  = 1600; // TIMx prescaler [ PSC = APB1clock / (PWMfreq * OVFCounter) ]
+	DELAY_TIM->PSC  = SystemCoreClock / 20000; // Delay timer prescaler, must be 1600
+	DELAY_TIM->ARR  = 9999; // Delay timer auto reload value (20000 ticks pers second)
 	DELAY_TIM->EGR  = 1; // Generate an update event to reload the prescaler value immediately
 	// TIMx IRQ
 	NVICInit.NVIC_IRQChannel = DELAY_TIM_IRQN;
