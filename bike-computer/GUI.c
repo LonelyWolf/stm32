@@ -9,6 +9,12 @@
 #include <resources.h>
 #include <math.h>
 
+
+// Callback function for change display brightness settings
+void callback_Brightness(int32_t param) {
+	UC1701_SetBacklight(param);
+}
+
 // Draw bitmap
 // input:
 //   X, Y - top left corner coordinates of bitmap
@@ -407,6 +413,206 @@ void GUI_Screen_CurVal3(void) {
 	PutChar5x7(X,Y,'m',CT_transp);
 }
 
+// Screen with satellites in view bar graph
+// input:
+//   WaitForKey - function pointer to WaitForKeyPress function
+// note: if WaitForKey are NULL - just draw screen and return
+void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
+	uint8_t i;
+	uint8_t X;
+	uint8_t Y;
+	uint8_t sats;
+	uint8_t max_SNR;
+
+	do {
+		ClearKeys();
+
+		sats = GPSData.sats_view;
+		max_SNR = 40;
+
+		// Used satellites can be no more than 12 (from $GPGGA)
+		if (sats > 12) sats = 12;
+
+		// Find maximal SNR
+		for (i = 0; i < sats; i++) {
+			if (GPS_sats_view[i].SNR > max_SNR && GPS_sats_view[i].SNR != 255) max_SNR = GPS_sats_view[i].SNR;
+		}
+
+		UC1701_Fill(0x00);
+
+		// Draw scale
+		HLine(0,scr_width - 1,50,PSet);
+		VLine(scr_width - 9,0,63,PSet);
+		for (i = 0; i < 5; i++) {
+			PutIntULZ3x5(scr_width - 7,44 - (i * 11),i * (max_SNR / 4),2);
+			SetPixel(scr_width - 10,i * 11 + 2);
+		}
+		for (i = 0; i < 11; i++) VLine(8 + (i * 10),51,63,PSet);
+
+		if (!GPSData.sats_view) {
+			// Just for decoration
+			X = PutStr5x7(12,21,"No satellites",CT_opaque);
+			for (i = 0; i < 12; i++) PutIntULZ3x5(i * 10,52,0,2);
+		} else {
+			// Satellites SNR graphs
+			for (i = 0; i < sats; i++) {
+				X = i * 10;
+				if (GPS_sats_view[i].SNR != 255) {
+					Y = 48 - ((GPS_sats_view[i].SNR * 48) / max_SNR);
+					if (GPS_sats_view[i].used) FillRect(X,Y,X + 6,50,PSet); else Rect(X,Y,X + 6,50,PSet);
+				}
+				PutIntULZ3x5(X,52,GPS_sats_view[i].PRN,2);
+				if (GPS_sats_view[i].SNR != 255) PutIntULZ3x5(X,59,GPS_sats_view[i].SNR,2);
+			}
+		}
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
+		GPS_new_data = FALSE;
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	ClearKeys();
+	UC1701_Fill(0x00);
+}
+
+// Screen with RAW GPS values
+// input:
+//   WaitForKey - function pointer to WaitForKeyPress function
+// note: if WaitForKey are NULL - just draw screen and return
+void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
+	uint8_t X,Y;
+
+	do {
+		ClearKeys();
+
+		// Frame
+		UC1701_Fill(0x00);
+		Rect(0,0,scr_width - 1,scr_height - 1,PSet);
+
+		X = 4; Y = 4;
+		X += GUI_PutTimeSec5x7(X,Y,GPSData.time,CT_opaque) + 5;
+		X += GUI_PutDate5x7(X,Y,GPSData.date,CT_opaque);
+
+		X = 4; Y += 8;
+		X += PutStr5x7(X,Y,"Fix:",CT_opaque) - 1;
+		if (GPSData.fix != 2 && GPSData.fix != 3)
+			X += PutStr5x7(X,Y,"NA",CT_opaque) + 5;
+		else {
+			PutInt5x7(X,Y,GPSData.fix,CT_opaque);
+			PutChar5x7(X + 6,Y,'D',CT_opaque);
+			X += 17;
+		}
+		X += PutStr5x7(X,Y,"Qlty:",CT_opaque) - 1;
+		PutChar5x7(X,Y,GPSData.fix_quality + '0',CT_opaque);
+		X += 11;
+		X += PutStr5x7(X,Y,"Mode:",CT_opaque) - 1;
+		PutChar5x7(X,Y,GPSData.mode,CT_opaque);
+
+		X = 4; Y += 8;
+		GUI_PutCoord5x7(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,CT_opaque);
+		X = 67;
+		GUI_PutCoord5x7(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,CT_opaque);
+
+		X = 4; Y += 8;
+		X += PutStr5x7(X,Y,"Alt:",CT_opaque) - 1;
+		X += PutInt5x7(X,Y,GPSData.altitude,CT_opaque) + 5;
+		X += PutStr5x7(X,Y,"Spd:",CT_opaque) - 1;
+		X += PutIntF5x7(X,Y,GPSData.speed,2,CT_opaque);
+
+		X = 4; Y += 8;
+		X += PutStr5x7(X,Y,"Crs:",CT_opaque) - 1;
+		X += PutIntF5x7(X,Y,GPSData.course,2,CT_opaque) + 5;
+		X += PutStr5x7(X,Y,"Sat:",CT_opaque) - 1;
+		X += PutInt5x7(X,Y,GPSData.sats_used,CT_opaque);
+		PutChar5x7(X,Y,'/',CT_opaque);
+		X += 6;
+		X += PutInt5x7(X,Y,GPSData.sats_view,CT_opaque);
+
+		X = 4; Y += 8;
+		X += PutStr5x7(X,Y,"PDOP:",CT_opaque) - 1;
+		X += PutIntF5x7(X,Y,GPSData.PDOP,2,CT_opaque) + 5;
+
+		X = 4; Y += 8;
+		X += PutStr5x7(X,Y,"HDOP:",CT_opaque) - 1;
+		X += PutIntF5x7(X,Y,GPSData.HDOP,2,CT_opaque) + 5;
+		X += PutStr5x7(X,Y,"VDOP:",CT_opaque) - 1;
+		X += PutIntF5x7(X,Y,GPSData.VDOP,2,CT_opaque) + 5;
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
+		GPS_new_data = FALSE;
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	ClearKeys();
+	UC1701_Fill(0x00);
+}
+
+// Display byte buffer with scroll
+// input:
+//   pBuf - pointer to byte buffer
+//   BufSize - size of buffer
+//   UpdateFlag - pointer to bool variable which contains flag to refresh buffer content
+void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPtrKeyPress_TypeDef WaitForKey) {
+	uint8_t X,Y;
+	uint16_t pos = 0;
+	uint16_t i;
+	uint8_t chars_per_line;
+
+	chars_per_line = scr_width / 6;
+
+	do {
+		UC1701_Fill(0x00);
+
+		X = 0; Y = 0;
+		i = pos;
+		do {
+			PutChar5x7(X,Y,pBuf[i++],CT_opaque);
+			X += 6;
+			if (X > scr_width - 6) {
+				X  = 0;
+				Y += 8;
+			}
+		} while (Y < scr_height - 8 && i < BufSize);
+		HLine(0,scr_width - 1,scr_height - 7,PSet);
+
+		X = PutIntULZ3x5(0,scr_height - 5,pos,0) + 10;
+		PutIntULZ3x5(X,scr_height - 5,BufSize,0);
+
+		UC1701_Flush();
+
+		// Wait for key press
+		if (WaitForKey) WaitForKey(TRUE,UpdateFlag);
+		*UpdateFlag = FALSE;
+
+		// "Down" key
+		if (BTN[BTN_DOWN].cntr > 0 || BTN[BTN_DOWN].state == BTN_Hold) {
+			if (pos + i < BufSize) {
+				pos += chars_per_line;
+				if (pos > BufSize) pos = BufSize;
+			}
+			BTN[BTN_DOWN].cntr = 0;
+		}
+
+		// "Up" key
+		if (BTN[BTN_UP].cntr > 0 || BTN[BTN_UP].state == BTN_Hold) {
+			pos -= chars_per_line;
+			if (pos > BufSize) pos = 0;
+			BTN[BTN_UP].cntr = 0;
+		}
+
+		// "Enter" key
+		if (BTN[BTN_ENTER].cntr > 0 || BTN[BTN_ENTER].state == BTN_Hold) {
+			pos = 0;
+			BTN[BTN_ENTER].cntr = 0;
+		}
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	ClearKeys();
+	UC1701_Fill(0x00);
+}
+
 // Draw speed with 'km/h' mark and AVG speed pace indicator
 // input:
 //   X, Y - left top corner coordinates
@@ -513,108 +719,7 @@ void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* da
 	}
 }
 
-void GUI_DrawGPSInfo(void) {
-	uint8_t X,Y;
-
-	UC1701_Fill(0x00);
-
-	X = 0; Y = 0;
-	X += GUI_PutTimeSec5x7(X,Y,GPSData.time,CT_opaque) + 5;
-	X += GUI_PutDate5x7(X,Y,GPSData.date,CT_opaque);
-
-	X = 0; Y += 8;
-	X += PutStr5x7(X,Y,"Fix:",CT_opaque) - 1;
-	if (GPSData.fix != 2 && GPSData.fix != 3)
-		X += PutStr5x7(X,Y,"NA",CT_opaque) + 5;
-	else {
-		PutInt5x7(X,Y,GPSData.fix,CT_opaque);
-		PutChar5x7(X + 6,Y,'D',CT_opaque);
-		X += 17;
-	}
-	X += PutStr5x7(X,Y,"Qlty:",CT_opaque) - 1;
-	PutChar5x7(X,Y,GPSData.fix_quality + '0',CT_opaque);
-	X += 11;
-	X += PutStr5x7(X,Y,"Mode:",CT_opaque) - 1;
-	PutChar5x7(X,Y,GPSData.mode,CT_opaque);
-
-	X = 0; Y += 8;
-	GUI_PutCoord5x7(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,CT_opaque);
-	X = 63;
-	GUI_PutCoord5x7(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,CT_opaque);
-
-	X = 0; Y += 8;
-	X += PutStr5x7(X,Y,"Alt:",CT_opaque) - 1;
-	X += PutInt5x7(X,Y,GPSData.altitude,CT_opaque) + 5;
-	X += PutStr5x7(X,Y,"Spd:",CT_opaque) - 1;
-	X += PutIntF5x7(X,Y,GPSData.speed,2,CT_opaque);
-
-	X = 0; Y += 8;
-	X += PutStr5x7(X,Y,"Crs:",CT_opaque) - 1;
-	X += PutIntF5x7(X,Y,GPSData.course,2,CT_opaque) + 5;
-	X += PutStr5x7(X,Y,"Sat:",CT_opaque) - 1;
-	X += PutInt5x7(X,Y,GPSData.sats_used,CT_opaque);
-	PutChar5x7(X,Y,'/',CT_opaque);
-	X += 6;
-	X += PutInt5x7(X,Y,GPSData.sats_view,CT_opaque);
-
-	X = 0; Y += 8;
-	X += PutStr5x7(X,Y,"PDOP:",CT_opaque) - 1;
-	X += PutIntF5x7(X,Y,GPSData.PDOP,2,CT_opaque) + 5;
-
-	X = 0; Y += 8;
-	X += PutStr5x7(X,Y,"HDOP:",CT_opaque) - 1;
-	X += PutIntF5x7(X,Y,GPSData.HDOP,2,CT_opaque) + 5;
-	X += PutStr5x7(X,Y,"VDOP:",CT_opaque) - 1;
-	X += PutIntF5x7(X,Y,GPSData.VDOP,2,CT_opaque) + 5;
-}
-
-// Draw satellites in view bar graph
-void GUI_DrawGPSSatsView(void) {
-	uint8_t i;
-	uint8_t X;
-	uint8_t Y;
-	uint8_t sats = GPSData.sats_view;
-	uint8_t max_SNR = 40;
-
-	UC1701_Fill(0x00);
-
-	// Used satellites can be no more than 12 (from $GPGGA)
-	if (sats > 12) sats = 12;
-
-	// Find maximal SNR
-	for (i = 0; i < sats; i++) {
-		if (GPS_sats_view[i].SNR > max_SNR && GPS_sats_view[i].SNR != 255) max_SNR = GPS_sats_view[i].SNR;
-	}
-
-	// Draw scale
-	HLine(0,scr_width - 1,50,PSet);
-	VLine(scr_width - 9,0,63,PSet);
-	for (i = 0; i < 5; i++) {
-		PutIntULZ3x5(scr_width - 7,44 - (i * 11),i * (max_SNR / 4),2);
-		SetPixel(scr_width - 10,i * 11 + 2);
-	}
-	for (i = 0; i < 11; i++) VLine(8 + (i * 10),51,63,PSet);
-
-	if (!GPSData.sats_view) {
-		X = PutStr5x7(12,21,"No satellites",CT_opaque);
-		for (i = 0; i < 12; i++) PutIntULZ3x5(i * 10,52,0,2); // Just for decoration
-		return;
-	}
-
-	// Satellites SNR graphs
-	for (i = 0; i < sats; i++) {
-		X = i * 10;
-		if (GPS_sats_view[i].SNR != 255) {
-			Y = 48 - ((GPS_sats_view[i].SNR * 48) / max_SNR);
-			if (GPS_sats_view[i].used) FillRect(X,Y,X + 6,50,PSet); else Rect(X,Y,X + 6,50,PSet);
-		}
-		PutIntULZ3x5(X,52,GPS_sats_view[i].PRN,2);
-		if (GPS_sats_view[i].SNR != 255) PutIntULZ3x5(X,59,GPS_sats_view[i].SNR,2);
-	}
-}
-
 // Put coordinates in format "Ndd.xxxxxx"
-//void GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint8_t min_i, uint32_t min_f, char ch, CharType_TypeDef CharType) {
 uint8_t GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, CharType_TypeDef CharType) {
 	uint8_t pX = X;
 
@@ -760,10 +865,11 @@ uint8_t GUI_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharTyp
 //   W,H - width and height of menu
 //   Menu - pointer to Menu_TypeDef structure, containing menu
 //   StartPos - start menu position
+//   WaitForKey - function pointer to WaitForKeyPress function
 // return:
 //   selected menu position or 0xff if "Escape" key pressed
 uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef *Menu,
-		uint8_t StartPos) {
+		uint8_t StartPos, funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t i;
 	int8_t scrPos; // Cursor position related to screen
 	int8_t scrOfs; // Menu scroll (number of first displayed item)
@@ -808,6 +914,8 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 	Rect(X,Y,X + W - 1,Y + H - 1,PSet);
 
 	while(1) {
+		ClearKeys();
+
 		// Clear menu background
 		FillRect(X + 1,Y + 1,X + W - 2,Y + H - 2,PReset);
 
@@ -843,14 +951,10 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 		UC1701_Flush();
 
 		// Wait for key press
-		while (!BTN[0].cntr && !BTN[1].cntr && !BTN[2].cntr && !BTN[3].cntr &&
-				BTN[0].state != BTN_Hold && BTN[1].state != BTN_Hold) {
-//		    PWR->CR |= 1 << 2; // Clear the WUF wakeup flag
-//		    __WFI();
-		}
+		if (WaitForKey) WaitForKey(TRUE,NULL);
 
 		// Up button
-		if (BTN[0].cntr || BTN[0].state == BTN_Hold) {
+		if (BTN[BTN_UP].cntr || BTN[BTN_UP].state == BTN_Hold) {
 			scrPos--;
 			if (scrPos < 0) {
 				scrPos = 0;
@@ -865,11 +969,10 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 					}
 				}
 			}
-			BTN[0].cntr = 0;
 		}
 
 		// Down button
-		if (BTN[1].cntr || BTN[1].state == BTN_Hold) {
+		if (BTN[BTN_DOWN].cntr || BTN[BTN_DOWN].state == BTN_Hold) {
 			scrPos++;
 			if (scrPos > scrItems - 1) {
 				scrPos = scrItems - 1;
@@ -884,21 +987,19 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 					}
 				}
 			}
-			BTN[1].cntr = 0;
 		}
 
 		// "Enter" button
-		if (BTN[2].cntr) {
-			BTN[2].cntr = 0;
+		if (BTN[BTN_ENTER].cntr) {
+			ClearKeys();
 			return scrPos + scrOfs;
 		}
 
 		// "Escape" button
-		if (BTN[3].cntr) {
-			BTN[3].cntr = 0;
+		if (BTN[BTN_ESCAPE].cntr) {
+			ClearKeys();
 			return 0xff;
 		}
-
 	}
 }
 
@@ -916,8 +1017,10 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 //   Step - step change of numeric value
 //   unit - unit to add to value
 //   CallBack - pointer to function, which will be called on every Value change
+//   WaitForKey - function pointer to WaitForKeyPress function
 void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
-		int32_t Min, int32_t Max, int32_t Step, char *unit, funcPtr_TypeDef CallBack) {
+		int32_t Min, int32_t Max, int32_t Step, char *unit, funcPtrParam_TypeDef CallBack,
+		funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t i;
 	uint8_t vY; // Numeric value vertical coordinate
 	uint8_t mid; // Middle horizontal position
@@ -953,6 +1056,8 @@ void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
 	Rect(X,Y,X + frame_width,Y + frame_height - 1,PSet);
 
 	while(1) {
+		ClearKeys();
+
 		// Call a callback function
 		if (CallBack) CallBack(val);
 
@@ -973,40 +1078,118 @@ void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
 		UC1701_Flush();
 
 		// Wait for key press
-		while (!BTN[0].cntr && !BTN[1].cntr && !BTN[2].cntr && !BTN[3].cntr &&
-				BTN[0].state != BTN_Hold && BTN[1].state != BTN_Hold) {
-//		    PWR->CR |= 1 << 2; // Clear the WUF wakeup flag
-//		    __WFI();
-		}
+		if (WaitForKey) WaitForKey(TRUE,NULL);
 
 		// Up button
-		if (BTN[0].cntr || BTN[0].state == BTN_Hold) {
+		if (BTN[BTN_UP].cntr || BTN[BTN_UP].state == BTN_Hold) {
 			val += Step;
 			if (val > Max) val = Max;
-			BTN[0].cntr = 0;
+			BTN[BTN_UP].cntr = 0;
 		}
 
 		// Down button
-		if (BTN[1].cntr || BTN[1].state == BTN_Hold) {
+		if (BTN[BTN_DOWN].cntr || BTN[BTN_DOWN].state == BTN_Hold) {
 			val -= Step;
 			if (val < Min) val = Min;
-			BTN[1].cntr = 0;
+			BTN[BTN_DOWN].cntr = 0;
 		}
 
 		// "Enter" button
-		if (BTN[2].cntr) {
-			BTN[2].cntr = 0;
+		if (BTN[BTN_ENTER].cntr) {
 			*Value = val;
 			if (CallBack) CallBack(*Value);
+			ClearKeys();
 			return;
 		}
 
 		// "Escape" button
-		if (BTN[3].cntr) {
-			BTN[3].cntr = 0;
+		if (BTN[BTN_ESCAPE].cntr) {
 			// Restore old value by calling callback function with original value
 			if (CallBack) CallBack(*Value);
+			ClearKeys();
 			return;
 		}
 	}
+}
+
+// Main menu with sub menus
+void GUI_MainMenu(void) {
+	uint8_t mnu_sel;
+	uint8_t mnu_sub_sel;
+	int32_t mnu_val;
+
+	ClearKeys();
+	mnu_sel = 0;
+	do {
+		mnu_sel = GUI_Menu(0,0,scr_width,scr_height,&mnuMain,mnu_sel,WaitForKeyPress);
+		mnu_sub_sel = 0;
+		switch (mnu_sel) {
+		case 0:
+			// Statistics
+			do {
+				UC1701_Fill(0x00);
+				PutStr5x7(0,0,"Statistics...",CT_opaque);
+				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuStatistics,mnu_sub_sel,WaitForKeyPress);
+			} while (mnu_sub_sel != 0xff);
+			break;
+		case 1:
+			// GPS
+			do {
+				UC1701_Fill(0x00);
+				PutStr5x7(0,0,"GPS...",CT_opaque);
+				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuGPS,mnu_sub_sel,WaitForKeyPress);
+				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
+					case 0:
+						GUI_Screen_GPSSatsView(WaitForKeyPress);
+						break;
+					case 1:
+						GUI_Screen_GPSInfo(WaitForKeyPress);
+						break;
+					case 2:
+						GUI_Screen_Buffer(GPS_buf,GPS_BUFFER_SIZE,&GPS_new_data,WaitForKeyPress);
+						break;
+					default:
+						break;
+				}
+			} while (mnu_sub_sel != 0xff);
+			break;
+		case 2:
+			// Settings
+			do {
+				UC1701_Fill(0x00);
+				PutStr5x7(0,0,"Settings...",CT_opaque);
+				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuSettings,mnu_sub_sel,WaitForKeyPress);
+				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
+					case 0:
+						mnu_val = Settings.LCD_brightness;
+						GUI_NumericScroll(-100,10,0,0,&mnu_val,0,100,5,"%",callback_Brightness,WaitForKeyPress);
+						Settings.LCD_brightness = (uint8_t)mnu_val;
+						break;
+					case 1:
+						mnu_val = Settings.WheelCircumference;
+						GUI_NumericScroll(-100,10,0,0,&mnu_val,150,300,1,"cm",NULL,WaitForKeyPress);
+						Settings.WheelCircumference = (uint16_t)mnu_val;
+						break;
+					case 2:
+						mnu_val = Settings.GMT_offset;
+						GUI_NumericScroll(-100,10,0,0,&mnu_val,-12,13,1,"hr",NULL,WaitForKeyPress);
+						Settings.GMT_offset = (int8_t)mnu_val;
+						break;
+					case 3:
+						mnu_val = Settings.altitude_home;
+						GUI_NumericScroll(-100,10,0,0,&mnu_val,-1000,9999,1,"m",NULL,WaitForKeyPress);
+						Settings.altitude_home = (int16_t)mnu_val;
+						break;
+					default:
+						break;
+				}
+				SaveSettings_EEPROM();
+			} while (mnu_sub_sel != 0xff);
+			break;
+		default:
+			break;
+		}
+	} while (mnu_sel != 0xff);
+
+	ClearKeys();
 }

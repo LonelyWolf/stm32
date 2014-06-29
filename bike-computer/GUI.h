@@ -49,8 +49,62 @@ typedef struct {
 
 #define MenuItemHeight    9  // Menu item height
 
-typedef void (*funcPtr_TypeDef)(int32_t param);
+typedef void (*funcPtrParam_TypeDef)(int32_t param);
+typedef void (*funcPtrVoid_TypeDef)(void);
+typedef void (*funcPtrKeyPress_TypeDef)(bool Sleep, bool *WaitFlag);
 
+// Menus
+static const Menu_TypeDef mnuMain = {
+		3,
+		MA_center,
+		MS_over,
+		{
+				{"Statistics"},
+				{"GPS"},
+				{"Settings"}
+		}
+};
+
+static const Menu_TypeDef mnuSettings = {
+		4,
+		MA_center,
+		MS_over,
+		{
+				{"Display"},
+				{"Wheel"},
+				{"Time"},
+				{"Home altitude"}
+		}
+};
+
+static const Menu_TypeDef mnuGPS = {
+		3,
+		MA_center,
+		MS_over,
+		{
+				{"Satellites view"},
+				{"GPS RAW"},
+				{"NMEA RAW"}
+		}
+};
+
+static const Menu_TypeDef mnuStatistics = {
+		10,
+		MA_center,
+		MS_over,
+		{
+				{"0"},
+				{"1"},
+				{"2"},
+				{"3"},
+				{"4"},
+				{"5"},
+				{"6"},
+				{"7"},
+				{"8"},
+				{"9"}
+		}
+};
 
 // Function prototypes
 void GUI_DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
@@ -61,12 +115,13 @@ void GUI_Screen_SensorRAW(void);
 void GUI_Screen_CurVal1(void);
 void GUI_Screen_CurVal2(void);
 void GUI_Screen_CurVal3(void);
+void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPtrKeyPress_TypeDef WaitForKey);
 
 void GUI_DrawSpeed(int8_t X, int8_t Y, uint32_t speed, uint32_t avg);
 void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time);
 void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* data, GraphType_TypeDef GraphType);
-void GUI_DrawGPSInfo(void);
-void GUI_DrawGPSSatsView(void);
 
 uint8_t GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, CharType_TypeDef CharType);
 uint8_t GUI_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef CharType);
@@ -74,8 +129,12 @@ uint8_t GUI_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef Cha
 uint8_t GUI_PutPressure5x7(uint8_t X, uint8_t Y, int32_t pressure, PressureType_TypeDef PressureType,
 		CharType_TypeDef CharType);
 uint8_t GUI_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharType_TypeDef CharType);
+
 uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef *Menu,
-		uint8_t StartPos);
+		uint8_t StartPos, funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
-		int32_t Min, int32_t Max, int32_t Step, char *unit, funcPtr_TypeDef CallBack);
+		int32_t Min, int32_t Max, int32_t Step, char *unit, funcPtrParam_TypeDef CallBack,
+		funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_MainMenu(void);
+
 #endif // __GUI_H
