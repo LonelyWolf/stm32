@@ -40,20 +40,16 @@
 /////////////////////////////////////////////////////////////////////////
 
 
-#define LCD_BACKLIGHT_TIMEOUT           30  // Timeout for LCD backlight (seconds)
-#define BMP180_MEASURE_DUTY_CYCLE       10  // Temperature/pressure measurement duty cycle (seconds)
-
+#define LCD_BACKLIGHT_TIMEOUT           5   // Timeout for LCD backlight (seconds)
 #define ALT_MEASURE_DUTY_CYCLE          10  // Temperature/pressure measurement duty cycle (seconds)
 
 uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD];     // nRF24L01 payload buffer
 
-bool _new_packet;                           // TRUE if received new packet
+bool _new_packet;                           // TRUE if new packet was received but not parsed
 bool _new_time;                             // TRUE if time was updated
 bool _bmp180_present;                       // TRUE if BMP180 sensor responded on I2C bus
 
 uint8_t _current_screen;     				// What currently displayed on screen
-
-uint16_t WheelCircumference;                // Wheel size in centimeters
 
 uint16_t _prev_cntr_SPD;                    // Last received cntr_SPD value
 uint16_t _prev_tim_SPD;                     // Last received tim_SPD value
@@ -64,48 +60,32 @@ uint32_t _cadence_accum;                    // Cadence accumulator (for AVG calc
 RTC_TimeTypeDef RTC_Time;                   // Current RTC time
 RTC_DateTypeDef RTC_Date;                   // Current RTC date
 
-uint8_t LCD_brightness;                     // LCD backlight brightness (0..100)
-
 uint32_t _no_signal_time;                   // Time since last packet received (seconds)
 uint32_t _idle_time;                        // Time from last user event (button press)
 
-int32_t altitude_history[128];              // Last 128 altitude values
+int16_t altitude_history[128];              // Last 128 altitude values
 uint8_t _altitude_duty_cycle;               // Altitude measurement duty cycle
-int32_t altitude_home;                      // Home altitude
 
 int16_t _raw_temp;                          // Temporary variable for temperature
 int32_t _raw_press;                         // Temporary variable for presssure
 
-bool _new_GPS;                              // TRUE if received new GPS packet
-uint8_t GPS_buf[FIFO_BUFFER_SIZE];          // Buffer with data from EB500
-uint16_t GPS_buf_cntr;                      // Number of bytes contained in GPS buffer
-NMEASentence_TypeDef msg;                   // NMEA sentence
-uint8_t GPS_sentences_parsed;               // NMEA sentences parsed
 uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter (to track RX timeout)
 
-int8_t _time_GMT_offset;                    // Time offset from GMT (hours)
+uint32_t i;                                 // THIS IS UNIVERSAL VARIABLE
+uint32_t ccc;                               // Wakeups count, for debug purposes
 
-uint32_t i;
-uint32_t ccc;
-uint32_t bbb;
-
-// Init structures
+// Peripherals initialization variables
 GPIO_InitTypeDef PORT;
 EXTI_InitTypeDef EXTIInit;
 NVIC_InitTypeDef NVICInit;
 DMA_InitTypeDef  DMAInit;
 
-// Buttons
-#define      BTN1_PORT   GPIOA
-#define      BTN1_PIN    GPIO_Pin_5
-#define      BTN2_PORT   GPIOA
-#define      BTN2_PIN    GPIO_Pin_7
-#define      BTN3_PORT   GPIOC
-#define      BTN3_PIN    GPIO_Pin_10
-#define      BTN4_PORT   GPIOC
-#define      BTN4_PIN    GPIO_Pin_11
 
-BTN_TypeDef BTN[4];                         // Buttons
+/////////////////////////////////////////////////////////////////////////
+
+
+void ParsePacket(void);
+void ParseGPS(void);
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -116,32 +96,34 @@ void EXTI9_5_IRQHandler(void) {
 	nRF24_RX_PCKT_TypeDef RX_status;
 
 	if (EXTI_GetITStatus(EXTI_Line5) != RESET) {
-		// EXTI5 (Button#1)
-		if (BTN[0].PORT->IDR & BTN[0].PIN) {
+		// EXTI5 (Button#1 -> "Up")
+		if (BTN[BTN_UP].PORT->IDR & BTN[0].PIN) {
 		    // Button released
-			BTN[0].hold_cntr = 0;
-			BTN[0].cntr++;
-			BTN[0].state = BTN_Released;
+			BTN[BTN_UP].hold_cntr = 0;
+			if (BTN[BTN_UP].state != BTN_Hold) BTN[BTN_UP].cntr++;
+			BTN[BTN_UP].state = BTN_Released;
 		} else {
 			// Button pressed
-			BTN[0].hold_cntr = 0;
-			BTN[0].state = BTN_Pressed;
+			BTN[BTN_UP].hold_cntr = 0;
+			BTN[BTN_UP].state = BTN_Pressed;
 		}
+		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line5);
 	}
 
 	if (EXTI_GetITStatus(EXTI_Line7) != RESET) {
-		// EXTI7 (Button#2)
-		if (BTN[1].PORT->IDR & BTN[1].PIN) {
+		// EXTI7 (Button#2 -> "Down")
+		if (BTN[BTN_DOWN].PORT->IDR & BTN[BTN_DOWN].PIN) {
 		    // Button released
-			BTN[1].hold_cntr = 0;
-			BTN[1].cntr++;
-			BTN[1].state = BTN_Released;
+			BTN[BTN_DOWN].hold_cntr = 0;
+			if (BTN[BTN_DOWN].state != BTN_Hold) BTN[BTN_DOWN].cntr++;
+			BTN[BTN_DOWN].state = BTN_Released;
 		} else {
 			// Button pressed
-			BTN[1].hold_cntr = 0;
-			BTN[1].state = BTN_Pressed;
+			BTN[BTN_DOWN].hold_cntr = 0;
+			BTN[BTN_DOWN].state = BTN_Pressed;
 		}
+		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line7);
 	}
 
@@ -160,32 +142,34 @@ void EXTI9_5_IRQHandler(void) {
 // EXTI[10..15] lines IRQ handler
 void EXTI15_10_IRQHandler(void) {
 	if (EXTI_GetITStatus(EXTI_Line10) != RESET) {
-		// EXTI10 (Button#3)
-		if (BTN[2].PORT->IDR & BTN[2].PIN) {
+		// EXTI10 (Button#3 -> "Enter")
+		if (BTN[BTN_ENTER].PORT->IDR & BTN[BTN_ENTER].PIN) {
 		    // Button released
-			BTN[2].hold_cntr = 0;
-			BTN[2].cntr++;
-			BTN[2].state = BTN_Released;
+			BTN[BTN_ENTER].hold_cntr = 0;
+			if (BTN[BTN_ENTER].state != BTN_Hold) BTN[BTN_ENTER].cntr++;
+			BTN[BTN_ENTER].state = BTN_Released;
 		} else {
 			// Button pressed
-			BTN[2].hold_cntr = 0;
-			BTN[2].state = BTN_Pressed;
+			BTN[BTN_ENTER].hold_cntr = 0;
+			BTN[BTN_ENTER].state = BTN_Pressed;
 		}
+		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line10);
 	}
 
 	if (EXTI_GetITStatus(EXTI_Line11) != RESET) {
-		// EXTI11 (Button#4)
-		if (BTN[3].PORT->IDR & BTN[3].PIN) {
+		// EXTI11 (Button#4 -> "Escape")
+		if (BTN[BTN_ESCAPE].PORT->IDR & BTN[BTN_ESCAPE].PIN) {
 		    // Button released
-			BTN[3].hold_cntr = 0;
-			BTN[3].cntr++;
-			BTN[3].state = BTN_Released;
+			BTN[BTN_ESCAPE].hold_cntr = 0;
+			if (BTN[BTN_ESCAPE].state != BTN_Hold) BTN[BTN_ESCAPE].cntr++;
+			BTN[BTN_ESCAPE].state = BTN_Released;
 		} else {
 			// Button pressed
-			BTN[3].hold_cntr = 0;
-			BTN[3].state = BTN_Pressed;
+			BTN[BTN_ESCAPE].hold_cntr = 0;
+			BTN[BTN_ESCAPE].state = BTN_Pressed;
 		}
+		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line11);
 	}
 }
@@ -206,13 +190,11 @@ void RTC_WKUP_IRQHandler(void) {
 		RTC_ClearFlag(RTC_FLAG_WUTF);
 		EXTI_ClearITPendingBit(EXTI_Line20);
 	}
-//	UART_SendStr("WKUP\r\n");
 }
 
 // TIM7 IRQ handler
 void TIM7_IRQHandler(void) {
-	TIM7->SR = (uint16_t)~TIM_IT_Update; // Clear the TIM6's interrupt pending bit (TIM7 produce only UPDATE IT)
-//	UART_SendStr("TIM7  ");
+	TIM7->SR = (uint16_t)~TIM_IT_Update; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
 	if (_DMA_cntr == (uint16_t)DMA1_Channel6->CNDTR) {
 		// DMA pointer unchanged from last IRQ -> UART timeout
 		TIM7->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); // Disable TIM7
@@ -220,21 +202,17 @@ void TIM7_IRQHandler(void) {
 		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR1_EN); // Disable DMA
 		UART_PORT->CR1 |= (1<<5); // Enable USART2 RX complete interrupt
 		_DMA_cntr = 0;
-		_new_GPS = TRUE;
-//		UART_SendStr("rcvd: ");
-//		UART_SendInt(GPS_buf_cntr);
+		// Copy data from the FIFO buffer to another one in case of new GPS data arrival
+		memcpy(&GPS_buf[0],&USART_FIFO[0],GPS_buf_cntr);
+		ParseGPS(); // About 3ms with full buffer
 	} else {
-//		UART_SendStr("DMA: ");
-//		UART_SendInt(_DMA_cntr);
 		_DMA_cntr = (uint16_t)DMA1_Channel6->CNDTR;
 	}
-//	UART_SendStr("\r\n");
 }
 
 // USART2 IRQ handler
 void USART2_IRQHandler(void) {
 	if (UART_PORT->SR & USART_IT_RXNE) {
-//		UART_SendStr("RXNE\r\n");
 		// Received data read to be read
 		UART_PORT->CR1 &= ~(1<<5); // Disable USART2 RX complete interrupt
 		if ((DMA1_Channel6->CCR & DMA_CCR1_EN) == RESET) {
@@ -259,6 +237,25 @@ void DMA1_Channel6_IRQHandler() {
 /////////////////////////////////////////////////////////////////////////
 
 
+// Callback function for delay timer overflow IRQ
+void callback_Delay(void) {
+	uint8_t i;
+
+	// Check if a buttons is in hold state
+	for (i = 0; i < 4; i++) {
+		if (!(BTN[i].PORT->IDR & BTN[i].PIN)) {
+			BTN[i].hold_cntr++;
+			if (BTN[i].hold_cntr > 3) BTN[i].state = BTN_Hold;
+		}
+	}
+
+	if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+
+
 // Parse received nRF24L01 data packet
 void ParsePacket(void) {
 	float tmp,tmp_f,tmp_i;
@@ -268,7 +265,6 @@ void ParsePacket(void) {
 	nRF24_Packet.cntr_SPD     = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
 	nRF24_Packet.tim_SPD      = (nRF24_RX_Buf[2] << 8) + nRF24_RX_Buf[3];
 	nRF24_Packet.tim_CDC      = (nRF24_RX_Buf[4] << 8) + nRF24_RX_Buf[5];
-	nRF24_Packet.tx_power     = (nRF24_RX_Buf[6] >> 2) & 0x03;
 	nRF24_Packet.vrefint      = ((nRF24_RX_Buf[6] & 0x03) << 8) + nRF24_RX_Buf[7];
 	nRF24_Packet.observe_TX   =  nRF24_RX_Buf[8];
 	nRF24_Packet.cntr_wake    = (nRF24_RX_Buf[9] << 8) + nRF24_RX_Buf[10];
@@ -279,8 +275,8 @@ void ParsePacket(void) {
 
 	// Convert SPD impulses period into speed
 	if (nRF24_Packet.tim_SPD > 0) {
-		//tmp = WheelCircumference * (992.9696969 * 0.036) / nRF24_Packet.tim_SPD;
-		tmp = (WheelCircumference * 35.7469090884) / nRF24_Packet.tim_SPD;
+		//tmp = Settings.WheelCircumference * (992.9696969 * 0.036) / nRF24_Packet.tim_SPD;
+		tmp = (Settings.WheelCircumference * 35.7469090884) / nRF24_Packet.tim_SPD;
 		tmp_f = modff(tmp,&tmp_i);
 		CurData.Speed = ((uint32_t)tmp_i * 10) + (uint32_t)(tmp_f * 10);
 		if (CurData.Speed > 999) CurData.Speed = 999; // Maximum 99.9km/h can be displayed
@@ -326,8 +322,8 @@ void ParsePacket(void) {
 	if (nRF24_Packet.cntr_SPD != 0 && nRF24_Packet.cntr_SPD != _prev_cntr_SPD) {
 		diff_SPD = nRF24_Packet.cntr_SPD - _prev_cntr_SPD;
 		if (diff_SPD < 0) diff_SPD *= -1;
-		CurData.Odometer += WheelCircumference * diff_SPD;
-		CurData.TripDist += WheelCircumference * diff_SPD;
+		CurData.Odometer += Settings.WheelCircumference * diff_SPD;
+		CurData.TripDist += Settings.WheelCircumference * diff_SPD;
 	}
 	_prev_cntr_SPD = nRF24_Packet.cntr_SPD;
 
@@ -349,29 +345,21 @@ void ParsePacket(void) {
 
 // Parse GPS data
 void ParseGPS(void) {
-	// Copy data from the FIFO buffer to another one
-	// This must be done for case when new GPS data will arrive
-	memcpy(&GPS_buf[0],&USART_FIFO[0],GPS_buf_cntr);
-
-	// Clear previously parsed GPS data
-	memset(&GPSData,0,sizeof(GPSData));
-	for (i = 0; i < 12; i++) GPS_sats[i] = 0;
-	for (i = 0; i < MAX_SATELLITES_VIEW; i++) {
-		memset(&GPS_sats_view[i],0,sizeof(GPS_Satellite_TypeDef));
-		GPS_sats_view[i].SNR = 255;
-	}
-
+	GPS_InitData(); // Clear previously parsed GPS data
 	GPS_sentences_parsed = 0;
-	msg = GPS_FindSentence(GPS_buf,0,FIFO_BUFFER_SIZE); // Find first NMEA sentence
+	GPS_msg = GPS_FindSentence(GPS_buf,0,FIFO_BUFFER_SIZE); // Find first NMEA sentence
 	do {
-		if (msg.type != NMEA_BAD) {
+		if (GPS_msg.type != NMEA_BAD) {
 			GPS_sentences_parsed++;
-			GPS_ParseSentence(GPS_buf,msg);
+			GPS_ParseSentence(GPS_buf,GPS_msg);
 		}
-		msg = GPS_FindSentence(GPS_buf,msg.end,FIFO_BUFFER_SIZE);
-	} while (msg.end < GPS_buf_cntr);
-	_new_GPS = FALSE;
+		GPS_msg = GPS_FindSentence(GPS_buf,GPS_msg.end,FIFO_BUFFER_SIZE);
+	} while (GPS_msg.end < GPS_buf_cntr);
 	GPS_buf_cntr = 0;
+	if (GPS_sentences_parsed) {
+		GPS_CheckUsedSats();
+		GPS_new_data = TRUE;
+	}
 }
 
 
@@ -379,7 +367,8 @@ void ParseGPS(void) {
 
 
 int main(void) {
-	SystemCoreClockUpdate(); // Update SystemCoreClock according to Clock Register Values
+	// Update SystemCoreClock according to Clock Register Values
+	SystemCoreClockUpdate();
 
 /////////////////////////////////////////////////////////////////////////
 //  Boot section
@@ -392,21 +381,17 @@ int main(void) {
 	memset(&altitude_history,0,sizeof(altitude_history));
 	memset(&GPS_buf,0,sizeof(GPS_buf));
 	memset(&USART_FIFO,0,FIFO_BUFFER_SIZE);
-	memset(&GPSData,0,sizeof(GPSData));
-	for (i = 0; i < 12; i++) GPS_sats[i] = 0;
-	for (i = 0; i < MAX_SATELLITES_VIEW; i++) {
-		memset(&GPS_sats_view[i],0,sizeof(GPS_Satellite_TypeDef));
-		GPS_sats_view[i].SNR = 255;
-	}
+	GPS_InitData();
 
 	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
 
 	_new_packet = TRUE;
 	_new_time   = TRUE;
 
-	_new_GPS = FALSE;
-	_DMA_cntr = 0;
+	GPS_new_data = FALSE;
 	GPS_buf_cntr = 0;
+
+	_DMA_cntr = 0;
 
 	_bmp180_present = FALSE;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
@@ -422,12 +407,6 @@ int main(void) {
 	_no_signal_time = 0;
 	_idle_time = 0;
 
-	// These values will be stored in EEPROM in future
-	_time_GMT_offset = 3;
-	WheelCircumference = 206;
-	altitude_home = 178;
-	LCD_brightness = 50;
-
 	// Buttons initialization
 	for (i = 0; i < 4; i++) memset(&BTN[i],0,sizeof(BTN[i]));
 	BTN[0].PORT = BTN1_PORT;
@@ -438,6 +417,15 @@ int main(void) {
 	BTN[2].PIN  = BTN3_PIN;
 	BTN[3].PORT = BTN4_PORT;
 	BTN[3].PIN  = BTN4_PIN;
+
+	// These values stored in EEPROM
+	Settings.GMT_offset = 3;
+	Settings.WheelCircumference = 206;
+	Settings.altitude_home = 178;
+	Settings.LCD_brightness = 50;
+
+	// Read settings from EEPROM
+	ReadSettings_EEPROM();
 
 	// -------------------- end of variables initialization
 
@@ -454,7 +442,7 @@ int main(void) {
 
 	// BTN1 pin (PA5)
 	PORT.GPIO_Mode = GPIO_Mode_IN;
-	PORT.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	PORT.GPIO_PuPd = GPIO_PuPd_UP;
 	PORT.GPIO_Pin  = BTN1_PIN;
 	GPIO_Init(BTN1_PORT,&PORT);
 	// BTN2 pin (PA7)
@@ -467,16 +455,19 @@ int main(void) {
 	PORT.GPIO_Pin  = BTN4_PIN;
 	GPIO_Init(BTN4_PORT,&PORT);
 
+	// Initialize delay timer without callback function
+	Delay_Init(NULL);
+
 	// UART port initialization
 	UART2_Init(115200);
 
 	// Configure basic timer TIM7
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM7,ENABLE); // Enable TIM7 peripheral
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM7,ENABLE); // Enable TIMx peripheral
 	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM7->PSC   = 1600; // TIM2 prescaler
-	TIM7->ARR   = 999; // TIM2 auto reload value
+	TIM7->PSC   = 1600; // prescaler
+	TIM7->ARR   = 999; // auto reload value
 	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
-	TIM7->DIER |= TIM_DIER_UIE; // Enable TIM6 interrupt
+	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
 	// TIM7 IRQ
 	NVICInit.NVIC_IRQChannel = TIM7_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
@@ -496,28 +487,39 @@ int main(void) {
 	//   PB15 -> SDA (SPI MOSI)
 	//   PA1  -> LEDA (Backlight LED anode)
 	UC1701_Init();
-	UC1701_SetBacklight(LCD_brightness);
+	UC1701_SetBacklight(Settings.LCD_brightness);
 	UC1701_Contrast(4,24);
 	UC1701_Orientation(scr_normal);
 	UC1701_Fill(0x00);
 	GUI_DrawBitmap(98,39,30,25,&bmp_bike_man[0]);
 
 	// Boot screen
-	UC1701_PutStr5x7(0,0,"Wolk bike computer:",CT_opaque);
-	UC1701_PutStr5x7(0,42,"CPU:",CT_opaque);
-	i = 24 + UC1701_PutIntF5x7(24,42,SystemCoreClock / 1000,3,CT_opaque);
-	UC1701_PutStr5x7(i,42,"MHz",CT_opaque);
+	PutStr5x7(0,0,"Wolk bike computer:",CT_opaque);
+	PutStr5x7(0,42,"CPU:",CT_opaque);
+	i = 24 + PutIntF5x7(24,42,SystemCoreClock / 1000,3,CT_opaque);
+	PutStr5x7(i,42,"MHz",CT_opaque);
 	UC1701_Flush();
 
-	UC1701_PutStr5x7(0,56,"STAT:",CT_opaque);
-	UC1701_PutStr5x7(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",CT_opaque);
+	PutStr5x7(0,56,"STAT:",CT_opaque);
+	PutStr5x7(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",CT_opaque);
+
+/*
+	while(1) {
+		UC1701_Fill(0x00);
+
+		i = PutStr5x7(0,0,"STAT:",CT_opaque) - 1;
+
+
+		UC1701_Flush();
+	}
+*/
 
 	// Init the RTC and configure it clock to LSE
-	UC1701_PutStr5x7(0,8,"LSE:",CT_opaque);
+	PutStr5x7(0,8,"LSE:",CT_opaque);
 	UC1701_Flush();
 	RTC_Config();
 	RTC_WaitForSynchro(); // Wait until the RTC Time and Date registers are synchronized with RTC APB clock
-	UC1701_PutStr5x7(24,8,"Ok",CT_opaque);
+	PutStr5x7(24,8,"Ok",CT_opaque);
 	UC1701_Flush();
 
 	// Configure nRF24L01+
@@ -528,11 +530,11 @@ int main(void) {
     //   PB15 -> MOSI
     //   PB14 <- MISO
     //   PC6  <- IRQ
-	UC1701_PutStr5x7(0,16,"nRF24L01:",CT_opaque);
+	PutStr5x7(0,16,"nRF24L01:",CT_opaque);
 	UC1701_Flush();
     nRF24_init();
     if (nRF24_Check()) {
-    	UC1701_PutStr5x7(54,16,"Ok",CT_opaque);
+    	PutStr5x7(54,16,"Ok",CT_opaque);
     	UC1701_Flush();
     	nRF24_RXMode(nRF24_RX_PIPE0,nRF24_RF_CHANNEL,nRF24_DataRate_250kbps,nRF24_CRC_on,
     			     nRF24_CRC_1byte,(uint8_t *)nRF24_RX_Addr,nRF24_RX_Addr_Size,nRF24_RX_PAYLOAD,
@@ -540,45 +542,45 @@ int main(void) {
         nRF24_ClearIRQFlags();
         nRF24_FlushRX();
     } else {
-    	UC1701_PutStr5x7(54,16,"Fail",CT_opaque);
+    	PutStr5x7(54,16,"Fail",CT_opaque);
         UC1701_Flush();
     	while(1);
     }
 
     // I2C2 port initialization
-    UC1701_PutStr5x7(0,24,"BMP180:",CT_opaque);
+    PutStr5x7(0,24,"BMP180:",CT_opaque);
     UC1701_Flush();
     // I2C fast mode (400kHz)
     if (I2C2_Init(400000) == I2C_SUCCESS) {
         BMP180_Reset(); // Send reset command to BMP180
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
-    		UC1701_PutChar5x7(42,24,'v',CT_opaque);
+    		PutChar5x7(42,24,'v',CT_opaque);
     		i = BMP180_GetVersion();
-    		UC1701_PutInt5x7(48,24,i,CT_opaque);
+    		PutInt5x7(48,24,i,CT_opaque);
     		BMP180_ReadCalibration();
     		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {
        			CurData.Temperature = _raw_temp;
     			CurData.MinTemperature = CurData.Temperature;
         		CurData.Pressure = _raw_press;
         		CurData.MinPressure = CurData.Pressure;
-        		UC1701_PutTemperature5x7(60,24,CurData.Temperature,CT_opaque);
-        		UC1701_PutPressure5x7(60,32,CurData.Pressure,PT_mmHg,CT_opaque);
+        		GUI_PutTemperature5x7(60,24,CurData.Temperature,CT_opaque);
+        		GUI_PutPressure5x7(60,32,CurData.Pressure,PT_mmHg,CT_opaque);
     		} else {
     			CurData.Temperature = 0;
     			CurData.MinTemperature =  32767;
     			CurData.MaxTemperature = -32767;
     			CurData.Pressure = 0;
     			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
-    			UC1701_PutStr5x7(60,24,"Readings",CT_opaque);
-    			UC1701_PutStr5x7(60,32,"failed",CT_opaque);
+    			PutStr5x7(60,24,"Readings",CT_opaque);
+    			PutStr5x7(60,32,"failed",CT_opaque);
     		}
     		_bmp180_present = TRUE;
     	} else {
-    		UC1701_PutStr5x7(42,24,"Not present",CT_opaque);
+    		PutStr5x7(42,24,"Not present",CT_opaque);
     	}
     } else {
-    	UC1701_PutStr5x7(42,24,"I2C timeout",CT_opaque);
+    	PutStr5x7(42,24,"I2C timeout",CT_opaque);
     }
 	UC1701_Flush();
 
@@ -645,23 +647,6 @@ int main(void) {
 	NVICInit.NVIC_IRQChannelSubPriority = 0x0f;
 	NVIC_Init(&NVICInit);
 
-/*
-	// Configure basic timer TIM6 (1000 ticks per second at 32MHz)
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM6,ENABLE); // Enable TIM6 peripheral
-	TIM6->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM6->PSC   = 32000; // TIM2 prescaler [ PSC = APB1clock / (PWMfreq * OVFCounter) ]
-	TIM6->ARR   = 999; // TIM2 auto reload value -> overflow every second at 32MHz
-	TIM6->EGR   = 1; // Generate an update event to reload the prescaler value immediately
-	TIM6->DIER |= TIM_DIER_UIE; // Enable TIM6 interrupt
-	TIM6->CR1  |= TIM_CR1_CEN; // Counter enable
-	// TIM6 IRQ
-	NVICInit.NVIC_IRQChannel = TIM6_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x07; // middle priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x07; // middle priority
-//	NVIC_Init(&NVICInit);
-*/
-
 /*********************************************
     // Output clock on MCO pin (PA8)
 	PORT.GPIO_Pin = GPIO_Pin_8;
@@ -676,8 +661,7 @@ int main(void) {
 //    RCC_MCOConfig(RCC_MCOSource_PLLCLK,RCC_MCODiv_4); // Route PLL clock to MCO pin
 **********************************************/
 
-
-//	Delay_ms(2500); // Fancy delay
+//	Delay_ms(2500); // Fancy startup delay
 
 	UC1701_Fill(0x00);
     UC1701_Flush();
@@ -709,10 +693,10 @@ int main(void) {
 	GPS_SendCommand("$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*"); // All supported sentences
 	GPS_SendCommand("$PMTK101*"); // Hot restart
 
-	_current_screen = 1;
-
 	ccc = 0;
-	bbb = 0;
+
+	// Reinitialize delay timer with callback function
+	Delay_Init(callback_Delay);
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -720,7 +704,7 @@ int main(void) {
 /////////////////////////////////////////////////////////////////////////
 
 	while(1) {
-		if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(LCD_brightness);
+//		if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
 
 		if (_new_packet) ParsePacket();
 
@@ -754,20 +738,10 @@ int main(void) {
 				}
 			}
 
-			// Check if buttons hold (it is unnecessary to do this in IRQ handler)
-			for (i = 0; i < 4; i++) {
-				if (!(BTN[i].PORT->IDR & BTN[i].PIN)) {
-					BTN[i].hold_cntr++;
-					if (BTN[i].hold_cntr > 2) BTN[i].state = BTN_Hold;
-				}
-			}
-
 			_new_time = FALSE;
 		}
 
-		if (_new_GPS) {
-			ParseGPS();
-
+		if (GPS_new_data) {
 			if (GPSData.datetime_valid) {
 				// Date and time obtained from GPS
 				RTC_Time.RTC_Hours   =  GPSData.time / 3600;
@@ -777,50 +751,59 @@ int main(void) {
 				RTC_Date.RTC_Date  = i;
 				RTC_Date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
 				RTC_Date.RTC_Year  = (GPSData.date % 10000) - 2000;
-				RTC_AdjustTimeZone(&RTC_Time,&RTC_Date,_time_GMT_offset);
+				RTC_AdjustTimeZone(&RTC_Time,&RTC_Date,Settings.GMT_offset);
 				RTC_SetTime(RTC_Format_BIN,&RTC_Time);
 				RTC_SetDate(RTC_Format_BIN,&RTC_Date);
 			}
 
 			if (GPSData.fix == 3) {
-				// GPS altitude makes sense only with 3D fix
+				// GPS altitude makes sense only in case of 3D fix
 				CurData.GPSAlt = GPSData.altitude;
 				if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
 				if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
 			}
 
 			if (GPSData.fix == 2 || GPSData.fix == 3) {
-				// GPS speed makes sense only when 2D or 3D position fix
+				// GPS speed makes sense only in case of 2D or 3D position fix
 				CurData.GPSSpeed = GPSData.speed;
 				if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
 			}
 
 			GPSData.datetime_valid = FALSE;
 			GPSData.time_valid = FALSE;
+			GPS_new_data = FALSE;
 		}
 
-		if (BTN[0].cntr > 0) {
+		// "Up" button pressed - next screen
+		if (BTN[BTN_UP].cntr > 0) {
 			_current_screen++;
-			if (_current_screen > 10) _current_screen = 0;
-			BTN[0].cntr = 0;
-			_idle_time = 0;
+			if (_current_screen > 6) _current_screen = 0;
+			BTN[BTN_UP].cntr = 0;
 		}
 
-		if (BTN[1].cntr > 0) {
+		// "Down" button pressed - previous screen
+		if (BTN[BTN_DOWN].cntr > 0) {
 			_current_screen--;
-			if (_current_screen > 10) _current_screen = 10;
-			BTN[1].cntr = 0;
-			_idle_time = 0;
+			if (_current_screen > 6) _current_screen = 6;
+			BTN[BTN_DOWN].cntr = 0;
 		}
+
+		// "Enter" button hold - show main menu
+		if (BTN[BTN_ENTER].state == BTN_Hold || BTN[BTN_ENTER].cntr) {
+			GUI_MainMenu();
+		}
+
+		// "Escape" button pressed - just clear counter, there is no function for it yet
+		if (BTN[BTN_ESCAPE].cntr) BTN[BTN_ESCAPE].cntr = 0;
 
 		switch(_current_screen) {
 		default:
 			UC1701_Fill(0x00);
 			GUI_DrawSpeed(scr_width - 55,0,CurData.Speed,CurData.AvgSpeed);
 
-			UC1701_VLine(scr_width - 58,0,scr_height - 29,PSet);
-			UC1701_HLine(0,scr_width - 1,scr_height - 29,PSet);
-			UC1701_VLine(67,scr_height - 29,scr_height - 1,PSet);
+			VLine(scr_width - 58,0,scr_height - 29,PSet);
+			HLine(0,scr_width - 1,scr_height - 29,PSet);
+			VLine(67,scr_height - 29,scr_height - 1,PSet);
 
 			if (_no_signal_time > 10)
 				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[52]);
@@ -832,21 +815,21 @@ int main(void) {
 			else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
 			else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
 
-			UC1701_PutStr5x7(scr_width - 30,scr_height - 27,"CDC",CT_opaque);
-			GUI_DrawNumber(scr_width - 38,scr_height - 19,CurData.Cadence,3,0,DS_Small);
+			PutStr5x7(scr_width - 30,scr_height - 27,"CDC",CT_opaque);
+			GUI_DrawNumber(-scr_width + 7,-scr_height + 1,CurData.Cadence,0,DS_Small);
 			GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
 
-			UC1701_PutStr5x7(3,scr_height - 27,"Ride Time",CT_opaque);
+			PutStr5x7(3,scr_height - 27,"Ride Time",CT_opaque);
 			GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
 
-			UC1701_PutStr5x7(0,18,"Alt:",CT_opaque);
-			UC1701_PutChar5x7(23 + UC1701_PutInt5x7(23,18,CurData.Altitude,CT_opaque),18,'m',CT_opaque);
-			UC1701_PutTemperature5x7(0,26,CurData.Temperature,CT_opaque);
+			PutStr5x7(0,18,"Alt:",CT_opaque);
+			PutChar5x7(23 + PutInt5x7(23,18,CurData.Altitude,CT_opaque),18,'m',CT_opaque);
+			GUI_PutTemperature5x7(0,26,CurData.Temperature,CT_opaque);
 			break;
 		case 1:
 			UC1701_Fill(0x00);
 			GUI_DrawTime(12,16,&RTC_Time,TT_Full,DS_Big);
-			UC1701_PutDate5x7(33,scr_height - 7,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) + RTC_Date.RTC_Year + 2000,CT_opaque);
+			GUI_PutDate5x7(33,scr_height - 7,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) + RTC_Date.RTC_Year + 2000,CT_opaque);
 			break;
 		case 2:
 			GUI_Screen_CurVal1();
@@ -861,126 +844,51 @@ int main(void) {
 			GUI_Screen_SensorRAW();
 			break;
 		case 6:
+			if (_bmp180_present) {
+				UC1701_Fill(0x00);
+				GUI_PutPressure5x7(0,0,CurData.Pressure,PT_mmHg,CT_opaque);
+				PutChar5x7(53 + PutInt5x7(53,0,altitude_history[0],CT_opaque),0,'m',CT_opaque);
+				GUI_DrawGraph(0,8,128,56,&altitude_history[0],GT_line);
+			} else {
+				UC1701_Fill(0x00);
+				PutStr5x7(0,0,"BMP180 is absent",CT_opaque);
+			}
+			break;
+/*
+		case xxx:
 			UC1701_Fill(0x00);
-			UC1701_PutStr5x7(0,0,"Buttons:",CT_opaque);
+			PutStr5x7(0,0,"Buttons:",CT_opaque);
 			for (i = 0; i < 4; i++) {
-				UC1701_PutInt5x7(UC1701_PutStr5x7(0,10 + i * 10,"BTN",CT_opaque),10 + i * 10,i + 1,CT_opaque);
+				PutInt5x7(PutStr5x7(0,10 + i * 10,"BTN",CT_opaque),10 + i * 10,i + 1,CT_opaque);
 				switch(BTN[i].state) {
 				case BTN_Hold:
-					UC1701_PutStr5x7(29,10 + i * 10,"Hold",CT_opaque);
+					PutStr5x7(29,10 + i * 10,"Hold",CT_opaque);
 					break;
 				case BTN_Pressed:
-					UC1701_PutStr5x7(29,10 + i * 10,"Pressed",CT_opaque);
+					PutStr5x7(29,10 + i * 10,"Pressed",CT_opaque);
 					break;
 				default:
-					UC1701_PutStr5x7(29,10 + i * 10,"Released",CT_opaque);
+					PutStr5x7(29,10 + i * 10,"Released",CT_opaque);
 					break;
 				}
-				UC1701_PutInt5x7(90,10 + i * 10,BTN[i].cntr,CT_opaque);
+				PutInt5x7(90,10 + i * 10,BTN[i].cntr,CT_opaque);
 			}
 			break;
-		case 7:
-			UC1701_Fill(0x00);
-			UC1701_PutPressure5x7(0,0,CurData.Pressure,PT_mmHg,CT_opaque);
-			UC1701_PutChar5x7(83 + UC1701_PutInt5x7(83,0,altitude_history[0],CT_opaque),0,'m',CT_opaque);
-			GUI_DrawGraph(0,8,128,56,&altitude_history[0],GT_line);
-			break;
-		case 8:
-			UC1701_Fill(0x00);
-			GUI_NumericSet(LCD_brightness,0,100,5,"Backlight");
-			if (BTN[2].cntr > 0 || BTN[2].state == BTN_Hold) {
-				if (BTN[2].state == BTN_Hold) BTN[2].cntr = 1;
-				LCD_brightness -= BTN[2].cntr * 5;
-				if (LCD_brightness > 100) LCD_brightness = 0;
-				BTN[2].cntr = 0;
-				_idle_time = 0;
-			}
-			if (BTN[3].cntr > 0 || BTN[3].state == BTN_Hold) {
-				if (BTN[3].state == BTN_Hold) BTN[3].cntr = 1;
-				LCD_brightness += BTN[3].cntr * 5;
-				if (LCD_brightness > 100) LCD_brightness = 100;
-				BTN[3].cntr = 0;
-				_idle_time = 0;
-			}
-			UC1701_SetBacklight(LCD_brightness);
-
-			break;
-		case 9:
-			UC1701_Fill(0x00);
-
-			uint8_t xx = 0;
-			uint8_t yy = 0;
-
-			if (BTN[2].cntr > 0 || BTN[2].state == BTN_Hold) {
-				bbb += 21;
-				if (bbb > FIFO_BUFFER_SIZE) bbb = FIFO_BUFFER_SIZE;
-				BTN[2].cntr = 0;
-				_idle_time = 0;
-			}
-
-			if (BTN[3].cntr > 0 || BTN[3].state == BTN_Hold) {
-				bbb -= 21;
-				if (bbb > FIFO_BUFFER_SIZE) bbb = 0;
-				BTN[3].cntr = 0;
-				_idle_time = 0;
-			}
-
-			i = bbb;
-
-			do {
-				UC1701_PutChar5x7(xx,yy,GPS_buf[i++],CT_opaque);
-				xx += 6;
-				if (xx > scr_width - 6) {
-					xx  = 0;
-					yy += 8;
-				}
-			} while (yy < 56 && i < FIFO_BUFFER_SIZE);
-
-			xx = 0;
-			xx += UC1701_PutInt5x7(xx,57,GPS_sentences_parsed,CT_opaque) + 5;
-			if (GPSData.fix != 2 && GPSData.fix != 3)
-				UC1701_PutStr5x7(xx,57,"NA",CT_opaque);
-			else
-				UC1701_PutChar5x7(xx + UC1701_PutInt5x7(xx,57,GPSData.fix,CT_opaque),57,'D',CT_opaque);
-			xx += 18;
-			xx += UC1701_PutInt5x7(xx,57,GPSData.sats_used,CT_opaque);
-			UC1701_PutChar5x7(xx,57,'/',CT_opaque);
-			xx += UC1701_PutInt5x7(xx + 6,57,GPSData.sats_view,CT_opaque) + 12;
-			xx += UC1701_PutStr5x7(xx,57,GPSData.time_valid ? "TV" : "TX",CT_opaque) + 2;
-			xx += UC1701_PutStr5x7(xx,57,GPSData.datetime_valid ? "DTV" : "DTX",CT_opaque) + 5;
-			xx += UC1701_PutInt5x7(xx,57,_DMA_cntr,CT_opaque) + 5;
-
-			UC1701_HLine(0,scr_width - 1,55,PSet);
-
-			_idle_time = 0;
-
-			break;
-		case 10:
-			GUI_DrawGPSInfo();
-			_idle_time = 0;
-			break;
+*/
 		}
 
 		ccc++;
 /*
-		i = UC1701_PutInt5x7(3,3,ccc,CT_opaque);
-		UC1701_Rect(0,0,i + 4,12,PReset);
-		UC1701_Rect(1,1,i + 3,11,PSet);
-		UC1701_Rect(2,2,i + 2,10,PReset);
+		i = PutInt5x7(3,3,ccc,CT_opaque);
+		Rect(0,0,i + 4,12,PReset);
+		Rect(1,1,i + 3,11,PSet);
+		Rect(2,2,i + 2,10,PReset);
 */
-
-//		UART_SendStr("Sentences: ");
-//		UART_SendInt(GPS_sentences_parsed);
-//		UART_SendStr("\r\n");
 
 		UC1701_Flush();
 
-		SysTick->CTRL &= ~SysTick_CTRL_TICKINT_Msk; // Disable SysTick interrupt
-	    PWR->CR |= 1 << 2; // Clear the WUF wakeup flag
-//	    __WFI();
-
-//		UART_SendStr("MAIN()\r\n");
+		SleepWait(); // Sleep mode
 	}
 
-	// Something bad happens when you reach this point
+	// Something awful will happen when you reach this point
 }
