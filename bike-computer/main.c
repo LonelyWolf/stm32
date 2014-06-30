@@ -40,8 +40,9 @@
 /////////////////////////////////////////////////////////////////////////
 
 
-#define LCD_BACKLIGHT_TIMEOUT           5   // Timeout for LCD backlight (seconds)
-#define ALT_MEASURE_DUTY_CYCLE          10  // Temperature/pressure measurement duty cycle (seconds)
+#define LCD_BACKLIGHT_TIMEOUT           60  // Timeout for LCD backlight (seconds)
+#define ALT_MEASURE_DUTY_CYCLE          30  // Temperature/pressure measurement duty cycle (seconds)
+#define NO_SIGNAL_TIME                  10  // Sensor signal timeout
 
 uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD];     // nRF24L01 payload buffer
 
@@ -49,7 +50,7 @@ bool _new_packet;                           // TRUE if new packet was received b
 bool _new_time;                             // TRUE if time was updated
 bool _bmp180_present;                       // TRUE if BMP180 sensor responded on I2C bus
 
-uint8_t _current_screen;     				// What currently displayed on screen
+bool _RF_icon;                              // Flag for RF icon flashing
 
 uint16_t _prev_cntr_SPD;                    // Last received cntr_SPD value
 uint16_t _prev_tim_SPD;                     // Last received tim_SPD value
@@ -65,9 +66,6 @@ uint32_t _idle_time;                        // Time from last user event (button
 
 int16_t altitude_history[128];              // Last 128 altitude values
 uint8_t _altitude_duty_cycle;               // Altitude measurement duty cycle
-
-int16_t _raw_temp;                          // Temporary variable for temperature
-int32_t _raw_press;                         // Temporary variable for presssure
 
 uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter (to track RX timeout)
 
@@ -86,6 +84,7 @@ DMA_InitTypeDef  DMAInit;
 
 void ParsePacket(void);
 void ParseGPS(void);
+bool UpdateBMP180(void);
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -107,6 +106,7 @@ void EXTI9_5_IRQHandler(void) {
 			BTN[BTN_UP].hold_cntr = 0;
 			BTN[BTN_UP].state = BTN_Pressed;
 		}
+		UC1701_SetBacklight(Settings.LCD_brightness);
 		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line5);
 	}
@@ -123,6 +123,7 @@ void EXTI9_5_IRQHandler(void) {
 			BTN[BTN_DOWN].hold_cntr = 0;
 			BTN[BTN_DOWN].state = BTN_Pressed;
 		}
+		UC1701_SetBacklight(Settings.LCD_brightness);
 		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line7);
 	}
@@ -131,11 +132,12 @@ void EXTI9_5_IRQHandler(void) {
 		// EXTI6 (nRF24L01 IRQ)
 		UC1701_PauseSPI();
 		RX_status = nRF24_RXPacket(nRF24_RX_Buf,nRF24_RX_PAYLOAD);
-		if (RX_status == nRF24_RX_PCKT_PIPE0) _new_packet = TRUE;
 		nRF24_ClearIRQFlags();
 		UC1701_ResumeSPI();
 		_no_signal_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line6);
+//		if (RX_status == nRF24_RX_PCKT_PIPE0) _new_packet = TRUE;
+		if (RX_status == nRF24_RX_PCKT_PIPE0) ParsePacket();
 	}
 }
 
@@ -153,6 +155,7 @@ void EXTI15_10_IRQHandler(void) {
 			BTN[BTN_ENTER].hold_cntr = 0;
 			BTN[BTN_ENTER].state = BTN_Pressed;
 		}
+		UC1701_SetBacklight(Settings.LCD_brightness);
 		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line10);
 	}
@@ -169,6 +172,7 @@ void EXTI15_10_IRQHandler(void) {
 			BTN[BTN_ESCAPE].hold_cntr = 0;
 			BTN[BTN_ESCAPE].state = BTN_Pressed;
 		}
+		UC1701_SetBacklight(Settings.LCD_brightness);
 		_idle_time = 0;
 		EXTI_ClearITPendingBit(EXTI_Line11);
 	}
@@ -180,12 +184,24 @@ void RTC_WKUP_IRQHandler(void) {
 		// RTC Wakeup interrupt
 		RTC_GetTime(RTC_Format_BIN,&RTC_Time);
 		RTC_GetDate(RTC_Format_BIN,&RTC_Date);
-		_new_time = TRUE;
-		_altitude_duty_cycle++;
+
 		_no_signal_time++;
 		if (_no_signal_time > 3600) _no_signal_time = 3600; // Counter overflow protection (1hour)
+		if (_no_signal_time > NO_SIGNAL_TIME) {
+			CurData.Speed = 0;
+			CurData.Cadence = 0;
+		}
+
 		_idle_time++;
 		if (_idle_time > 3600) _idle_time = 3600; // Counter overflow protection (1hour)
+		if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
+
+		_altitude_duty_cycle++;
+		// WARNING! This is really slow! Call it from this place is a really bad idea!
+		if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+
+		_new_time = TRUE;
+
 		RTC_ClearITPendingBit(RTC_IT_WUT);
 		RTC_ClearFlag(RTC_FLAG_WUTF);
 		EXTI_ClearITPendingBit(EXTI_Line20);
@@ -249,7 +265,8 @@ void callback_Delay(void) {
 		}
 	}
 
-	if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
+	// Set GUI refresh flag twice per second
+	GUI_refresh = TRUE;
 }
 
 
@@ -340,7 +357,7 @@ void ParsePacket(void) {
 		CurData.AvgCadence = _cadence_accum / _cntr_cadence;
 	}
 
-	_new_packet = FALSE;
+	_new_packet = TRUE;
 }
 
 // Parse GPS data
@@ -358,8 +375,55 @@ void ParseGPS(void) {
 	GPS_buf_cntr = 0;
 	if (GPS_sentences_parsed) {
 		GPS_CheckUsedSats();
+		if (GPSData.fix == 3) {
+			// GPS altitude makes sense only in case of 3D fix
+			CurData.GPSAlt = GPSData.altitude;
+			if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
+			if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
+		}
+		if (GPSData.fix == 2 || GPSData.fix == 3) {
+			// GPS speed makes sense only in case of 2D or 3D position fix
+			CurData.GPSSpeed = GPSData.speed;
+			if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
+		}
 		GPS_new_data = TRUE;
 	}
+}
+
+// Update data from BMP180
+// return: TRUE if data acquired successfully, FALSE otherwise
+// note: really slow routine
+bool UpdateBMP180(void) {
+	bool result = FALSE;
+	int16_t _raw_temp;
+	int32_t _raw_press;
+
+	if (_bmp180_present) {
+		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_UHIRES)) {  // <--- UHIRES mode takes about 28ms
+//		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {  // <--- ADVRES mode takes about 80ms
+			CurData.Temperature = _raw_temp;
+			if (CurData.Temperature > CurData.MaxTemperature) CurData.MaxTemperature = CurData.Temperature;
+			if (CurData.Temperature < CurData.MinTemperature) CurData.MinTemperature = CurData.Temperature;
+
+			CurData.Pressure = _raw_press;
+			if (CurData.Pressure > CurData.MaxPressure) CurData.MaxPressure = CurData.Pressure;
+			if (CurData.Pressure < CurData.MinPressure) CurData.MinPressure = CurData.Pressure;
+
+			CurData.Altitude = BMP180_hPa_to_Altitude(CurData.Pressure);
+			if (CurData.Altitude > CurData.MaxAltitude) CurData.MaxAltitude = CurData.Altitude;
+			if (CurData.Altitude < CurData.MinAltitude) CurData.MinAltitude = CurData.Altitude;
+
+			memmove(&altitude_history[1],&altitude_history[0],sizeof(altitude_history) - sizeof(*altitude_history));
+			altitude_history[0] = CurData.Altitude;
+
+			// Reset this counter only if readings obtained successfully, otherwise next try will be on next cycle
+			_altitude_duty_cycle = 0;
+
+			GUI_new_BMP180 = TRUE;
+			result = TRUE;
+		}
+	}
+	return result;
 }
 
 
@@ -391,12 +455,12 @@ int main(void) {
 	GPS_new_data = FALSE;
 	GPS_buf_cntr = 0;
 
+	_RF_icon = TRUE;
+
 	_DMA_cntr = 0;
 
 	_bmp180_present = FALSE;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
-
-	_current_screen = 0;
 
 	_prev_cntr_SPD = 0;
 	_prev_tim_SPD  = 0;
@@ -461,10 +525,10 @@ int main(void) {
 	// UART port initialization
 	UART2_Init(115200);
 
-	// Configure basic timer TIM7
+	// Configure basic timer TIM7 (for DMA timeout)
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM7,ENABLE); // Enable TIMx peripheral
 	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM7->PSC   = 1600; // prescaler
+	TIM7->PSC   = SystemCoreClock / 20000; // prescaler
 	TIM7->ARR   = 999; // auto reload value
 	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
 	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
@@ -502,17 +566,6 @@ int main(void) {
 
 	PutStr5x7(0,56,"STAT:",CT_opaque);
 	PutStr5x7(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",CT_opaque);
-
-/*
-	while(1) {
-		UC1701_Fill(0x00);
-
-		i = PutStr5x7(0,0,"STAT:",CT_opaque) - 1;
-
-
-		UC1701_Flush();
-	}
-*/
 
 	// Init the RTC and configure it clock to LSE
 	PutStr5x7(0,8,"LSE:",CT_opaque);
@@ -555,27 +608,22 @@ int main(void) {
         BMP180_Reset(); // Send reset command to BMP180
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
+    		_bmp180_present = TRUE;
     		PutChar5x7(42,24,'v',CT_opaque);
     		i = BMP180_GetVersion();
     		PutInt5x7(48,24,i,CT_opaque);
     		BMP180_ReadCalibration();
-    		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {
-       			CurData.Temperature = _raw_temp;
-    			CurData.MinTemperature = CurData.Temperature;
-        		CurData.Pressure = _raw_press;
-        		CurData.MinPressure = CurData.Pressure;
+			CurData.MinTemperature =  32767;
+			CurData.MaxTemperature = -32767;
+			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
+    		if (UpdateBMP180()) {
         		GUI_PutTemperature5x7(60,24,CurData.Temperature,CT_opaque);
         		GUI_PutPressure5x7(60,32,CurData.Pressure,PT_mmHg,CT_opaque);
+        		altitude_history[0] = BMP180_hPa_to_Altitude(CurData.Pressure);
     		} else {
-    			CurData.Temperature = 0;
-    			CurData.MinTemperature =  32767;
-    			CurData.MaxTemperature = -32767;
-    			CurData.Pressure = 0;
-    			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
     			PutStr5x7(60,24,"Readings",CT_opaque);
     			PutStr5x7(60,32,"failed",CT_opaque);
     		}
-    		_bmp180_present = TRUE;
     	} else {
     		PutStr5x7(42,24,"Not present",CT_opaque);
     	}
@@ -677,10 +725,6 @@ int main(void) {
 	RTC_Date.RTC_WeekDay = 3;
 	RTC_SetDate(RTC_Format_BIN,&RTC_Date);
 
-	if (_bmp180_present) {
-		altitude_history[0] = BMP180_hPa_to_Altitude(BMP180_GetPressure(BMP180_ADVRES));
-	}
-
 //	GPS_SendCommand("$PMTK104*"); // Reset EB500 to factory settings
 //	GPS_SendCommand("$PMTK314,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1*"); // All sentences
 //	GPS_SendCommand("$PMTK314,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*"); // GLL
@@ -704,40 +748,14 @@ int main(void) {
 /////////////////////////////////////////////////////////////////////////
 
 	while(1) {
-//		if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
-
-		if (_new_packet) ParsePacket();
+		if (_new_packet) {
+			GUI_refresh = TRUE;
+			_RF_icon = !_RF_icon;
+			_new_packet = FALSE;
+		}
 
 		if (_new_time) {
-			if (_no_signal_time > 10) {
-				CurData.Speed = 0;
-				CurData.Cadence = 0;
-			}
-
-			if (_bmp180_present) {
-				if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) {
-					if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {
-						CurData.Temperature = _raw_temp;
-						if (CurData.Temperature > CurData.MaxTemperature) CurData.MaxTemperature = CurData.Temperature;
-						if (CurData.Temperature < CurData.MinTemperature) CurData.MinTemperature = CurData.Temperature;
-
-						CurData.Pressure = _raw_press;
-						if (CurData.Pressure > CurData.MaxPressure) CurData.MaxPressure = CurData.Pressure;
-						if (CurData.Pressure < CurData.MinPressure) CurData.MinPressure = CurData.Pressure;
-
-						CurData.Altitude = BMP180_hPa_to_Altitude(CurData.Pressure);
-						if (CurData.Altitude > CurData.MaxAltitude) CurData.MaxAltitude = CurData.Altitude;
-						if (CurData.Altitude < CurData.MinAltitude) CurData.MinAltitude = CurData.Altitude;
-
-						memmove(&altitude_history[1],&altitude_history[0],sizeof(altitude_history) - sizeof(*altitude_history));
-						altitude_history[0] = CurData.Altitude;
-
-						// Reset this counter only if readings obtained successfully, otherwise next try will be on next cycle
-						_altitude_duty_cycle = 0;
-					}
-				}
-			}
-
+			GUI_refresh = TRUE;
 			_new_time = FALSE;
 		}
 
@@ -755,36 +773,18 @@ int main(void) {
 				RTC_SetTime(RTC_Format_BIN,&RTC_Time);
 				RTC_SetDate(RTC_Format_BIN,&RTC_Date);
 			}
-
-			if (GPSData.fix == 3) {
-				// GPS altitude makes sense only in case of 3D fix
-				CurData.GPSAlt = GPSData.altitude;
-				if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
-				if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
-			}
-
-			if (GPSData.fix == 2 || GPSData.fix == 3) {
-				// GPS speed makes sense only in case of 2D or 3D position fix
-				CurData.GPSSpeed = GPSData.speed;
-				if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
-			}
-
 			GPSData.datetime_valid = FALSE;
 			GPSData.time_valid = FALSE;
 			GPS_new_data = FALSE;
 		}
 
-		// "Up" button pressed - next screen
+		// "Up" button pressed - just clear the counter, there is no function yet
 		if (BTN[BTN_UP].cntr > 0) {
-			_current_screen++;
-			if (_current_screen > 6) _current_screen = 0;
 			BTN[BTN_UP].cntr = 0;
 		}
 
-		// "Down" button pressed - previous screen
+		// "Down" button pressed - just clear the counter, there is no function yet
 		if (BTN[BTN_DOWN].cntr > 0) {
-			_current_screen--;
-			if (_current_screen > 6) _current_screen = 6;
 			BTN[BTN_DOWN].cntr = 0;
 		}
 
@@ -793,89 +793,49 @@ int main(void) {
 			GUI_MainMenu();
 		}
 
-		// "Escape" button pressed - just clear counter, there is no function for it yet
+		// "Escape" button pressed - just clear the counter, there is no function for yet
 		if (BTN[BTN_ESCAPE].cntr) BTN[BTN_ESCAPE].cntr = 0;
 
-		switch(_current_screen) {
-		default:
-			UC1701_Fill(0x00);
-			GUI_DrawSpeed(scr_width - 55,0,CurData.Speed,CurData.AvgSpeed);
+		UC1701_Fill(0x00);
+		GUI_DrawSpeed(scr_width - 55,0,CurData.Speed,CurData.AvgSpeed);
 
-			VLine(scr_width - 58,0,scr_height - 29,PSet);
-			HLine(0,scr_width - 1,scr_height - 29,PSet);
-			VLine(67,scr_height - 29,scr_height - 1,PSet);
+		HLine(0,scr_width - 1,scr_height - 29,PSet);
+		VLine(67,0,scr_height - 1,PSet);
 
-			if (_no_signal_time > 10)
-				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[52]);
-			else
-				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[39]);
-
-			if (GPSData.fix != 2 && GPSData.fix != 3)
-				GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[26]);
-			else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
-			else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
-
-			PutStr5x7(scr_width - 30,scr_height - 27,"CDC",CT_opaque);
-			GUI_DrawNumber(-scr_width + 7,-scr_height + 1,CurData.Cadence,0,DS_Small);
-			GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
-
-			PutStr5x7(3,scr_height - 27,"Ride Time",CT_opaque);
-			GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
-
-			PutStr5x7(0,18,"Alt:",CT_opaque);
-			PutChar5x7(23 + PutInt5x7(23,18,CurData.Altitude,CT_opaque),18,'m',CT_opaque);
-			GUI_PutTemperature5x7(0,26,CurData.Temperature,CT_opaque);
-			break;
-		case 1:
-			UC1701_Fill(0x00);
-			GUI_DrawTime(12,16,&RTC_Time,TT_Full,DS_Big);
-			GUI_PutDate5x7(33,scr_height - 7,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) + RTC_Date.RTC_Year + 2000,CT_opaque);
-			break;
-		case 2:
-			GUI_Screen_CurVal1();
-			break;
-		case 3:
-			GUI_Screen_CurVal2();
-			break;
-		case 4:
-			GUI_Screen_CurVal3();
-			break;
-		case 5:
-			GUI_Screen_SensorRAW();
-			break;
-		case 6:
-			if (_bmp180_present) {
-				UC1701_Fill(0x00);
-				GUI_PutPressure5x7(0,0,CurData.Pressure,PT_mmHg,CT_opaque);
-				PutChar5x7(53 + PutInt5x7(53,0,altitude_history[0],CT_opaque),0,'m',CT_opaque);
-				GUI_DrawGraph(0,8,128,56,&altitude_history[0],GT_line);
-			} else {
-				UC1701_Fill(0x00);
-				PutStr5x7(0,0,"BMP180 is absent",CT_opaque);
-			}
-			break;
-/*
-		case xxx:
-			UC1701_Fill(0x00);
-			PutStr5x7(0,0,"Buttons:",CT_opaque);
-			for (i = 0; i < 4; i++) {
-				PutInt5x7(PutStr5x7(0,10 + i * 10,"BTN",CT_opaque),10 + i * 10,i + 1,CT_opaque);
-				switch(BTN[i].state) {
-				case BTN_Hold:
-					PutStr5x7(29,10 + i * 10,"Hold",CT_opaque);
-					break;
-				case BTN_Pressed:
-					PutStr5x7(29,10 + i * 10,"Pressed",CT_opaque);
-					break;
-				default:
-					PutStr5x7(29,10 + i * 10,"Released",CT_opaque);
-					break;
-				}
-				PutInt5x7(90,10 + i * 10,BTN[i].cntr,CT_opaque);
-			}
-			break;
-*/
+		// RF icon
+		if (_no_signal_time > NO_SIGNAL_TIME)
+			GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[65]);
+		else if (_RF_icon) {
+			GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[39]);
+		} else {
+			GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[52]);
 		}
+
+		if (GPSData.fix != 2 && GPSData.fix != 3)
+			GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[26]);
+		else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
+		else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
+
+		PutStr5x7(scr_width - 30,scr_height - 27,"CDC",CT_opaque);
+		if (_no_signal_time > NO_SIGNAL_TIME) {
+			for (i = 0; i < 3; i++)	FillRect(scr_width - (i * 10) - 15,scr_height - 3,scr_width - (i * 10) - 7,scr_height - 1,PSet);
+		} else {
+			GUI_DrawNumber(-scr_width + 7,-scr_height + 1,CurData.Cadence,0,DS_Small);
+		}
+		GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
+
+		PutStr5x7(3,scr_height - 27,"Ride Time",CT_opaque);
+		GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
+
+		PutStr5x7(0,18,"Alt:",CT_opaque);
+		PutChar5x7(23 + PutInt5x7(23,18,CurData.Altitude,CT_opaque),18,'m',CT_opaque);
+		GUI_PutTemperature5x7(0,26,CurData.Temperature,CT_opaque);
+
+/*
+		// Time "screensaver"
+		GUI_DrawTime(12,16,&RTC_Time,TT_Full,DS_Big);
+		GUI_PutDate5x7(33,scr_height - 7,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) + RTC_Date.RTC_Year + 2000,CT_opaque);
+*/
 
 		ccc++;
 /*
@@ -886,6 +846,7 @@ int main(void) {
 */
 
 		UC1701_Flush();
+		GUI_refresh = FALSE;
 
 		SleepWait(); // Sleep mode
 	}
