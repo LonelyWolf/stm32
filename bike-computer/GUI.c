@@ -10,9 +10,14 @@
 #include <math.h>
 
 
+bool GUI_refresh;                     // Flag to refresh GUI
+bool GUI_new_BMP180;                  // BMP180 data updated
+
+
 // Callback function for change display brightness settings
 void callback_Brightness(int32_t param) {
-	UC1701_SetBacklight(param);
+	Settings.LCD_brightness = param;
+	UC1701_SetBacklight(Settings.LCD_brightness);
 }
 
 // Draw bitmap
@@ -268,149 +273,193 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 }
 
 // Screen with RAW data packet
-void GUI_Screen_SensorRAW(void) {
+void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t X,Y;
 
-	// Frame
+	do {
+		// Frame
+		UC1701_Fill(0x00);
+		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+		FillRect(3,0,scr_width - 4,8,PSet);
+		PutStr5x7(19,1,"Sensor RAW data",CT_transp_inv);
+		// Cadence data
+		X = 5; Y = 10;
+		X += PutStr5x7(X,Y,"CDC:",CT_transp) - 1;
+		PutInt5x7(X,Y,nRF24_Packet.tim_CDC,CT_transp);
+		// Speed data
+		X = 5; Y += 9;
+		X += PutStr5x7(X,Y,"SPD c:",CT_transp) - 1;
+		X += PutInt5x7(X,Y,nRF24_Packet.cntr_SPD,CT_transp) + 8;
+		X += PutStr5x7(X,Y,"t:",CT_transp) - 1;
+		PutInt5x7(X,Y,nRF24_Packet.tim_SPD,CT_transp);
+		// Packets lost
+		X = 5; Y += 9;
+		X += PutStr5x7(X,Y,"P.Lost:",CT_transp) - 1;
+		X += PutInt5x7(X,Y,nRF24_Packet.packets_lost,CT_transp) + 5;
+		// OBSERVER_TX
+		X += PutStr5x7(X,Y,"OTX:",CT_transp) - 1;
+		X += PutHex5x7(X,Y,nRF24_Packet.observe_TX,CT_transp);
+		// Wakeups
+		X = 5; Y += 9;
+		X += PutStr5x7(X,Y,"Wake:",CT_transp) - 1;
+		PutInt5x7(X,Y,nRF24_Packet.cntr_wake,CT_transp);
+		X = 76;
+		X += PutStr5x7(X,Y,"RT:",CT_transp) - 1;
+		PutInt5x7(X,Y,nRF24_Packet.ride_time,CT_transp);
+		// Battery
+		X = 5; Y += 9;
+		X += PutStr5x7(X,Y,"Battery:",CT_transp) - 1;
+		PutChar5x7(X + PutIntF5x7(X,Y,nRF24_Packet.vrefint,2,CT_transp),Y,'V',CT_transp);
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh); else return;
+		GUI_refresh = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	BTN[BTN_ESCAPE].cntr = 0;;
 	UC1701_Fill(0x00);
-	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	FillRect(3,0,scr_width - 4,8,PSet);
-	PutStr5x7(19,1,"Sensor RAW data",CT_transp_inv);
-	// Cadence data
-	X = 5; Y = 10;
-	X += PutStr5x7(X,Y,"CDC:",CT_transp) - 1;
-	PutInt5x7(X,Y,nRF24_Packet.tim_CDC,CT_transp);
-	// Speed data
-	X = 5; Y += 9;
-	X += PutStr5x7(X,Y,"SPD c:",CT_transp) - 1;
-	X += PutInt5x7(X,Y,nRF24_Packet.cntr_SPD,CT_transp) + 8;
-	X += PutStr5x7(X,Y,"t:",CT_transp) - 1;
-	PutInt5x7(X,Y,nRF24_Packet.tim_SPD,CT_transp);
-	// Packets lost
-	X = 5; Y += 9;
-	X += PutStr5x7(X,Y,"P.Lost:",CT_transp) - 1;
-	X += PutInt5x7(X,Y,nRF24_Packet.packets_lost,CT_transp) + 5;
-	// OBSERVER_TX
-	X += PutStr5x7(X,Y,"OTX:",CT_transp) - 1;
-	X += PutHex5x7(X,Y,nRF24_Packet.observe_TX,CT_transp);
-	// Wakeups
-	X = 5; Y += 9;
-	X += PutStr5x7(X,Y,"Wake:",CT_transp) - 1;
-	PutInt5x7(X,Y,nRF24_Packet.cntr_wake,CT_transp);
-	X = 76;
-	X += PutStr5x7(X,Y,"RT:",CT_transp) - 1;
-	PutInt5x7(X,Y,nRF24_Packet.ride_time,CT_transp);
-	// Battery
-	X = 5; Y += 9;
-	X += PutStr5x7(X,Y,"Battery:",CT_transp) - 1;
-	PutChar5x7(X + PutIntF5x7(X,Y,nRF24_Packet.vrefint,2,CT_transp),Y,'V',CT_transp);
 }
 
 // Screen with current values (trip data)
-void GUI_Screen_CurVal1(void) {
+void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t X,Y;
 
-	// Frame
-	UC1701_Fill(0x00);
-	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	FillRect(3,0,scr_width - 4,8,PSet);
-	PutStr5x7(22,1,"Current values",CT_transp_inv);
+	do {
+		// Frame
+		UC1701_Fill(0x00);
+		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+		FillRect(3,0,scr_width - 4,8,PSet);
+		PutStr5x7(22,1,"Current values",CT_transp_inv);
 
-	X = 7; Y = 10;
-	PutStr5x7(X,Y,"SPD:",CT_transp);
-	PutIntF5x7(X + 23,Y,CurData.Speed,1,CT_transp);
-	X += 54;
-	PutStr5x7(X,Y,"CDC:",CT_transp);
-	PutInt5x7(X + 23,Y,CurData.Cadence,CT_transp);
-	X = 7; Y += 9;
-	PutStr5x7(X,Y,"A.S:",CT_transp);
-	PutIntF5x7(X + 23,Y,CurData.AvgSpeed,1,CT_transp);
-	X += 54;
-	PutStr5x7(X,Y,"A.C:",CT_transp);
-	PutInt5x7(X + 23,Y,CurData.AvgCadence,CT_transp);
-	X = 7; Y += 9;
-	PutStr5x7(X,Y,"M.S:",CT_transp);
-	PutIntF5x7(X + 23,Y,CurData.MaxSpeed,1,CT_transp);
-	X += 54;
-	PutStr5x7(X,Y,"M.C:",CT_transp);
-	PutInt5x7(X + 23,Y,CurData.MaxCadence,CT_transp);
-	X = 7; Y += 9;
-	PutStr5x7(X,Y,"T.D:",CT_transp);
-	PutInt5x7(X + 23,Y,CurData.TripDist,CT_transp);
-	X = 7; Y += 9;
-	PutStr5x7(X,Y,"Odo:",CT_transp);
-	PutInt5x7(X + 23,Y,CurData.Odometer,CT_transp);
-	X = 7; Y += 9;
-	PutStr5x7(X,Y,"Time",CT_transp);
-	GUI_PutTimeSec5x7(X + 26,Y,CurData.TripTime,CT_opaque);
+		X = 7; Y = 10;
+		PutStr5x7(X,Y,"SPD:",CT_transp);
+		PutIntF5x7(X + 23,Y,CurData.Speed,1,CT_transp);
+		X += 54;
+		PutStr5x7(X,Y,"CDC:",CT_transp);
+		PutInt5x7(X + 23,Y,CurData.Cadence,CT_transp);
+		X = 7; Y += 9;
+		PutStr5x7(X,Y,"A.S:",CT_transp);
+		PutIntF5x7(X + 23,Y,CurData.AvgSpeed,1,CT_transp);
+		X += 54;
+		PutStr5x7(X,Y,"A.C:",CT_transp);
+		PutInt5x7(X + 23,Y,CurData.AvgCadence,CT_transp);
+		X = 7; Y += 9;
+		PutStr5x7(X,Y,"M.S:",CT_transp);
+		PutIntF5x7(X + 23,Y,CurData.MaxSpeed,1,CT_transp);
+		X += 54;
+		PutStr5x7(X,Y,"M.C:",CT_transp);
+		PutInt5x7(X + 23,Y,CurData.MaxCadence,CT_transp);
+		X = 7; Y += 9;
+		PutStr5x7(X,Y,"T.D:",CT_transp);
+		PutInt5x7(X + 23,Y,CurData.TripDist,CT_transp);
+		X = 7; Y += 9;
+		PutStr5x7(X,Y,"Odo:",CT_transp);
+		PutInt5x7(X + 23,Y,CurData.Odometer,CT_transp);
+		X = 7; Y += 9;
+		PutStr5x7(X,Y,"Time",CT_transp);
+		GUI_PutTimeSec5x7(X + 26,Y,CurData.TripTime,CT_opaque);
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh); else return;
+		GUI_refresh = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	BTN[BTN_ESCAPE].cntr = 0;;
+	UC1701_Fill(0x00);
 }
 
 // Screen with current values (BMP180 values)
-void GUI_Screen_CurVal2(void) {
+void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t X,Y;
 
-	// Frame
+	do {
+		// Frame
+		UC1701_Fill(0x00);
+		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+		FillRect(3,0,scr_width - 4,8,PSet);
+		PutStr5x7(46,1,"BMP180",CT_transp_inv);
+
+		X = 4; Y = 10;
+		X += PutStr5x7(X,Y,"Temperature:",CT_transp) - 1;
+		GUI_PutTemperature5x7(X,Y,CurData.Temperature,CT_transp);
+		X = 4; Y += 9;
+		X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+		GUI_PutTemperature5x7(X,Y,CurData.MinTemperature,CT_transp);
+		X = 67;
+		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+		GUI_PutTemperature5x7(X,Y,CurData.MaxTemperature,CT_transp);
+
+		HLine(1,scr_width - 2,Y + 10,PSet);
+
+		X = 4; Y += 14;
+		X += PutStr5x7(X,Y,"Pressure:",CT_transp) - 1;
+		GUI_PutPressure5x7(X,Y,CurData.Pressure,PT_mmHg,CT_transp);
+		X = 4; Y += 9;
+		X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+		PutIntF5x7(X,Y,CurData.MinPressure * 75 / 1000,1,CT_transp);
+		X = 67;
+		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+		PutIntF5x7(X,Y,CurData.MaxPressure * 75 / 1000,1,CT_transp);
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GUI_new_BMP180); else return;
+		GUI_new_BMP180 = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	BTN[BTN_ESCAPE].cntr = 0;;
 	UC1701_Fill(0x00);
-	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	FillRect(3,0,scr_width - 4,8,PSet);
-	PutStr5x7(46,1,"BMP180",CT_transp_inv);
-
-	X = 4; Y = 10;
-	X += PutStr5x7(X,Y,"Temperature:",CT_transp) - 1;
-	GUI_PutTemperature5x7(X,Y,CurData.Temperature,CT_transp);
-	X = 4; Y += 9;
-	X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-	GUI_PutTemperature5x7(X,Y,CurData.MinTemperature,CT_transp);
-	X = 67;
-	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	GUI_PutTemperature5x7(X,Y,CurData.MaxTemperature,CT_transp);
-
-	HLine(1,scr_width - 2,Y + 10,PSet);
-
-	X = 4; Y += 14;
-	X += PutStr5x7(X,Y,"Pressure:",CT_transp) - 1;
-	GUI_PutPressure5x7(X,Y,CurData.Pressure,PT_mmHg,CT_transp);
-	X = 4; Y += 9;
-	X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-	PutIntF5x7(X,Y,CurData.MinPressure * 75 / 1000,1,CT_transp);
-	X = 67;
-	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	PutIntF5x7(X,Y,CurData.MaxPressure * 75 / 1000,1,CT_transp);
 }
 
 // Screen with current values (GPS values)
-void GUI_Screen_CurVal3(void) {
+void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t X,Y;
 
-	// Frame
+	do {
+		// Frame
+		UC1701_Fill(0x00);
+		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+		FillRect(3,0,scr_width - 4,8,PSet);
+		PutStr5x7(36,1,"GPS stats",CT_transp_inv);
+
+		X = 4; Y = 10;
+		X += PutStr5x7(X,Y,"Speed:",CT_transp) - 1;
+		X += PutIntF5x7(X,Y,CurData.GPSSpeed,2,CT_transp);
+		PutStr5x7(X,Y,"km/h",CT_transp);
+		X = 4; Y += 9;
+		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+		X += PutIntF5x7(X,Y,CurData.MaxGPSSpeed,2,CT_transp);
+		PutStr5x7(X,Y,"km/h",CT_transp);
+
+		HLine(1,scr_width - 2,Y + 10,PSet);
+
+		X = 4; Y += 14;
+		X += PutStr5x7(X,Y,"Altitude:",CT_transp) - 1;
+		X += PutInt5x7(X,Y,CurData.GPSAlt,CT_transp);
+		PutChar5x7(X,Y,'m',CT_transp);
+		X = 4; Y += 9;
+		X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
+		X += PutInt5x7(X,Y,CurData.MinGPSAlt,CT_transp);
+		PutChar5x7(X,Y,'m',CT_transp);
+		X = 4; Y += 9;
+		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
+		X += PutInt5x7(X,Y,CurData.MaxGPSAlt,CT_transp);
+		PutChar5x7(X,Y,'m',CT_transp);
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
+		GPS_new_data = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	BTN[BTN_ESCAPE].cntr = 0;;
 	UC1701_Fill(0x00);
-	Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-	FillRect(3,0,scr_width - 4,8,PSet);
-	PutStr5x7(36,1,"GPS stats",CT_transp_inv);
-
-	X = 4; Y = 10;
-	X += PutStr5x7(X,Y,"Speed:",CT_transp) - 1;
-	X += PutIntF5x7(X,Y,CurData.GPSSpeed,2,CT_transp);
-	PutStr5x7(X,Y,"km/h",CT_transp);
-	X = 4; Y += 9;
-	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	X += PutIntF5x7(X,Y,CurData.MaxGPSSpeed,2,CT_transp);
-	PutStr5x7(X,Y,"km/h",CT_transp);
-
-	HLine(1,scr_width - 2,Y + 10,PSet);
-
-	X = 4; Y += 14;
-	X += PutStr5x7(X,Y,"Altitude:",CT_transp) - 1;
-	X += PutInt5x7(X,Y,CurData.GPSAlt,CT_transp);
-	PutChar5x7(X,Y,'m',CT_transp);
-	X = 4; Y += 9;
-	X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-	X += PutInt5x7(X,Y,CurData.MinGPSAlt,CT_transp);
-	PutChar5x7(X,Y,'m',CT_transp);
-	X = 4; Y += 9;
-	X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-	X += PutInt5x7(X,Y,CurData.MaxGPSAlt,CT_transp);
-	PutChar5x7(X,Y,'m',CT_transp);
 }
 
 // Screen with satellites in view bar graph
@@ -470,9 +519,10 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
 		GPS_new_data = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	ClearKeys();
+	BTN[BTN_ESCAPE].cntr = 0;;
 	UC1701_Fill(0x00);
 }
 
@@ -543,9 +593,10 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
 		GPS_new_data = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	ClearKeys();
+	BTN[BTN_ESCAPE].cntr = 0;;
 	UC1701_Fill(0x00);
 }
 
@@ -594,14 +645,12 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 			}
 			BTN[BTN_DOWN].cntr = 0;
 		}
-
 		// "Up" key
 		if (BTN[BTN_UP].cntr > 0 || BTN[BTN_UP].state == BTN_Hold) {
 			pos -= chars_per_line;
 			if (pos > BufSize) pos = 0;
 			BTN[BTN_UP].cntr = 0;
 		}
-
 		// "Enter" key
 		if (BTN[BTN_ENTER].cntr > 0 || BTN[BTN_ENTER].state == BTN_Hold) {
 			pos = 0;
@@ -609,7 +658,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		}
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	ClearKeys();
+	BTN[BTN_ESCAPE].cntr = 0;;
 	UC1701_Fill(0x00);
 }
 
@@ -620,8 +669,8 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 //   avg - average speed value for pace indicator
 // Size: 54 x 33
 void GUI_DrawSpeed(int8_t X, int8_t Y, uint32_t speed, uint32_t avg) {
+	if (speed > 999) speed = 999;
 	FillRect(X,Y,X + 54,Y + 33,PReset);
-//	GUI_DrawNumber(X,Y,speed / 10,2,0,DS_Big);
 	GUI_DrawNumber(-(X + 29),Y,speed / 10,0,DS_Big);
 	FillRect(X + 31,Y + 31,X + 33,Y + 33,PSet);
 	GUI_SmallDig(X + 35,Y + 15,speed % 10);
@@ -679,8 +728,9 @@ void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time) {
 // input:
 //   X, Y - top left corner coordinates
 //   W, H - width and height of graph
-//   data - pointer to array with graph values (must be same or less size of graph width)
+//   data - pointer to array with graph values
 //   GraphType - type of graph (GT_dot, GT_fill, GT_line)
+// note: values array must be equal to or less than graph width
 void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* data, GraphType_TypeDef GraphType) {
 	uint8_t i,bY,pY,YY,offset;
 	int16_t min,max;
@@ -1130,6 +1180,22 @@ void GUI_MainMenu(void) {
 				UC1701_Fill(0x00);
 				PutStr5x7(0,0,"Statistics...",CT_opaque);
 				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuStatistics,mnu_sub_sel,WaitForKeyPress);
+				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
+					case 0:
+						GUI_Screen_SensorRAW(WaitForKeyPress);
+						break;
+					case 1:
+						GUI_Screen_CurVal1(WaitForKeyPress);
+						break;
+					case 2:
+						GUI_Screen_CurVal2(WaitForKeyPress);
+						break;
+					case 3:
+						GUI_Screen_CurVal3(WaitForKeyPress);
+						break;
+					default:
+						break;
+				}
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 1:

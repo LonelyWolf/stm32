@@ -3,6 +3,10 @@
 #define __GUI_H
 
 
+typedef void (*funcPtrParam_TypeDef)(int32_t param);
+typedef void (*funcPtrVoid_TypeDef)(void);
+typedef void (*funcPtrKeyPress_TypeDef)(bool Sleep, bool *WaitFlag);
+
 typedef enum {
 	DS_Big   = 0,
 	DS_Mid   = 1,
@@ -47,11 +51,9 @@ typedef struct {
 	MenuItem_TypeDef        Items[];
 } Menu_TypeDef;
 
+
 #define MenuItemHeight    9  // Menu item height
 
-typedef void (*funcPtrParam_TypeDef)(int32_t param);
-typedef void (*funcPtrVoid_TypeDef)(void);
-typedef void (*funcPtrKeyPress_TypeDef)(bool Sleep, bool *WaitFlag);
 
 // Menus
 static const Menu_TypeDef mnuMain = {
@@ -89,32 +91,32 @@ static const Menu_TypeDef mnuGPS = {
 };
 
 static const Menu_TypeDef mnuStatistics = {
-		10,
+		4,
 		MA_center,
 		MS_over,
 		{
-				{"0"},
-				{"1"},
-				{"2"},
-				{"3"},
-				{"4"},
-				{"5"},
-				{"6"},
-				{"7"},
-				{"8"},
-				{"9"}
+				{"Sensor RAW data"},
+				{"Trip values"},
+				{"BMP180 values"},
+				{"GPS values"}
 		}
 };
+
+
+// Public variables
+extern bool GUI_refresh;                     // Flag to refresh GUI
+extern bool GUI_new_BMP180;                  // BMP180 data updated
+
 
 // Function prototypes
 void GUI_DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
 void GUI_DrawNumber(int8_t X, int8_t Y, int32_t Number, uint8_t Decimals,	DigitSize_TypeDef DigitSize);
 void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_TypeDef TimeType, DigitSize_TypeDef DigitSize);
 
-void GUI_Screen_SensorRAW(void);
-void GUI_Screen_CurVal1(void);
-void GUI_Screen_CurVal2(void);
-void GUI_Screen_CurVal3(void);
+void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPtrKeyPress_TypeDef WaitForKey);
