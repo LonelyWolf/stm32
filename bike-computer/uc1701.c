@@ -1,6 +1,5 @@
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
-#include <stm32l1xx_tim.h>
 #include <string.h> // For memcpy
 
 #include <spi.h>
@@ -57,34 +56,33 @@ void UC1701_ResumeSPI(void) {
 void UC1701_SetBacklight(uint8_t brightness) {
 	GPIO_InitTypeDef PORT;
 
-	if (brightness == 0 || brightness == 100) {
-		// Turn off TIM2 peripheral to conserve some power
-		TIM2->CCR2 = brightness;
-		TIM2->CR1 &= ~TIM_CR1_CEN; // Disable TIM2 counter
-		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2,DISABLE); // Disable TIM2 peripheral
+	PORT.GPIO_Speed = GPIO_Speed_40MHz;
+	PORT.GPIO_OType = GPIO_OType_PP;
+	PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+	PORT.GPIO_Pin   = UC1701_LEDA_PIN;
 
-		// Configure LEDA control pin as push-pull output
-		PORT.GPIO_Mode  = GPIO_Mode_OUT;
-		PORT.GPIO_Speed = GPIO_Speed_40MHz;
-		PORT.GPIO_OType = GPIO_OType_PP;
-		PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-		PORT.GPIO_Pin   = UC1701_LEDA_PIN;
-		GPIO_Init(UC1701_LEDA_PORT,&PORT);
+	if (brightness == 0 || brightness == 100) {
+		if (RCC->APB1ENR & RCC_APB1Periph_TIM2) {
+			// Turn off TIM2 peripheral to conserve some power
+			TIM2->CCR2 = brightness;
+			TIM2->CR1 &= ~TIM_CR1_CEN; // Disable TIM2 counter
+			RCC->APB1ENR &= ~RCC_APB1Periph_TIM2; // Disable the TIM2 peripheral
+
+			// Configure LEDA control pin as push-pull output
+			PORT.GPIO_Mode  = GPIO_Mode_OUT;
+			GPIO_Init(UC1701_LEDA_PORT,&PORT);
+		}
 		if (brightness == 0) UC1701_LEDA_H(); else UC1701_LEDA_L();
 
 		return;
 	}
 
-	if (!(TIM2->CR1 & TIM_CR1_CEN)) {
+	if (!(RCC->APB1ENR & RCC_APB1Periph_TIM2)) {
 		// PWM disabled, enable it first
 		PORT.GPIO_Mode  = GPIO_Mode_AF;
-		PORT.GPIO_Speed = GPIO_Speed_40MHz;
-		PORT.GPIO_OType = GPIO_OType_PP;
-		PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-		PORT.GPIO_Pin   = UC1701_LEDA_PIN;
 		GPIO_Init(UC1701_LEDA_PORT,&PORT);
 		GPIO_PinAFConfig(UC1701_LEDA_PORT,GPIO_PinSource1,GPIO_AF_TIM2); // Alternative function PA1 -> TIM2_CH2
-		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2,ENABLE); // Enable TIM2 peripheral
+		RCC->APB1ENR |= RCC_APB1Periph_TIM2; // Enable the TIM2 peripheral
 		TIM2->CR1 |= TIM_CR1_CEN; // Counter enable
 	}
 	TIM2->CCR2 = brightness; // Set PWM duty cycle
