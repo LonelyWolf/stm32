@@ -25,6 +25,11 @@
 #define      BTN_ENTER   2
 #define      BTN_ESCAPE  3
 
+// NULL declaration
+#ifndef NULL
+#define NULL  ((void *)0)
+#endif
+
 // Just boolean
 typedef enum {
 	FALSE = 0,
@@ -92,6 +97,7 @@ typedef struct {
 	uint8_t  GMT_offset;          // GMT time offset (hours)
 	uint8_t  LCD_brightness;      // LCD brightness (percents 0..100)
 	uint16_t WheelCircumference;  // Wheel circumference (cm)
+	uint8_t  LCD_timeout;         // LCD backlight timeout (seconds)
 } Settings_TypeDef;
 
 
@@ -99,6 +105,9 @@ extern nRF24_Packet_TypeDef nRF24_Packet;          // nRF24L01 last received pac
 extern Cur_Data_TypeDef CurData;                   // Current data (Speed, Cadence, etc.)
 extern BTN_TypeDef BTN[4];                         // Buttons
 extern Settings_TypeDef Settings;                  // Settings which stored in EEPROM
+extern bool _screensaver;                          // TRUE if screen saver active or must be activated
+extern uint32_t _no_signal_time;                   // Time since last packet received (seconds)
+extern uint32_t _idle_time;                        // Time from last user event (button press)
 
 
 // Embedded internal reference voltage calibration value
@@ -108,6 +117,7 @@ extern Settings_TypeDef Settings;                  // Settings which stored in E
 
 // Function prototypes
 void SleepWait(void);
+void SleepStop(void);
 
 uint32_t atos_len(uint8_t *buf, uint8_t len);
 int32_t atos_char(uint8_t *buf, uint16_t *pos);
