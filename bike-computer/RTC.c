@@ -1,18 +1,18 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_rtc.h>
-#include <stm32l1xx_pwr.h>
 #include <RTC.h>
 
 
-const uint16_t week_day[] = { 0x4263, 0xA8BD, 0x42BF, 0x4370, 0xABBF, 0xA8BF, 0x43B2};
+RTC_TimeTypeDef RTC_Time;                   // Current RTC time
+RTC_DateTypeDef RTC_Date;                   // Current RTC date
 
 
-// Init RTC
+// Initialize and configure the RTC peripheral
 void RTC_Config(void) {
 	RTC_InitTypeDef RTCInit;
 
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR,ENABLE); // Enable the PWR peripheral
-	PWR_RTCAccessCmd(ENABLE); // Enable access to RTC and BKP registers
+	RCC->APB1ENR |= RCC_APB1Periph_PWR; // Enable the PWR peripheral
+	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
 	RCC_RTCResetCmd(ENABLE); // Reset RTC time
 	RCC_RTCResetCmd(DISABLE);
 	RCC_LSEConfig(RCC_LSE_ON); // Turn on LSE and wait until it's become stable
@@ -29,11 +29,45 @@ void RTC_Config(void) {
 	RTC_Init(&RTCInit);
 
 	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);
-	// Wakeup counter can be set only when wakeup disabled
+	// Wake-up counter can be set only when wake-up disabled
 	RTC_WakeUpCmd(DISABLE);
-	RTC_SetWakeUpCounter(0); // 1s wakeup (1s - 1)
-	RTC_ITConfig(RTC_IT_WUT,ENABLE); // Enable wakeup interrupt
-	RTC_WakeUpCmd(ENABLE);
+	RTC_SetWakeUpCounter(0); // 1s wake-up (1s - 1)
+	RTC_ITConfig(RTC_IT_WUT,ENABLE); // Enable wake-up interrupt
+	RTC_WaitForSynchro(); // Wait until the RTC Time and Date registers are synchronized with RTC APB clock
+	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+}
+
+// Configure wake-up interrupt
+// input:
+//   interval - wake-up timer counter interval (preconfigured to 1 second)
+// note: interval can be a value from 0x0000 to 0xFFFF
+void RTC_SetWakeUp(uint32_t interval) {
+	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+	// Wake-up counter can be set only when wake-up disabled
+	RTC_WakeUpCmd(DISABLE);
+	if (interval) {
+		// Set specified interval and enable wake-up counter
+		RTC_SetWakeUpCounter(interval - 1);
+		RTC_WakeUpCmd(ENABLE);
+	} else {
+		// Set interval to 1 second and leave a wake-up counter disabled
+		RTC_SetWakeUpCounter(0);
+	}
+	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+}
+
+// Set date and time from RTC_Date and RTC_Time variables
+void RTC_SetDateTime(void) {
+	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+	RTC_SetTime(RTC_Format_BIN,&RTC_Time);
+	RTC_SetDate(RTC_Format_BIN,&RTC_Date);
+	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+}
+
+// Get current date and time into RTC_Date and RTC_Time variables
+void RTC_GetDateTime(void) {
+	RTC_GetTime(RTC_Format_BIN,&RTC_Time);
+	RTC_GetDate(RTC_Format_BIN,&RTC_Date);
 }
 
 // Convert Date/Time structures to epoch time
@@ -49,6 +83,7 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	a = (14 - date->RTC_Month) / 12;
 	y = (date->RTC_Year + 2000) + 4800 - a; // years since 1 March, 4801 BC
 	m = date->RTC_Month + (12 * a) - 3; // since 1 March, 4801 BC
+
 	// Gregorian calendar date compute
     JDN  = date->RTC_Date;
     JDN += (153 * m + 2) / 5;
@@ -57,7 +92,7 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
     JDN += -y / 100;
     JDN += y / 400;
     JDN  = JDN - 32045;
-    JDN  = JDN - JULIAN_DATE_BASE;    // Calcuate from base date
+    JDN  = JDN - JULIAN_DATE_BASE;    // Calculate from base date
     JDN *= 86400;                     // Days to seconds
     JDN += time->RTC_Hours * 3600;    // ... and today seconds
     JDN += time->RTC_Minutes * 60;
@@ -86,7 +121,7 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	uint64_t JD    = 0;
 	uint64_t JDN   = 0;
 
-	// These hardcore math taken from http://en.wikipedia.org/wiki/Julian_day
+	// These hardcore math's taken from http://en.wikipedia.org/wiki/Julian_day
 
 	JD  = ((epoch + 43200) / (86400 >>1 )) + (2440587 << 1) + 1;
 	JDN = JD >> 1;
@@ -115,6 +150,11 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
     time->RTC_Seconds = sec;
 }
 
+// Adjust time with time zone offset
+// input:
+//   time - pointer to RTC_Time structure with time to adjust
+//   date - pointer to RTC_Date structure with date to adjust
+//   offset - hours offset to add or subtract from date/time (hours)
 void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t offset) {
 	uint32_t epoch;
 
