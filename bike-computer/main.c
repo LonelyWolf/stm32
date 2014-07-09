@@ -13,7 +13,6 @@
 #include <misc.h>
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_gpio.h>
-#include <stm32l1xx_pwr.h>
 #include <stm32l1xx_rtc.h>
 #include <stm32l1xx_exti.h>
 #include <stm32l1xx_tim.h>
@@ -34,22 +33,23 @@
 #include <RTC.h>
 #include <GUI.h>
 #include <GPS.h>
+#include <beeper.h>
+#include <font5x7.h>
 #include <resources.h>
 
 
 /////////////////////////////////////////////////////////////////////////
 
 
-#define LCD_BACKLIGHT_TIMEOUT           60  // Timeout for LCD backlight (seconds)
+#define SCREENSAVER_TIMEOUT            600  // Timeout for screensaver activation (seconds)
 #define ALT_MEASURE_DUTY_CYCLE          30  // Temperature/pressure measurement duty cycle (seconds)
-#define NO_SIGNAL_TIME                  10  // Sensor signal timeout
+#define NO_SIGNAL_TIME                  10  // Sensor signal timeout (seconds)
 
 uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD];     // nRF24L01 payload buffer
 
 bool _new_packet;                           // TRUE if new packet was received but not parsed
 bool _new_time;                             // TRUE if time was updated
 bool _bmp180_present;                       // TRUE if BMP180 sensor responded on I2C bus
-
 bool _RF_icon;                              // Flag for RF icon flashing
 
 uint16_t _prev_cntr_SPD;                    // Last received cntr_SPD value
@@ -58,25 +58,13 @@ uint16_t _tim_excess;                       // Timer excess from 1 second ratio
 uint32_t _cntr_cadence;                     // Cadence counter (for AVG calculation)
 uint32_t _cadence_accum;                    // Cadence accumulator (for AVG calculation)
 
-RTC_TimeTypeDef RTC_Time;                   // Current RTC time
-RTC_DateTypeDef RTC_Date;                   // Current RTC date
-
-uint32_t _no_signal_time;                   // Time since last packet received (seconds)
-uint32_t _idle_time;                        // Time from last user event (button press)
-
 int16_t altitude_history[128];              // Last 128 altitude values
 uint8_t _altitude_duty_cycle;               // Altitude measurement duty cycle
 
 uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter (to track RX timeout)
 
 uint32_t i;                                 // THIS IS UNIVERSAL VARIABLE
-uint32_t ccc;                               // Wakeups count, for debug purposes
-
-// Peripherals initialization variables
-GPIO_InitTypeDef PORT;
-EXTI_InitTypeDef EXTIInit;
-NVIC_InitTypeDef NVICInit;
-DMA_InitTypeDef  DMAInit;
+uint32_t ccc;                               // Wake-ups count, for debug purposes
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -90,43 +78,178 @@ bool UpdateBMP180(void);
 /////////////////////////////////////////////////////////////////////////
 
 
+void InitPeripherals(void) {
+	GPIO_InitTypeDef PORT;
+	NVIC_InitTypeDef NVICInit;
+	EXTI_InitTypeDef EXTIInit;
+
+	// Configure GPIO
+	// Enable PORTA and PORTC peripheral
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOC,ENABLE);
+	// Charge STAT pin (PA15)
+	PORT.GPIO_Mode  = GPIO_Mode_IN;
+	PORT.GPIO_Speed = GPIO_Speed_2MHz;
+	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
+	PORT.GPIO_Pin   = GPIO_Pin_15;
+	GPIO_Init(GPIOA,&PORT);
+
+	// BTN1 pin (PA5)
+	PORT.GPIO_Mode = GPIO_Mode_IN;
+	PORT.GPIO_PuPd = GPIO_PuPd_UP;
+	PORT.GPIO_Pin  = BTN1_PIN;
+	GPIO_Init(BTN1_PORT,&PORT);
+	// BTN2 pin (PA7)
+	PORT.GPIO_Pin  = BTN2_PIN;
+	GPIO_Init(BTN2_PORT,&PORT);
+	// BTN3 pin (PC10)
+	PORT.GPIO_Pin  = BTN3_PIN;
+	GPIO_Init(BTN3_PORT,&PORT);
+	// BTN4 pin (PC11)
+	PORT.GPIO_Pin  = BTN4_PIN;
+	GPIO_Init(BTN4_PORT,&PORT);
+
+	// Initialize buzzer out
+	BEEPER_Init();
+
+	// Initialize delay timer without callback function
+	Delay_Init(NULL);
+
+	// UART port initialization
+	UART2_Init(115200);
+
+	// Configure basic timer TIM7 (for DMA timeout)
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM7,ENABLE); // Enable TIMx peripheral
+	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
+	TIM7->PSC   = SystemCoreClock / 20000; // prescaler
+	TIM7->ARR   = 999; // auto reload value
+	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
+	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
+	// TIM7 IRQ
+	NVICInit.NVIC_IRQChannel = TIM7_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x05; // below middle priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x05; // below middle priority
+	NVIC_Init(&NVICInit);
+
+	// SPI2 port initialization
+	SPI2_Init();
+
+    // External interrupts
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG,ENABLE); // Enable the system configuration controller
+
+	// PC6 -> EXTI line 6 (nRF24L01 IRQ)
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource6);
+	// Configure EXTI on Line6
+	EXTIInit.EXTI_Line = EXTI_Line6;              // EXTI will be on line 6
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Falling; // IRQ on edge fall
+	EXTIInit.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTIInit);
+
+	// Configure EXTI9_5 interrupt
+	NVICInit.NVIC_IRQChannel = EXTI9_5_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x01; // 1 - highest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x01;
+	NVIC_Init(&NVICInit);
+
+	// Configure EXTI15_10 interrupt
+	NVICInit.NVIC_IRQChannel = EXTI15_10_IRQn;
+	NVIC_Init(&NVICInit);
+
+	// PA5 -> EXTI line 5 (Button#1)
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource5);
+	// Configure EXTI on Line5
+	EXTIInit.EXTI_Line = EXTI_Line5;              // EXTI will be on line 5
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising_Falling; // IRQ on edge fall
+	EXTIInit.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTIInit);
+
+	// PA7 -> EXTI line 7  (Button#2)
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource7);
+	// Configure EXTI on Line7
+	EXTIInit.EXTI_Line = EXTI_Line7;              // EXTI will be on line 7
+	EXTI_Init(&EXTIInit);
+
+	// PC10 -> EXTI line 10  (Button#3)
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource10);
+	// Configure EXTI on Line10
+	EXTIInit.EXTI_Line = EXTI_Line10;             // EXTI will be on line 10
+	EXTI_Init(&EXTIInit);
+
+	// PC10 -> EXTI line 11  (Button#4)
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource11);
+	// Configure EXTI on Line11
+	EXTIInit.EXTI_Line = EXTI_Line11;             // EXTI will be on line 11
+	EXTI_Init(&EXTIInit);
+
+	// RTC wake-up -> EXTI line 20
+	EXTIInit.EXTI_Line = EXTI_Line20;             // RTC wake-up on EXTI line 20
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising;  // IRQ on rising edge
+	EXTIInit.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTIInit);
+	// RTC wake-up IRQ
+	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x0f;
+	NVIC_Init(&NVICInit);
+}
+
+// Initialize display:
+//   - turn on and configure peripheral
+//   - set backlight level
+//   - set contrast
+//   - set orientation
+void Display_Init(void) {
+	UC1701_Init();
+	UC1701_Contrast(4,24);
+	UC1701_Orientation(scr_normal);
+	UC1701_SetBacklight(Settings.LCD_brightness);
+}
+
+// Turn on transceiver and configure it for RX mode
+void nRF24_SetRXMode(void) {
+	nRF24_Wake();
+	nRF24_RXMode(nRF24_RX_PIPE0,nRF24_RF_CHANNEL,nRF24_DataRate_250kbps,nRF24_CRC_on,
+			     nRF24_CRC_1byte,(uint8_t *)nRF24_RX_Addr,nRF24_RX_Addr_Size,nRF24_RX_PAYLOAD,
+			     nRF24_TXPower_0dBm);
+    nRF24_ClearIRQFlags();
+    nRF24_FlushRX();
+}
+
+// Turn off transceiver
+void nRF24_Sleep(void) {
+	nRF24_PowerDown();
+}
+
+// Inquiry status of the button
+void Button_Inquiry(BTN_TypeDef *button) {
+	if (button->PORT->IDR & button->PIN) {
+	    // Button released
+		button->hold_cntr = 0;
+		if (button->state != BTN_Hold) button->cntr++;
+		button->state = BTN_Released;
+	} else {
+		// Button pressed
+		button->hold_cntr = 0;
+		button->state = BTN_Pressed;
+		BEEPER_Enable(2000,5);
+	}
+	if (!_screensaver) UC1701_SetBacklight(Settings.LCD_brightness);
+	_screensaver = FALSE;
+	_idle_time = 0;
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+
+
 // EXTI[5..9] lines IRQ handler
 void EXTI9_5_IRQHandler(void) {
 	nRF24_RX_PCKT_TypeDef RX_status;
-
-	if (EXTI_GetITStatus(EXTI_Line5) != RESET) {
-		// EXTI5 (Button#1 -> "Up")
-		if (BTN[BTN_UP].PORT->IDR & BTN[0].PIN) {
-		    // Button released
-			BTN[BTN_UP].hold_cntr = 0;
-			if (BTN[BTN_UP].state != BTN_Hold) BTN[BTN_UP].cntr++;
-			BTN[BTN_UP].state = BTN_Released;
-		} else {
-			// Button pressed
-			BTN[BTN_UP].hold_cntr = 0;
-			BTN[BTN_UP].state = BTN_Pressed;
-		}
-		UC1701_SetBacklight(Settings.LCD_brightness);
-		_idle_time = 0;
-		EXTI_ClearITPendingBit(EXTI_Line5);
-	}
-
-	if (EXTI_GetITStatus(EXTI_Line7) != RESET) {
-		// EXTI7 (Button#2 -> "Down")
-		if (BTN[BTN_DOWN].PORT->IDR & BTN[BTN_DOWN].PIN) {
-		    // Button released
-			BTN[BTN_DOWN].hold_cntr = 0;
-			if (BTN[BTN_DOWN].state != BTN_Hold) BTN[BTN_DOWN].cntr++;
-			BTN[BTN_DOWN].state = BTN_Released;
-		} else {
-			// Button pressed
-			BTN[BTN_DOWN].hold_cntr = 0;
-			BTN[BTN_DOWN].state = BTN_Pressed;
-		}
-		UC1701_SetBacklight(Settings.LCD_brightness);
-		_idle_time = 0;
-		EXTI_ClearITPendingBit(EXTI_Line7);
-	}
 
 	if (EXTI_GetITStatus(EXTI_Line6) != RESET) {
 		// EXTI6 (nRF24L01 IRQ)
@@ -135,9 +258,22 @@ void EXTI9_5_IRQHandler(void) {
 		nRF24_ClearIRQFlags();
 		UC1701_ResumeSPI();
 		_no_signal_time = 0;
-		EXTI_ClearITPendingBit(EXTI_Line6);
-//		if (RX_status == nRF24_RX_PCKT_PIPE0) _new_packet = TRUE;
+		if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout;
 		if (RX_status == nRF24_RX_PCKT_PIPE0) ParsePacket();
+		BEEPER_Enable(4000,1);
+		EXTI_ClearITPendingBit(EXTI_Line6);
+	}
+
+	if (EXTI_GetITStatus(EXTI_Line7) != RESET) {
+		// EXTI7 (Button#2 -> "Down")
+		Button_Inquiry(&BTN[BTN_DOWN]);
+		EXTI_ClearITPendingBit(EXTI_Line7);
+	}
+
+	if (EXTI_GetITStatus(EXTI_Line5) != RESET) {
+		// EXTI5 (Button#1 -> "Up")
+		Button_Inquiry(&BTN[BTN_UP]);
+		EXTI_ClearITPendingBit(EXTI_Line5);
 	}
 }
 
@@ -145,45 +281,22 @@ void EXTI9_5_IRQHandler(void) {
 void EXTI15_10_IRQHandler(void) {
 	if (EXTI_GetITStatus(EXTI_Line10) != RESET) {
 		// EXTI10 (Button#3 -> "Enter")
-		if (BTN[BTN_ENTER].PORT->IDR & BTN[BTN_ENTER].PIN) {
-		    // Button released
-			BTN[BTN_ENTER].hold_cntr = 0;
-			if (BTN[BTN_ENTER].state != BTN_Hold) BTN[BTN_ENTER].cntr++;
-			BTN[BTN_ENTER].state = BTN_Released;
-		} else {
-			// Button pressed
-			BTN[BTN_ENTER].hold_cntr = 0;
-			BTN[BTN_ENTER].state = BTN_Pressed;
-		}
-		UC1701_SetBacklight(Settings.LCD_brightness);
-		_idle_time = 0;
+		Button_Inquiry(&BTN[BTN_ENTER]);
 		EXTI_ClearITPendingBit(EXTI_Line10);
 	}
 
 	if (EXTI_GetITStatus(EXTI_Line11) != RESET) {
 		// EXTI11 (Button#4 -> "Escape")
-		if (BTN[BTN_ESCAPE].PORT->IDR & BTN[BTN_ESCAPE].PIN) {
-		    // Button released
-			BTN[BTN_ESCAPE].hold_cntr = 0;
-			if (BTN[BTN_ESCAPE].state != BTN_Hold) BTN[BTN_ESCAPE].cntr++;
-			BTN[BTN_ESCAPE].state = BTN_Released;
-		} else {
-			// Button pressed
-			BTN[BTN_ESCAPE].hold_cntr = 0;
-			BTN[BTN_ESCAPE].state = BTN_Pressed;
-		}
-		UC1701_SetBacklight(Settings.LCD_brightness);
-		_idle_time = 0;
+		Button_Inquiry(&BTN[BTN_ESCAPE]);
 		EXTI_ClearITPendingBit(EXTI_Line11);
 	}
 }
 
-// RTC wakeup IRQ handler
+// RTC wake-up IRQ handler
 void RTC_WKUP_IRQHandler(void) {
 	if (RTC_GetITStatus(RTC_IT_WUT)) {
-		// RTC Wakeup interrupt
-		RTC_GetTime(RTC_Format_BIN,&RTC_Time);
-		RTC_GetDate(RTC_Format_BIN,&RTC_Date);
+		// RTC Wake-up interrupt
+		RTC_GetDateTime();
 
 		_no_signal_time++;
 		if (_no_signal_time > 3600) _no_signal_time = 3600; // Counter overflow protection (1hour)
@@ -194,16 +307,23 @@ void RTC_WKUP_IRQHandler(void) {
 
 		_idle_time++;
 		if (_idle_time > 3600) _idle_time = 3600; // Counter overflow protection (1hour)
-		if (_idle_time > LCD_BACKLIGHT_TIMEOUT)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
+		if (_idle_time > Settings.LCD_timeout)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
+		if (_idle_time > SCREENSAVER_TIMEOUT) _screensaver = TRUE; else _screensaver = FALSE;
 
-		_altitude_duty_cycle++;
-		// WARNING! This is really slow! Call it from this place is a really bad idea!
-		if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+		if (!_screensaver) {
+			_altitude_duty_cycle++;
+			// WARNING! This is really slow! Calling from this place it's a really bad idea!
+			if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+		}
 
 		_new_time = TRUE;
 
+//		BEEPER_Enable(3000,1);
+
+		PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
 		RTC_ClearITPendingBit(RTC_IT_WUT);
 		RTC_ClearFlag(RTC_FLAG_WUTF);
+		PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 		EXTI_ClearITPendingBit(EXTI_Line20);
 	}
 }
@@ -434,6 +554,11 @@ int main(void) {
 	// Update SystemCoreClock according to Clock Register Values
 	SystemCoreClockUpdate();
 
+#ifdef DEBUG
+	// Enable debugging when the MCU is in low power modes
+	DBGMCU->CR |= DBGMCU_CR_DBG_SLEEP | DBGMCU_CR_DBG_STOP | DBGMCU_CR_DBG_STANDBY;
+#endif
+
 /////////////////////////////////////////////////////////////////////////
 //  Boot section
 /////////////////////////////////////////////////////////////////////////
@@ -447,29 +572,23 @@ int main(void) {
 	memset(&USART_FIFO,0,FIFO_BUFFER_SIZE);
 	GPS_InitData();
 
-	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
-
-	_new_packet = TRUE;
-	_new_time   = TRUE;
-
-	GPS_new_data = FALSE;
-	GPS_buf_cntr = 0;
-
-	_RF_icon = TRUE;
-
-	_DMA_cntr = 0;
-
+	_new_packet     = FALSE;
+	_new_time       = FALSE;
+	_screensaver    = FALSE;
 	_bmp180_present = FALSE;
+	_RF_icon        = TRUE;
+	GPS_new_data    = FALSE;
+	GPS_buf_cntr    = 0;
+	_DMA_cntr       = 0;
+	_prev_cntr_SPD  = 0;
+	_prev_tim_SPD   = 0;
+	_tim_excess     = 0;
+	_cntr_cadence   = 0;
+	_cadence_accum  = 0;
+	_no_signal_time = 32768;
+	_idle_time      = 0;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
-
-	_prev_cntr_SPD = 0;
-	_prev_tim_SPD  = 0;
-	_tim_excess    = 0;
-	_cntr_cadence  = 0;
-	_cadence_accum = 0;
-
-	_no_signal_time = 0;
-	_idle_time = 0;
+	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
 
 	// Buttons initialization
 	for (i = 0; i < 4; i++) memset(&BTN[i],0,sizeof(BTN[i]));
@@ -487,60 +606,14 @@ int main(void) {
 	Settings.WheelCircumference = 206;
 	Settings.altitude_home = 178;
 	Settings.LCD_brightness = 50;
+	Settings.LCD_timeout = 30;
 
 	// Read settings from EEPROM
 	ReadSettings_EEPROM();
 
 	// -------------------- end of variables initialization
 
-
-	// Configure GPIO
-	// Enable PORTA and PORTC peripheral
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOC,ENABLE);
-	// Charge STAT pin (PA15)
-	PORT.GPIO_Mode  = GPIO_Mode_IN;
-	PORT.GPIO_Speed = GPIO_Speed_2MHz;
-	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
-	PORT.GPIO_Pin   = GPIO_Pin_15;
-	GPIO_Init(GPIOA,&PORT);
-
-	// BTN1 pin (PA5)
-	PORT.GPIO_Mode = GPIO_Mode_IN;
-	PORT.GPIO_PuPd = GPIO_PuPd_UP;
-	PORT.GPIO_Pin  = BTN1_PIN;
-	GPIO_Init(BTN1_PORT,&PORT);
-	// BTN2 pin (PA7)
-	PORT.GPIO_Pin  = BTN2_PIN;
-	GPIO_Init(BTN2_PORT,&PORT);
-	// BTN3 pin (PC10)
-	PORT.GPIO_Pin  = BTN3_PIN;
-	GPIO_Init(BTN3_PORT,&PORT);
-	// BTN4 pin (PC11)
-	PORT.GPIO_Pin  = BTN4_PIN;
-	GPIO_Init(BTN4_PORT,&PORT);
-
-	// Initialize delay timer without callback function
-	Delay_Init(NULL);
-
-	// UART port initialization
-	UART2_Init(115200);
-
-	// Configure basic timer TIM7 (for DMA timeout)
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM7,ENABLE); // Enable TIMx peripheral
-	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM7->PSC   = SystemCoreClock / 20000; // prescaler
-	TIM7->ARR   = 999; // auto reload value
-	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
-	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
-	// TIM7 IRQ
-	NVICInit.NVIC_IRQChannel = TIM7_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x05; // below middle priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x05; // below middle priority
-	NVIC_Init(&NVICInit);
-
-	// SPI2 port initialization
-	SPI2_Init();
+	InitPeripherals();
 
 	// Display initialization
 	// Pinout:
@@ -550,29 +623,25 @@ int main(void) {
 	//   PB13 -> SCK (SPI SCK)
 	//   PB15 -> SDA (SPI MOSI)
 	//   PA1  -> LEDA (Backlight LED anode)
-	UC1701_Init();
-	UC1701_SetBacklight(Settings.LCD_brightness);
-	UC1701_Contrast(4,24);
-	UC1701_Orientation(scr_normal);
+	Display_Init();
 	UC1701_Fill(0x00);
 	GUI_DrawBitmap(98,39,30,25,&bmp_bike_man[0]);
 
 	// Boot screen
-	PutStr5x7(0,0,"Wolk bike computer:",CT_opaque);
-	PutStr5x7(0,42,"CPU:",CT_opaque);
-	i = 24 + PutIntF5x7(24,42,SystemCoreClock / 1000,3,CT_opaque);
-	PutStr5x7(i,42,"MHz",CT_opaque);
+	PutStr(0,0,"Wolk bike computer:",&Font5x7);
+	PutStr(0,42,"CPU:",&Font5x7);
+	i = 24 + PutIntF(24,42,SystemCoreClock / 1000,3,&Font5x7);
+	PutStr(i,42,"MHz",&Font5x7);
 	UC1701_Flush();
 
-	PutStr5x7(0,56,"STAT:",CT_opaque);
-	PutStr5x7(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",CT_opaque);
+	PutStr(0,56,"STAT:",&Font5x7);
+	PutStr(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",&Font5x7);
 
 	// Init the RTC and configure it clock to LSE
-	PutStr5x7(0,8,"LSE:",CT_opaque);
+	PutStr(0,8,"LSE:",&Font5x7);
 	UC1701_Flush();
 	RTC_Config();
-	RTC_WaitForSynchro(); // Wait until the RTC Time and Date registers are synchronized with RTC APB clock
-	PutStr5x7(24,8,"Ok",CT_opaque);
+	PutStr(24,8,"Ok",&Font5x7);
 	UC1701_Flush();
 
 	// Configure nRF24L01+
@@ -583,25 +652,21 @@ int main(void) {
     //   PB15 -> MOSI
     //   PB14 <- MISO
     //   PC6  <- IRQ
-	PutStr5x7(0,16,"nRF24L01:",CT_opaque);
+	PutStr(0,16,"nRF24L01:",&Font5x7);
 	UC1701_Flush();
     nRF24_init();
     if (nRF24_Check()) {
-    	PutStr5x7(54,16,"Ok",CT_opaque);
+    	nRF24_SetRXMode();
+    	PutStr(54,16,"Ok",&Font5x7);
     	UC1701_Flush();
-    	nRF24_RXMode(nRF24_RX_PIPE0,nRF24_RF_CHANNEL,nRF24_DataRate_250kbps,nRF24_CRC_on,
-    			     nRF24_CRC_1byte,(uint8_t *)nRF24_RX_Addr,nRF24_RX_Addr_Size,nRF24_RX_PAYLOAD,
-    			     nRF24_TXPower_0dBm);
-        nRF24_ClearIRQFlags();
-        nRF24_FlushRX();
     } else {
-    	PutStr5x7(54,16,"Fail",CT_opaque);
+    	PutStr(54,16,"Fail",&Font5x7);
         UC1701_Flush();
     	while(1);
     }
 
     // I2C2 port initialization
-    PutStr5x7(0,24,"BMP180:",CT_opaque);
+    PutStr(0,24,"BMP180:",&Font5x7);
     UC1701_Flush();
     // I2C fast mode (400kHz)
     if (I2C2_Init(400000) == I2C_SUCCESS) {
@@ -609,106 +674,30 @@ int main(void) {
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
     		_bmp180_present = TRUE;
-    		PutChar5x7(42,24,'v',CT_opaque);
+    		PutChar(42,24,'v',&Font5x7);
     		i = BMP180_GetVersion();
-    		PutInt5x7(48,24,i,CT_opaque);
+    		PutInt(48,24,i,&Font5x7);
     		BMP180_ReadCalibration();
 			CurData.MinTemperature =  32767;
 			CurData.MaxTemperature = -32767;
 			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
     		if (UpdateBMP180()) {
-        		GUI_PutTemperature5x7(60,24,CurData.Temperature,CT_opaque);
-        		GUI_PutPressure5x7(60,32,CurData.Pressure,PT_mmHg,CT_opaque);
+        		GUI_PutTemperature(60,24,CurData.Temperature,&Font5x7);
+        		GUI_PutPressure(60,32,CurData.Pressure,PT_mmHg,&Font5x7);
         		altitude_history[0] = BMP180_hPa_to_Altitude(CurData.Pressure);
     		} else {
-    			PutStr5x7(60,24,"Readings",CT_opaque);
-    			PutStr5x7(60,32,"failed",CT_opaque);
+    			PutStr(60,24,"Readings",&Font5x7);
+    			PutStr(60,32,"failed",&Font5x7);
     		}
     	} else {
-    		PutStr5x7(42,24,"Not present",CT_opaque);
+    		PutStr(42,24,"Not present",&Font5x7);
     	}
     } else {
-    	PutStr5x7(42,24,"I2C timeout",CT_opaque);
+    	PutStr(42,24,"I2C timeout",&Font5x7);
     }
 	UC1701_Flush();
 
-    // External interrupts
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG,ENABLE); // Enable the system configuration controller
-
-	// PC6 -> EXTI line 6 (nRF24L01 IRQ)
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource6);
-	// Configure EXTI on Line6
-	EXTIInit.EXTI_Line = EXTI_Line6;              // EXTI will be on line 6
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Falling; // IRQ on edge fall
-	EXTIInit.EXTI_LineCmd = ENABLE;
-	EXTI_Init(&EXTIInit);
-
-	// Configure EXTI9_5 interrupt
-	NVICInit.NVIC_IRQChannel = EXTI9_5_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x01; // 1 - highest priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x01;
-	NVIC_Init(&NVICInit);
-
-	// Configure EXTI15_10 interrupt
-	NVICInit.NVIC_IRQChannel = EXTI15_10_IRQn;
-	NVIC_Init(&NVICInit);
-
-	// PA5 -> EXTI line 5 (Button#1)
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource5);
-	// Configure EXTI on Line5
-	EXTIInit.EXTI_Line = EXTI_Line5;              // EXTI will be on line 5
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising_Falling; // IRQ on edge fall
-	EXTIInit.EXTI_LineCmd = ENABLE;
-	EXTI_Init(&EXTIInit);
-
-	// PA7 -> EXTI line 7  (Button#2)
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource7);
-	// Configure EXTI on Line7
-	EXTIInit.EXTI_Line = EXTI_Line7;              // EXTI will be on line 7
-	EXTI_Init(&EXTIInit);
-
-	// PC10 -> EXTI line 10  (Button#3)
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource10);
-	// Configure EXTI on Line10
-	EXTIInit.EXTI_Line = EXTI_Line10;             // EXTI will be on line 10
-	EXTI_Init(&EXTIInit);
-
-	// PC10 -> EXTI line 11  (Button#4)
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource11);
-	// Configure EXTI on Line11
-	EXTIInit.EXTI_Line = EXTI_Line11;             // EXTI will be on line 11
-	EXTI_Init(&EXTIInit);
-
-	// RTC wakeup -> EXTI line 20
-	EXTIInit.EXTI_Line = EXTI_Line20;             // RTC wakeup on EXTI line 20
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising;  // IRQ on rising edge
-	EXTIInit.EXTI_LineCmd = ENABLE;
-	EXTI_Init(&EXTIInit);
-	// RTC wakeup IRQ
-	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x0f;
-	NVIC_Init(&NVICInit);
-
-/*********************************************
-    // Output clock on MCO pin (PA8)
-	PORT.GPIO_Pin = GPIO_Pin_8;
-	PORT.GPIO_Mode = GPIO_Mode_AF;
-	PORT.GPIO_OType = GPIO_OType_PP;
-	PORT.GPIO_Speed = GPIO_Speed_40MHz;
-    GPIO_Init(GPIOA,&PORT);
-	GPIO_PinAFConfig(GPIOA,GPIO_PinSource8,GPIO_AF_MCO); // Alternative function on PA8 -> SYS_MCO
-//    RCC_MCOConfig(RCC_MCOSource_HSE,RCC_MCODiv_2); // Route HSE clock to MCO pin
-    RCC_MCOConfig(RCC_MCOSource_LSE,RCC_MCODiv_2); // Route LSE clock to MCO pin
-//    RCC_MCOConfig(RCC_MCOSource_SYSCLK,RCC_MCODiv_2); // Route System clock to MCO pin
-//    RCC_MCOConfig(RCC_MCOSource_PLLCLK,RCC_MCODiv_4); // Route PLL clock to MCO pin
-**********************************************/
-
+	BEEPER_Enable(1500,15);
 //	Delay_ms(2500); // Fancy startup delay
 
 	UC1701_Fill(0x00);
@@ -718,12 +707,11 @@ int main(void) {
 	RTC_Time.RTC_Hours   = 23;
 	RTC_Time.RTC_Minutes = 58;
 	RTC_Time.RTC_Seconds = 51;
-	RTC_SetTime(RTC_Format_BIN,&RTC_Time);
 	RTC_Date.RTC_Date    = 16;
 	RTC_Date.RTC_Month   = 04;
 	RTC_Date.RTC_Year    = 14;
 	RTC_Date.RTC_WeekDay = 3;
-	RTC_SetDate(RTC_Format_BIN,&RTC_Date);
+	RTC_SetDateTime();
 
 //	GPS_SendCommand("$PMTK104*"); // Reset EB500 to factory settings
 //	GPS_SendCommand("$PMTK314,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1*"); // All sentences
@@ -742,16 +730,57 @@ int main(void) {
 	// Reinitialize delay timer with callback function
 	Delay_Init(callback_Delay);
 
+	// Configure wake-up timer to wake every second and enable it
+	RTC_SetWakeUp(1);
+
 
 /////////////////////////////////////////////////////////////////////////
 //	Main loop
 /////////////////////////////////////////////////////////////////////////
 
 	while(1) {
-		if (_new_packet) {
+		if (_screensaver) {
+			RTC_SetWakeUp(60); // Wake once per minute
+			nRF24_Sleep(); // Turn off transceiver
+			UC1701_SetBacklight(0);
+
+			GUI_ScreenSaver();
+
+ 			// Reinitialize display
+ 			Display_Init();
+			UC1701_Fill(0x00);
+
+			nRF24_SetRXMode(); // Turn on transceiver in RX mode
+ 			RTC_SetWakeUp(1); // Wake every second
+
 			GUI_refresh = TRUE;
-			_RF_icon = !_RF_icon;
+		}
+
+		if (_new_packet) {
 			_new_packet = FALSE;
+			_RF_icon = !_RF_icon;
+			GUI_refresh = TRUE;
+		}
+
+		if (GPS_new_data) {
+			if (GPSData.datetime_valid && _new_time) {
+				if (RTC_Time.RTC_Minutes != (GPSData.time / 60) % 60) {
+					// Date and time obtained from GPS
+					RTC_Time.RTC_Hours   =  GPSData.time / 3600;
+					RTC_Time.RTC_Minutes = (GPSData.time / 60) % 60;
+					RTC_Time.RTC_Seconds =  GPSData.time % 60;
+					i = GPSData.date / 1000000;
+					RTC_Date.RTC_Date  = i;
+					RTC_Date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
+					RTC_Date.RTC_Year  = (GPSData.date % 10000) - 2000;
+					RTC_AdjustTimeZone(&RTC_Time,&RTC_Date,Settings.GMT_offset);
+					RTC_SetDateTime();
+				}
+			}
+			GPSData.datetime_valid = FALSE;
+			GPSData.time_valid = FALSE;
+			GPS_new_data = FALSE;
+			GUI_refresh = TRUE;
 		}
 
 		if (_new_time) {
@@ -759,23 +788,54 @@ int main(void) {
 			_new_time = FALSE;
 		}
 
-		if (GPS_new_data) {
-			if (GPSData.datetime_valid) {
-				// Date and time obtained from GPS
-				RTC_Time.RTC_Hours   =  GPSData.time / 3600;
-				RTC_Time.RTC_Minutes = (GPSData.time / 60) % 60;
-				RTC_Time.RTC_Seconds =  GPSData.time % 60;
-				i = GPSData.date / 1000000;
-				RTC_Date.RTC_Date  = i;
-				RTC_Date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
-				RTC_Date.RTC_Year  = (GPSData.date % 10000) - 2000;
-				RTC_AdjustTimeZone(&RTC_Time,&RTC_Date,Settings.GMT_offset);
-				RTC_SetTime(RTC_Format_BIN,&RTC_Time);
-				RTC_SetDate(RTC_Format_BIN,&RTC_Date);
+		if (GUI_refresh) {
+			UC1701_Fill(0x00);
+			GUI_DrawSpeed(scr_width - 55,0,CurData.Speed,CurData.AvgSpeed);
+
+			HLine(0,scr_width - 1,scr_height - 29,PSet);
+			VLine(67,0,scr_height - 1,PSet);
+
+			// RF icon
+			if (_no_signal_time > NO_SIGNAL_TIME)
+				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[65]);
+			else if (_RF_icon) {
+				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[39]);
+			} else {
+				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[52]);
 			}
-			GPSData.datetime_valid = FALSE;
-			GPSData.time_valid = FALSE;
-			GPS_new_data = FALSE;
+
+			// GPS icon
+			if (GPSData.fix != 2 && GPSData.fix != 3)
+				GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[26]);
+			else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
+			else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
+
+			PutStr(scr_width - 30,scr_height - 27,"CDC",&Font5x7);
+			if (_no_signal_time > NO_SIGNAL_TIME) {
+				for (i = 0; i < 3; i++)	FillRect(scr_width - (i * 10) - 15,scr_height - 3,scr_width - (i * 10) - 7,scr_height - 1,PSet);
+			} else {
+				GUI_DrawNumber(-scr_width + 7,-scr_height + 1,CurData.Cadence,0,DS_Small);
+			}
+			GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
+
+			PutStr(3,scr_height - 27,"Ride Time",&Font5x7);
+			GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
+
+			GUI_PutPressure(0,26,CurData.Pressure,PT_mmHg,&Font5x7);
+			GUI_PutTemperature(0,18,CurData.Temperature,&Font5x7);
+
+			GUI_PutTimeSec(0,10,RTC_Time.RTC_Hours * 3600 + RTC_Time.RTC_Minutes * 60 + RTC_Time.RTC_Seconds,&Font5x7);
+
+			ccc++;
+	/*
+			i = PutInt(3,3,ccc,&Font5x7);
+			Rect(0,0,i + 4,12,PReset);
+			Rect(1,1,i + 3,11,PSet);
+			Rect(2,2,i + 2,10,PReset);
+	*/
+
+			UC1701_Flush();
+			GUI_refresh = FALSE;
 		}
 
 		// "Up" button pressed - just clear the counter, there is no function yet
@@ -794,59 +854,9 @@ int main(void) {
 		}
 
 		// "Escape" button pressed - just clear the counter, there is no function for yet
-		if (BTN[BTN_ESCAPE].cntr) BTN[BTN_ESCAPE].cntr = 0;
-
-		UC1701_Fill(0x00);
-		GUI_DrawSpeed(scr_width - 55,0,CurData.Speed,CurData.AvgSpeed);
-
-		HLine(0,scr_width - 1,scr_height - 29,PSet);
-		VLine(67,0,scr_height - 1,PSet);
-
-		// RF icon
-		if (_no_signal_time > NO_SIGNAL_TIME)
-			GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[65]);
-		else if (_RF_icon) {
-			GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[39]);
-		} else {
-			GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[52]);
+		if (BTN[BTN_ESCAPE].cntr) {
+			BTN[BTN_ESCAPE].cntr = 0;
 		}
-
-		if (GPSData.fix != 2 && GPSData.fix != 3)
-			GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[26]);
-		else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
-		else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
-
-		PutStr5x7(scr_width - 30,scr_height - 27,"CDC",CT_opaque);
-		if (_no_signal_time > NO_SIGNAL_TIME) {
-			for (i = 0; i < 3; i++)	FillRect(scr_width - (i * 10) - 15,scr_height - 3,scr_width - (i * 10) - 7,scr_height - 1,PSet);
-		} else {
-			GUI_DrawNumber(-scr_width + 7,-scr_height + 1,CurData.Cadence,0,DS_Small);
-		}
-		GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
-
-		PutStr5x7(3,scr_height - 27,"Ride Time",CT_opaque);
-		GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
-
-		PutStr5x7(0,18,"Alt:",CT_opaque);
-		PutChar5x7(23 + PutInt5x7(23,18,CurData.Altitude,CT_opaque),18,'m',CT_opaque);
-		GUI_PutTemperature5x7(0,26,CurData.Temperature,CT_opaque);
-
-/*
-		// Time "screensaver"
-		GUI_DrawTime(12,16,&RTC_Time,TT_Full,DS_Big);
-		GUI_PutDate5x7(33,scr_height - 7,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) + RTC_Date.RTC_Year + 2000,CT_opaque);
-*/
-
-		ccc++;
-/*
-		i = PutInt5x7(3,3,ccc,CT_opaque);
-		Rect(0,0,i + 4,12,PReset);
-		Rect(1,1,i + 3,11,PSet);
-		Rect(2,2,i + 2,10,PReset);
-*/
-
-		UC1701_Flush();
-		GUI_refresh = FALSE;
 
 		SleepWait(); // Sleep mode
 	}
