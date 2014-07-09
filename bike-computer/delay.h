@@ -13,6 +13,9 @@ typedef void (*funcCallback_TypeDef)(void);
 
 // Function prototypes
 void Delay_Init(funcCallback_TypeDef func_CallBack);
+void Delay_Disable(void);
+void Delay_Enable(void);
+
 void Delay_ms(uint32_t nTime);
 void Delay_us(uint32_t nTime);
 

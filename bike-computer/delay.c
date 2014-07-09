@@ -20,12 +20,12 @@ void Delay_Init(funcCallback_TypeDef func_CallBack) {
 	// Configure basic timer TIM6
 	// Overflow every half second
 	// One timer tick = 0,00005s = 0.05ms = 50us
-	RCC_APB1PeriphClockCmd(DELAY_TIM_PERIPH,ENABLE); // Enable TIMx peripheral
+	RCC->APB1ENR |= DELAY_TIM_PERIPH; // Enable the TIMx peripheral
 	DELAY_TIM->CR1 |= TIM_CR1_ARPE; // Auto-preload enable
 //	DELAY_TIM->PSC  = 1600; // TIMx prescaler [ PSC = APB1clock / (PWMfreq * OVFCounter) ]
 	DELAY_TIM->PSC  = SystemCoreClock / 20000; // Delay timer prescaler, must be 1600
 	DELAY_TIM->ARR  = 9999; // Delay timer auto reload value (20000 ticks pers second)
-	DELAY_TIM->EGR  = 1; // Generate an update event to reload the prescaler value immediately
+	DELAY_TIM->EGR  = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
 	// TIMx IRQ
 	NVICInit.NVIC_IRQChannel = DELAY_TIM_IRQN;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
@@ -36,6 +36,17 @@ void Delay_Init(funcCallback_TypeDef func_CallBack) {
 	delay_CallBack = func_CallBack;
 	if (delay_CallBack) DELAY_TIM->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
 	DELAY_TIM->CR1 |= TIM_CR1_CEN; // Counter enable
+}
+
+// Disable delay timer
+void Delay_Disable(void) {
+	RCC->APB1ENR &= ~DELAY_TIM_PERIPH; // Disable the TIMx peripheral
+}
+
+// Enable delay timer without full initialization
+// note: Delay_Init() must be called before
+void Delay_Enable(void) {
+	RCC->APB1ENR |= DELAY_TIM_PERIPH; // Enable the TIMx peripheral
 }
 
 // Loop delay for 1 millisecond
