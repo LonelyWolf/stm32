@@ -5,9 +5,11 @@
 #include <uc1701.h>
 #include <GUI.h>
 #include <GPS.h>
+#include <RTC.h>
 
+#include <font5x7.h>
+#include <font7x10.h>
 #include <resources.h>
-#include <math.h>
 
 
 bool GUI_refresh;                     // Flag to refresh GUI
@@ -280,36 +282,37 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		// Frame
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-		FillRect(3,0,scr_width - 4,8,PSet);
-		PutStr5x7(19,1,"Sensor RAW data",CT_transp_inv);
+		HLine(4,scr_width - 5,4,PReset);
+		PutStr(19,1,"Sensor RAW data",&Font5x7);
+		InvertRect(4,0,scr_width - 8,9);
 		// Cadence data
 		X = 5; Y = 10;
-		X += PutStr5x7(X,Y,"CDC:",CT_transp) - 1;
-		PutInt5x7(X,Y,nRF24_Packet.tim_CDC,CT_transp);
+		X += PutStr(X,Y,"CDC c:",&Font5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.tim_CDC,&Font5x7);
 		// Speed data
 		X = 5; Y += 9;
-		X += PutStr5x7(X,Y,"SPD c:",CT_transp) - 1;
-		X += PutInt5x7(X,Y,nRF24_Packet.cntr_SPD,CT_transp) + 8;
-		X += PutStr5x7(X,Y,"t:",CT_transp) - 1;
-		PutInt5x7(X,Y,nRF24_Packet.tim_SPD,CT_transp);
+		X += PutStr(X,Y,"SPD c:",&Font5x7) - 1;
+		X += PutInt(X,Y,nRF24_Packet.cntr_SPD,&Font5x7) + 8;
+		X += PutStr(X,Y,"t:",&Font5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.tim_SPD,&Font5x7);
 		// Packets lost
 		X = 5; Y += 9;
-		X += PutStr5x7(X,Y,"P.Lost:",CT_transp) - 1;
-		X += PutInt5x7(X,Y,nRF24_Packet.packets_lost,CT_transp) + 5;
+		X += PutStr(X,Y,"P.Lost:",&Font5x7) - 1;
+		X += PutInt(X,Y,nRF24_Packet.packets_lost,&Font5x7) + 5;
 		// OBSERVER_TX
-		X += PutStr5x7(X,Y,"OTX:",CT_transp) - 1;
-		X += PutHex5x7(X,Y,nRF24_Packet.observe_TX,CT_transp);
-		// Wakeups
+		X += PutStr(X,Y,"OTX:",&Font5x7) - 1;
+		X += PutHex(X,Y,nRF24_Packet.observe_TX,&Font5x7);
+		// Wake-ups
 		X = 5; Y += 9;
-		X += PutStr5x7(X,Y,"Wake:",CT_transp) - 1;
-		PutInt5x7(X,Y,nRF24_Packet.cntr_wake,CT_transp);
+		X += PutStr(X,Y,"Wake:",&Font5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.cntr_wake,&Font5x7);
 		X = 76;
-		X += PutStr5x7(X,Y,"RT:",CT_transp) - 1;
-		PutInt5x7(X,Y,nRF24_Packet.ride_time,CT_transp);
+		X += PutStr(X,Y,"RT:",&Font5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.ride_time,&Font5x7);
 		// Battery
 		X = 5; Y += 9;
-		X += PutStr5x7(X,Y,"Battery:",CT_transp) - 1;
-		PutChar5x7(X + PutIntF5x7(X,Y,nRF24_Packet.vrefint,2,CT_transp),Y,'V',CT_transp);
+		X += PutStr(X,Y,"Battery:",&Font5x7) - 1;
+		PutChar(X + PutIntF(X,Y,nRF24_Packet.vrefint,2,&Font5x7),Y,'V',&Font5x7);
 
 		UC1701_Flush();
 
@@ -330,37 +333,39 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		// Frame
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-		FillRect(3,0,scr_width - 4,8,PSet);
-		PutStr5x7(22,1,"Current values",CT_transp_inv);
+		HLine(4,scr_width - 5,4,PReset);
+		PutStr(18,1,"Trip statistics",&Font5x7);
+		InvertRect(4,0,scr_width - 8,9);
 
-		X = 7; Y = 10;
-		PutStr5x7(X,Y,"SPD:",CT_transp);
-		PutIntF5x7(X + 23,Y,CurData.Speed,1,CT_transp);
-		X += 54;
-		PutStr5x7(X,Y,"CDC:",CT_transp);
-		PutInt5x7(X + 23,Y,CurData.Cadence,CT_transp);
-		X = 7; Y += 9;
-		PutStr5x7(X,Y,"A.S:",CT_transp);
-		PutIntF5x7(X + 23,Y,CurData.AvgSpeed,1,CT_transp);
-		X += 54;
-		PutStr5x7(X,Y,"A.C:",CT_transp);
-		PutInt5x7(X + 23,Y,CurData.AvgCadence,CT_transp);
-		X = 7; Y += 9;
-		PutStr5x7(X,Y,"M.S:",CT_transp);
-		PutIntF5x7(X + 23,Y,CurData.MaxSpeed,1,CT_transp);
-		X += 54;
-		PutStr5x7(X,Y,"M.C:",CT_transp);
-		PutInt5x7(X + 23,Y,CurData.MaxCadence,CT_transp);
-		X = 7; Y += 9;
-		PutStr5x7(X,Y,"T.D:",CT_transp);
-		PutInt5x7(X + 23,Y,CurData.TripDist,CT_transp);
-		X = 7; Y += 9;
-		PutStr5x7(X,Y,"Odo:",CT_transp);
-		PutInt5x7(X + 23,Y,CurData.Odometer,CT_transp);
-		X = 7; Y += 9;
-		PutStr5x7(X,Y,"Time",CT_transp);
-		GUI_PutTimeSec5x7(X + 26,Y,CurData.TripTime,CT_opaque);
-
+		X = 4; Y = 10;
+		X += PutStr(X,Y,"SPD:",&Font5x7) - 1;
+		PutIntF(X,Y,CurData.Speed,1,&Font5x7);
+		X = 63;
+		X += PutStr(X,Y,"CDC:",&Font5x7) - 1;
+		PutInt(X,Y,CurData.Cadence,&Font5x7);
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"A.S:",&Font5x7) - 1;
+		PutIntF(X,Y,CurData.AvgSpeed,1,&Font5x7);
+		X = 63;
+		X += PutStr(X,Y,"A.C:",&Font5x7) - 1;
+		PutInt(X,Y,CurData.AvgCadence,&Font5x7);
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"M.S:",&Font5x7) - 1;
+		PutIntF(X,Y,CurData.MaxSpeed,1,&Font5x7);
+		X = 63;
+		X += PutStr(X,Y,"M.C:",&Font5x7) - 1;
+		PutInt(X,Y,CurData.MaxCadence,&Font5x7);
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"T.D:",&Font5x7) - 1;
+		X += PutIntF(X,Y,CurData.TripDist / 100,3,&Font5x7);
+		PutStr(X,Y,"km",&Font5x7);
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"Odo:",&Font5x7) - 1;
+		X += PutIntF(X,Y,CurData.Odometer / 10000,1,&Font5x7);
+		PutStr(X,Y,"km",&Font5x7);
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"Time:",&Font5x7) - 1;
+		GUI_PutTimeSec(X,Y,CurData.TripTime,&Font5x7);
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh); else return;
@@ -380,30 +385,31 @@ void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 		// Frame
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-		FillRect(3,0,scr_width - 4,8,PSet);
-		PutStr5x7(46,1,"BMP180",CT_transp_inv);
+		HLine(4,scr_width - 5,4,PReset);
+		PutStr(24,1,"BMP180 values",&Font5x7);
+		InvertRect(4,0,scr_width - 8,9);
 
 		X = 4; Y = 10;
-		X += PutStr5x7(X,Y,"Temperature:",CT_transp) - 1;
-		GUI_PutTemperature5x7(X,Y,CurData.Temperature,CT_transp);
+		X += PutStr(X,Y,"Temperature:",&Font5x7) - 1;
+		GUI_PutTemperature(X,Y,CurData.Temperature,&Font5x7);
 		X = 4; Y += 9;
-		X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-		GUI_PutTemperature5x7(X,Y,CurData.MinTemperature,CT_transp);
+		X += PutStr(X,Y,"Min:",&Font5x7) - 1;
+		GUI_PutTemperature(X,Y,CurData.MinTemperature,&Font5x7);
 		X = 67;
-		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-		GUI_PutTemperature5x7(X,Y,CurData.MaxTemperature,CT_transp);
+		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
+		GUI_PutTemperature(X,Y,CurData.MaxTemperature,&Font5x7);
 
 		HLine(1,scr_width - 2,Y + 10,PSet);
 
 		X = 4; Y += 14;
-		X += PutStr5x7(X,Y,"Pressure:",CT_transp) - 1;
-		GUI_PutPressure5x7(X,Y,CurData.Pressure,PT_mmHg,CT_transp);
+		X += PutStr(X,Y,"Pressure:",&Font5x7) - 1;
+		GUI_PutPressure(X,Y,CurData.Pressure,PT_mmHg,&Font5x7);
 		X = 4; Y += 9;
-		X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-		PutIntF5x7(X,Y,CurData.MinPressure * 75 / 1000,1,CT_transp);
+		X += PutStr(X,Y,"Min:",&Font5x7) - 1;
+		PutIntF(X,Y,CurData.MinPressure * 75 / 1000,1,&Font5x7);
 		X = 67;
-		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-		PutIntF5x7(X,Y,CurData.MaxPressure * 75 / 1000,1,CT_transp);
+		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
+		PutIntF(X,Y,CurData.MaxPressure * 75 / 1000,1,&Font5x7);
 
 		UC1701_Flush();
 
@@ -424,32 +430,33 @@ void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 		// Frame
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-		FillRect(3,0,scr_width - 4,8,PSet);
-		PutStr5x7(36,1,"GPS stats",CT_transp_inv);
+		HLine(4,scr_width - 5,4,PReset);
+		PutStr(9,1,"GPS current values",&Font5x7);
+		InvertRect(4,0,scr_width - 8,9);
 
 		X = 4; Y = 10;
-		X += PutStr5x7(X,Y,"Speed:",CT_transp) - 1;
-		X += PutIntF5x7(X,Y,CurData.GPSSpeed,2,CT_transp);
-		PutStr5x7(X,Y,"km/h",CT_transp);
+		X += PutStr(X,Y,"Speed:",&Font5x7) - 1;
+		X += PutIntF(X,Y,CurData.GPSSpeed,2,&Font5x7);
+		PutStr(X,Y,"km/h",&Font5x7);
 		X = 4; Y += 9;
-		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-		X += PutIntF5x7(X,Y,CurData.MaxGPSSpeed,2,CT_transp);
-		PutStr5x7(X,Y,"km/h",CT_transp);
+		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
+		X += PutIntF(X,Y,CurData.MaxGPSSpeed,2,&Font5x7);
+		PutStr(X,Y,"km/h",&Font5x7);
 
 		HLine(1,scr_width - 2,Y + 10,PSet);
 
 		X = 4; Y += 14;
-		X += PutStr5x7(X,Y,"Altitude:",CT_transp) - 1;
-		X += PutInt5x7(X,Y,CurData.GPSAlt,CT_transp);
-		PutChar5x7(X,Y,'m',CT_transp);
+		X += PutStr(X,Y,"Altitude:",&Font5x7) - 1;
+		X += PutInt(X,Y,CurData.GPSAlt,&Font5x7);
+		PutChar(X,Y,'m',&Font5x7);
 		X = 4; Y += 9;
-		X += PutStr5x7(X,Y,"Min:",CT_transp) - 1;
-		X += PutInt5x7(X,Y,CurData.MinGPSAlt,CT_transp);
-		PutChar5x7(X,Y,'m',CT_transp);
+		X += PutStr(X,Y,"Min:",&Font5x7) - 1;
+		X += PutInt(X,Y,CurData.MinGPSAlt,&Font5x7);
+		PutChar(X,Y,'m',&Font5x7);
 		X = 4; Y += 9;
-		X += PutStr5x7(X,Y,"Max:",CT_transp) - 1;
-		X += PutInt5x7(X,Y,CurData.MaxGPSAlt,CT_transp);
-		PutChar5x7(X,Y,'m',CT_transp);
+		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
+		X += PutInt(X,Y,CurData.MaxGPSAlt,&Font5x7);
+		PutChar(X,Y,'m',&Font5x7);
 
 		UC1701_Flush();
 
@@ -500,7 +507,7 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		if (!GPSData.sats_view) {
 			// Just for decoration
-			X = PutStr5x7(12,21,"No satellites",CT_opaque);
+			X = PutStr(12,21,"No satellites",&Font5x7);
 			for (i = 0; i < 12; i++) PutIntULZ3x5(i * 10,52,0,2);
 		} else {
 			// Satellites SNR graphs
@@ -541,53 +548,52 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		Rect(0,0,scr_width - 1,scr_height - 1,PSet);
 
 		X = 4; Y = 4;
-		X += GUI_PutTimeSec5x7(X,Y,GPSData.time,CT_opaque) + 5;
-		X += GUI_PutDate5x7(X,Y,GPSData.date,CT_opaque);
+		X += GUI_PutTimeSec(X,Y,GPSData.time,&Font5x7) + 5;
+		X += GUI_PutDate(X,Y,GPSData.date,&Font5x7);
 
 		X = 4; Y += 8;
-		X += PutStr5x7(X,Y,"Fix:",CT_opaque) - 1;
+		X += PutStr(X,Y,"Fix:",&Font5x7) - 1;
 		if (GPSData.fix != 2 && GPSData.fix != 3)
-			X += PutStr5x7(X,Y,"NA",CT_opaque) + 5;
+			X += PutStr(X,Y,"NA",&Font5x7) + 5;
 		else {
-			PutInt5x7(X,Y,GPSData.fix,CT_opaque);
-			PutChar5x7(X + 6,Y,'D',CT_opaque);
-			X += 17;
+			X += PutInt(X,Y,GPSData.fix,&Font5x7);
+			X += PutChar(X,Y,'D',&Font5x7);
+			X += 5;
 		}
-		X += PutStr5x7(X,Y,"Qlty:",CT_opaque) - 1;
-		PutChar5x7(X,Y,GPSData.fix_quality + '0',CT_opaque);
-		X += 11;
-		X += PutStr5x7(X,Y,"Mode:",CT_opaque) - 1;
-		PutChar5x7(X,Y,GPSData.mode,CT_opaque);
+		X += PutStr(X,Y,"Qlty:",&Font5x7) - 1;
+		X += PutChar(X,Y,GPSData.fix_quality + '0',&Font5x7);
+		X += 5;
+		X += PutStr(X,Y,"Mode:",&Font5x7) - 1;
+		PutChar(X,Y,GPSData.mode,&Font5x7);
 
 		X = 4; Y += 8;
-		GUI_PutCoord5x7(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,CT_opaque);
+		GUI_PutCoord(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,&Font5x7);
 		X = 67;
-		GUI_PutCoord5x7(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,CT_opaque);
+		GUI_PutCoord(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,&Font5x7);
 
 		X = 4; Y += 8;
-		X += PutStr5x7(X,Y,"Alt:",CT_opaque) - 1;
-		X += PutInt5x7(X,Y,GPSData.altitude,CT_opaque) + 5;
-		X += PutStr5x7(X,Y,"Spd:",CT_opaque) - 1;
-		X += PutIntF5x7(X,Y,GPSData.speed,2,CT_opaque);
+		X += PutStr(X,Y,"Alt:",&Font5x7) - 1;
+		X += PutInt(X,Y,GPSData.altitude,&Font5x7) + 5;
+		X += PutStr(X,Y,"Spd:",&Font5x7) - 1;
+		X += PutIntF(X,Y,GPSData.speed,2,&Font5x7);
 
 		X = 4; Y += 8;
-		X += PutStr5x7(X,Y,"Crs:",CT_opaque) - 1;
-		X += PutIntF5x7(X,Y,GPSData.course,2,CT_opaque) + 5;
-		X += PutStr5x7(X,Y,"Sat:",CT_opaque) - 1;
-		X += PutInt5x7(X,Y,GPSData.sats_used,CT_opaque);
-		PutChar5x7(X,Y,'/',CT_opaque);
-		X += 6;
-		X += PutInt5x7(X,Y,GPSData.sats_view,CT_opaque);
+		X += PutStr(X,Y,"Crs:",&Font5x7) - 1;
+		X += PutIntF(X,Y,GPSData.course,2,&Font5x7) + 5;
+		X += PutStr(X,Y,"Sat:",&Font5x7) - 1;
+		X += PutInt(X,Y,GPSData.sats_used,&Font5x7);
+		X += PutChar(X,Y,'/',&Font5x7);
+		X += PutInt(X,Y,GPSData.sats_view,&Font5x7);
 
 		X = 4; Y += 8;
-		X += PutStr5x7(X,Y,"PDOP:",CT_opaque) - 1;
-		X += PutIntF5x7(X,Y,GPSData.PDOP,2,CT_opaque) + 5;
+		X += PutStr(X,Y,"PDOP:",&Font5x7) - 1;
+		X += PutIntF(X,Y,GPSData.PDOP,2,&Font5x7) + 5;
 
 		X = 4; Y += 8;
-		X += PutStr5x7(X,Y,"HDOP:",CT_opaque) - 1;
-		X += PutIntF5x7(X,Y,GPSData.HDOP,2,CT_opaque) + 5;
-		X += PutStr5x7(X,Y,"VDOP:",CT_opaque) - 1;
-		X += PutIntF5x7(X,Y,GPSData.VDOP,2,CT_opaque) + 5;
+		X += PutStr(X,Y,"HDOP:",&Font5x7) - 1;
+		X += PutIntF(X,Y,GPSData.HDOP,2,&Font5x7) + 5;
+		X += PutStr(X,Y,"VDOP:",&Font5x7) - 1;
+		X += PutIntF(X,Y,GPSData.VDOP,2,&Font5x7) + 5;
 
 		UC1701_Flush();
 
@@ -619,8 +625,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		X = 0; Y = 0;
 		i = pos;
 		do {
-			PutChar5x7(X,Y,pBuf[i++],CT_opaque);
-			X += 6;
+			X += PutChar(X,Y,pBuf[i++],&Font5x7);
 			if (X > scr_width - 6) {
 				X  = 0;
 				Y += 8;
@@ -770,22 +775,27 @@ void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* da
 }
 
 // Put coordinates in format "Ndd.xxxxxx"
-uint8_t GUI_PutCoord5x7(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, CharType_TypeDef CharType) {
+// input:
+//   X,Y - top left coordinates of the text
+//   degree - coordinates degree
+//   seconds - coordinates seconds
+//   ch - coordinates character
+//   Font - pointer to font
+uint8_t GUI_PutCoord(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, const Font_TypeDef *Font) {
 	uint8_t pX = X;
 
-	PutChar5x7(X,Y,ch,CharType);
-	X += 6;
-	X += PutIntF5x7(X,Y,(degree * 1000000) + (seconds / 60),6,CharType);
+	X += PutChar(X,Y,ch,Font);
+	X += PutIntF(X,Y,(degree * 1000000) + (seconds / 60),6,Font);
 
 	return X - pX;
 }
 
 // Draw time with standard 5x7 font
 // input:
-//   X,Y - top left coordinates of text
+//   X,Y - top left coordinates of the text
 //   time - time in seconds (max value = 3599999 seconds or 999:59:59)
-//   CharType - character drawing style
-uint8_t GUI_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef CharType) {
+//   Font - pointer to font
+uint8_t GUI_PutTimeSec(uint8_t X, uint8_t Y, uint32_t time, const Font_TypeDef *Font) {
 	uint8_t pX = X;
 	uint16_t hours;
 	uint8_t minutes,seconds;
@@ -799,30 +809,16 @@ uint8_t GUI_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef 
 		seconds = 59;
 	}
 
-	if (hours < 10) {
-		PutChar5x7(X,Y,'0',CharType);
-		X += 6;
-	}
-	PutInt5x7(X,Y,hours,CharType);
-	if (hours > 99) X += 6;
-	if (hours > 9)  X += 11; else X += 5;
-	PutChar5x7(X,Y,':',CharType);
-	X += 4;
+	if (hours < 10)	X += PutChar(X,Y,'0',Font);
+	X += PutInt(X,Y,hours,Font);
+	X += PutChar(X,Y,':',Font) - 1;
 
-	if (minutes < 10) {
-		PutChar5x7(X,Y,'0',CharType);
-		X += 6;
-	}
-	PutInt5x7(X,Y,minutes,CharType);
-	if (minutes > 9) X += 11; else X += 5;
-	PutChar5x7(X,Y,':',CharType);
-	X += 4;
+	if (minutes < 10) X += PutChar(X,Y,'0',Font);
+	X += PutInt(X,Y,minutes,Font);
+	X += PutChar(X,Y,':',Font) - 1;
 
-	if (seconds < 10) {
-		PutChar5x7(X,Y,'0',CharType);
-		X += 6;
-	}
-	X += PutInt5x7(X,Y,seconds,CharType);
+	if (seconds < 10) X += PutChar(X,Y,'0',Font);
+	X += PutInt(X,Y,seconds,Font);
 
 	return X - pX;
 }
@@ -831,26 +827,24 @@ uint8_t GUI_PutTimeSec5x7(uint8_t X, uint8_t Y, uint32_t time, CharType_TypeDef 
 // input:
 //   X,Y - top left coordinates of text
 //   date - date in format DDMMYYYY
-//   CharType - character drawing style
-uint8_t GUI_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef CharType) {
+//   Font - pointer to font
+uint8_t GUI_PutDate(uint8_t X, uint8_t Y, uint32_t date, const Font_TypeDef *Font) {
 	uint8_t pX = X;
 	uint16_t dig;
 
 	// Day
 	dig = date / 1000000;
-	X += PutIntLZ5x7(X,Y,dig,2,CharType);
-	PutChar5x7(X,Y,'.',CharType);
-	X += 5;
+	X += PutIntLZ(X,Y,dig,2,Font) - 1;
+	X += PutChar(X,Y,'.',Font) - 1;
 
 	// Month
 	dig = (date - (dig * 1000000)) / 10000;
-	X += PutIntLZ5x7(X,Y,dig,2,CharType);
-	PutChar5x7(X,Y,'.',CharType);
-	X += 5;
+	X += PutIntLZ(X,Y,dig,2,Font) - 1;
+	X += PutChar(X,Y,'.',Font) - 1;
 
 	// Year
 	dig = date % 10000;
-	X += PutIntLZ5x7(X,Y,dig,4,CharType);
+	X += PutIntLZ(X,Y,dig,4,Font);
 
 	return X - pX;
 }
@@ -860,18 +854,18 @@ uint8_t GUI_PutDate5x7(uint8_t X, uint8_t Y, uint32_t date, CharType_TypeDef Cha
 //   X,Y - top left coordinates of text
 //   pressure - pressure value in Pa
 //   PressureType - what units pressure should be displayed (PT_hPa, PT_mmHg)
-//   CharType - character drawing style
-uint8_t GUI_PutPressure5x7(uint8_t X, uint8_t Y, int32_t pressure, PressureType_TypeDef PressureType,
-		CharType_TypeDef CharType) {
+//   Font - pointer to font
+uint8_t GUI_PutPressure(uint8_t X, uint8_t Y, int32_t pressure, PressureType_TypeDef PressureType,
+		const Font_TypeDef *Font) {
 	uint8_t pX = X;
 
 	if (PressureType == PT_mmHg) {
 		pressure = pressure * 75 / 1000;
-		X += PutIntF5x7(X,Y,pressure,1,CharType);
-		X += PutStr5x7(X,Y,"mmHg",CharType);
+		X += PutIntF(X,Y,pressure,1,Font);
+		X += PutStr(X,Y,"mmHg",Font);
 	} else {
-		X += PutIntF5x7(X,Y,pressure,2,CharType);
-		X += PutStr5x7(X,Y,"hPa",CharType);
+		X += PutIntF(X,Y,pressure,2,Font);
+		X += PutStr(X,Y,"hPa",Font);
 	}
 
 	return X - pX;
@@ -881,8 +875,8 @@ uint8_t GUI_PutPressure5x7(uint8_t X, uint8_t Y, int32_t pressure, PressureType_
 // input:
 //   X,Y - top left coordinates of text
 //   temperature - temperature value in Celsius degree
-//   CharType - character drawing style
-uint8_t GUI_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharType_TypeDef CharType) {
+//   Font - pointer to font
+uint8_t GUI_PutTemperature(uint8_t X, uint8_t Y, int32_t temperature, const Font_TypeDef *Font) {
 	uint8_t pX = X;
 
 	if (temperature < 0) {
@@ -890,21 +884,21 @@ uint8_t GUI_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharTyp
 		temperature *= -1;
 		X += 4;
 	}
-	X += PutInt5x7(X,Y,temperature / 10,CharType);
+	X += PutInt(X,Y,temperature / 10,Font);
 
 	// Decimal point
-	Rect(X,Y + 5,X + 1,Y + 6,PSet);
+	Rect(X,Y + Font->font_Height - 2,X + 1,Y + Font->font_Height - 1,PSet);
 	X += 3;
 
 	// Temperature fractional
-	X += PutInt5x7(X,Y,temperature % 10,CharType);
+	X += PutInt(X,Y,temperature % 10,Font);
 
 	// Celsius degree sign
 	HLine(X + 1,X + 2,Y,PSet);
 	HLine(X + 1,X + 2,Y + 3,PSet);
 	VLine(X,Y + 1,Y + 2,PSet);
 	VLine(X + 3,Y + 1,Y + 2,PSet);
-	PutChar5x7(X + 5,Y,'C',CharType);
+	PutChar(X + 5,Y,'C',Font);
 
 	return X - pX + 10;
 }
@@ -913,38 +907,67 @@ uint8_t GUI_PutTemperature5x7(uint8_t X, uint8_t Y, int32_t temperature, CharTyp
 // input:
 //   X,Y - top left menu corner coordinates
 //   W,H - width and height of menu
+//   Font - pointer to font
 //   Menu - pointer to Menu_TypeDef structure, containing menu
 //   StartPos - start menu position
 //   WaitForKey - function pointer to WaitForKeyPress function
 // return:
 //   selected menu position or 0xff if "Escape" key pressed
-uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef *Menu,
-		uint8_t StartPos, funcPtrKeyPress_TypeDef WaitForKey) {
+uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
+		MenuFrame_TypeDef MenuFrame, const Menu_TypeDef *Menu, uint8_t StartPos,
+		funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t i;
 	int8_t scrPos; // Cursor position related to screen
 	int8_t scrOfs; // Menu scroll (number of first displayed item)
-	uint8_t xx,yy;
-	uint8_t Cr; // Right side of menu cursor
+	uint8_t yy;
+	uint8_t Cr; // Right side of the menu cursor
+	uint8_t Cl; // Left side of the menu cursor
 	uint8_t miYoffs; // First menu item vertical offset
 	uint8_t sbTH; // Height of scrollbar thumb
 	uint8_t sbH; // Height of scrollbar
-	uint8_t sbTY; // Vertical position of scrollbar thumb
-	uint8_t scrItems; // Visible menu items on screen
+	uint8_t sbTY; // Vertical position of the scrollbar thumb
+	uint8_t scrItems; // Visible menu items
+	uint8_t MIH; // Menu item height
 
-	// Compute locals for less further calculations
-	Cr = X + W - 3;
-	scrItems = (H - 4) / MenuItemHeight;
+	// Menu frame
+	switch (MenuFrame) {
+		case MF_rect:
+			Rect(X,Y,X + W - 1,Y + H - 1,PSet);
+			X += 1;
+			Y += 1;
+			W -= 2;
+			H -= 2;
+			break;
+		case MF_top_bottom:
+			HLine(X,X + W - 1,Y,PSet);
+			HLine(X,X + W - 1,Y + H - 1,PSet);
+			Y += 1;
+			H -= 2;
+		default:
+			// No frame
+			break;
+	}
+
+	Cl = X;
+	Cr = Cl + W - 1;
+	if (MenuFrame == MF_rect) {
+		Cl++;
+		Cr--;
+	}
+
+	MIH = Font->font_Height + 2;
+	scrItems = (H - 3) / MIH;
 	if (scrItems < Menu->NumItems) {
-		sbTH = ((H - 5) * scrItems ) / Menu->NumItems;
+		sbTH = ((H - 3) * scrItems ) / Menu->NumItems;
 		if (sbTH < 2) sbTH = 2;
 		Cr -= 4;
-		sbH = H - 5;
+		sbH = H - 3;
 	} else {
 		sbTH = 0;
 		sbH  = 0;
 	}
 	if (scrItems > Menu->NumItems) scrItems = Menu->NumItems;
-	miYoffs = ((H - 6 - (scrItems * MenuItemHeight)) / 2) - 1;
+	miYoffs = ((H - 6 - (scrItems * MIH)) / 2) - 1;
 
 	if (StartPos > Menu->NumItems) StartPos = 0;
 	if (StartPos >= scrItems) {
@@ -960,48 +983,38 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 		scrOfs = 0;
 	}
 
-	// Menu frame
-	Rect(X,Y,X + W - 1,Y + H - 1,PSet);
-
 	while(1) {
 		ClearKeys();
 
 		// Clear menu background
-		FillRect(X + 1,Y + 1,X + W - 2,Y + H - 2,PReset);
+		FillRect(X,Y,X + W - 1,Y + H - 1,PReset);
 
-		// Menu items
+		// Draw scrollbar
+		if (sbH > 0) {
+			sbTY = Y + 1 + (((scrPos + scrOfs) * (sbH - sbTH)) / (Menu->NumItems - 1));
+			VLine(Cr + 3,Y + 1,Y + 1 + sbH,PSet);
+			VLine(Cr + 4,sbTY,sbTY + sbTH,PSet);
+			VLine(Cr + 2,sbTY,sbTY + sbTH,PSet);
+		}
+
+		// Draw menu items
 		yy = Y + 4 + miYoffs;
 		for (i = scrOfs; i < scrOfs + scrItems; i++) {
-			xx = X + 5;
-			// If MenuAlign given something except MA_left - it will be centered
+			// If MenuAlign given something other except MA_left - it will be centered
 			if (Menu->MenuAlign == MA_left) {
-				sbTY = 0;
+				sbTY = 1;
 			} else {
-				sbTY = ((Cr - X - 4) / 2) - (stringlen(Menu->Items[i].ItemName) * 3);
+				sbTY = ((Cr - Cl + 1) / 2) - ((stringlen(Menu->Items[i].ItemName) * (Font->font_Width + 1)) / 2);
 			}
-			if (i - scrOfs == scrPos) {
-				// Menu item under cursor
-				FillRect(X + 2,yy,Cr,yy + MenuItemHeight - 1,PSet);
-				PutStr5x7(xx + sbTY,yy + 1,Menu->Items[i].ItemName,CT_transp_inv);
-			} else {
-				// Menu item
-				PutStr5x7(xx + sbTY,yy + 1,Menu->Items[i].ItemName,CT_opaque);
-			}
-			yy += MenuItemHeight;
+			PutStr(Cl + sbTY,yy + 1,Menu->Items[i].ItemName,Font);
+			if (i - scrOfs == scrPos) InvertRect(Cl,yy,Cr - Cl + 1,MIH);
+			yy += MIH;
 		}
-
-		// Scrollbar
-		if (sbH > 0) {
-			sbTY = Y + 2 + (((scrPos + scrOfs) * (sbH - sbTH)) / (Menu->NumItems - 1));
-			VLine(X + W - 4,Y + 2,Y + 2 + sbH,PSet);
-			VLine(X + W - 5,sbTY,sbTY + sbTH,PSet);
-			VLine(X + W - 3,sbTY,sbTY + sbTH,PSet);
-		}
-
 		UC1701_Flush();
 
 		// Wait for key press
-		if (WaitForKey) WaitForKey(TRUE,NULL);
+		if (WaitForKey) WaitForKey(FALSE,NULL);
+		_idle_time = 0;
 
 		// Up button
 		if (BTN[BTN_UP].cntr || BTN[BTN_UP].state == BTN_Hold) {
@@ -1069,7 +1082,7 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Menu_TypeDef 
 //   CallBack - pointer to function, which will be called on every Value change
 //   WaitForKey - function pointer to WaitForKeyPress function
 void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
-		int32_t Min, int32_t Max, int32_t Step, char *unit, funcPtrParam_TypeDef CallBack,
+		int32_t Min, int32_t Max, int32_t Step, char *unit,	funcPtrParam_TypeDef CallBack,
 		funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t i;
 	uint8_t vY; // Numeric value vertical coordinate
@@ -1122,13 +1135,14 @@ void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
 
 		// Draw value
 		i = mid - ((stringlen(unit) + numlen(val)) * 3);
-		FillRect(X + 1,vY - 2,X + frame_width - 1,vY + 8,PSet);
-		i += PutInt5x7(i,vY,val,CT_transp_inv) + 1;
-		PutStr5x7(i,vY,unit,CT_transp_inv);
+		i += PutInt(i,vY,val,&Font5x7) + 1;
+		PutStr(i,vY,unit,&Font5x7);
+		InvertRect(X + 1,vY - 2,frame_width - 1,11);
 		UC1701_Flush();
 
 		// Wait for key press
-		if (WaitForKey) WaitForKey(TRUE,NULL);
+		if (WaitForKey) WaitForKey(FALSE,NULL);
+		_idle_time = 0;
 
 		// Up button
 		if (BTN[BTN_UP].cntr || BTN[BTN_UP].state == BTN_Hold) {
@@ -1171,26 +1185,33 @@ void GUI_MainMenu(void) {
 	ClearKeys();
 	mnu_sel = 0;
 	do {
-		mnu_sel = GUI_Menu(0,0,scr_width,scr_height,&mnuMain,mnu_sel,WaitForKeyPress);
+		mnu_sel = GUI_Menu(0,0,scr_width,scr_height,&Font7x10,MF_none,
+				&mnuMain,mnu_sel,WaitForKeyPress);
 		mnu_sub_sel = 0;
 		switch (mnu_sel) {
 		case 0:
 			// Statistics
 			do {
 				UC1701_Fill(0x00);
-				PutStr5x7(0,0,"Statistics...",CT_opaque);
-				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuStatistics,mnu_sub_sel,WaitForKeyPress);
+				PutStr(11,1,"Statistics...",&Font7x10);
+				InvertRect(0,0,scr_width,12);
+				mnu_sub_sel = GUI_Menu(5,11,scr_width - 10,scr_height - 11,&Font7x10,MF_rect,
+						&mnuStatistics,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
+						// Sensor RAW values
 						GUI_Screen_SensorRAW(WaitForKeyPress);
 						break;
 					case 1:
+						// Current trip values
 						GUI_Screen_CurVal1(WaitForKeyPress);
 						break;
 					case 2:
+						// BMP180 current values
 						GUI_Screen_CurVal2(WaitForKeyPress);
 						break;
 					case 3:
+						// GPS current values
 						GUI_Screen_CurVal3(WaitForKeyPress);
 						break;
 					default:
@@ -1202,8 +1223,10 @@ void GUI_MainMenu(void) {
 			// GPS
 			do {
 				UC1701_Fill(0x00);
-				PutStr5x7(0,0,"GPS...",CT_opaque);
-				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuGPS,mnu_sub_sel,WaitForKeyPress);
+				PutStr(39,1,"GPS...",&Font7x10);
+				InvertRect(0,0,scr_width,12);
+				mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 18,&Font7x10,MF_rect,
+						&mnuGPS,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
 						GUI_Screen_GPSSatsView(WaitForKeyPress);
@@ -1223,13 +1246,36 @@ void GUI_MainMenu(void) {
 			// Settings
 			do {
 				UC1701_Fill(0x00);
-				PutStr5x7(0,0,"Settings...",CT_opaque);
-				mnu_sub_sel = GUI_Menu(10,10,scr_width - 20,scr_height - 20,&mnuSettings,mnu_sub_sel,WaitForKeyPress);
+				PutStr(19,1,"Settings...",&Font7x10);
+				InvertRect(0,0,scr_width,12);
+				mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 11,&Font7x10,MF_rect,
+						&mnuSettings,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
-						mnu_val = Settings.LCD_brightness;
-						GUI_NumericScroll(-100,10,0,0,&mnu_val,0,100,5,"%",callback_Brightness,WaitForKeyPress);
-						Settings.LCD_brightness = (uint8_t)mnu_val;
+						do {
+							UC1701_Fill(0x00);
+							PutStr(19,1,"Display...",&Font7x10);
+							InvertRect(0,0,scr_width,12);
+							mnu_sub_sel = GUI_Menu(2,11,scr_width - 4,scr_height - 22,&Font7x10,MF_rect,
+									&mnuDisplay,mnu_sub_sel,WaitForKeyPress);
+							if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
+								case 0:
+									mnu_val = Settings.LCD_brightness;
+									GUI_NumericScroll(-100,10,0,0,&mnu_val,0,100,5,"%",callback_Brightness,WaitForKeyPress);
+									Settings.LCD_brightness = (uint8_t)mnu_val;
+									break;
+								case 1:
+									mnu_val = Settings.LCD_timeout;
+									GUI_NumericScroll(-100,10,0,0,&mnu_val,0,120,15,"s",NULL,WaitForKeyPress);
+									Settings.LCD_timeout = (uint8_t)mnu_val;
+									break;
+								case 2:
+									break;
+								default:
+									break;
+							}
+						} while (mnu_sub_sel != 0xff);
+						mnu_sub_sel = 0;
 						break;
 					case 1:
 						mnu_val = Settings.WheelCircumference;
@@ -1252,10 +1298,41 @@ void GUI_MainMenu(void) {
 				SaveSettings_EEPROM();
 			} while (mnu_sub_sel != 0xff);
 			break;
+		case 3:
+			// Debug
+			do {
+				UC1701_Fill(0x00);
+				PutStr(31,1,"Debug...",&Font7x10);
+				InvertRect(0,0,scr_width,12);
+				mnu_sub_sel = GUI_Menu(0,12,scr_width,scr_height - 13,&Font7x10,MF_none,
+						&mnuTest,mnu_sub_sel,WaitForKeyPress);
+			} while (mnu_sub_sel != 0xff);
 		default:
 			break;
 		}
 	} while (mnu_sel != 0xff);
 
+	ClearKeys();
+}
+
+// Show screensaver
+void GUI_ScreenSaver(void) {
+	bool key_pressed = FALSE;
+	uint32_t itts = 0;
+
+	do {
+		UC1701_Fill(0x00);
+//		GUI_DrawTime(30,11,&RTC_Time,TT_Short,DS_Big);
+		GUI_DrawTime(12,11,&RTC_Time,TT_Full,DS_Big);
+		GUI_PutDate(33,scr_height - 12,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) +
+				RTC_Date.RTC_Year + 2000,&Font5x7);
+		PutInt(1,1,itts,&Font5x7);
+		UC1701_Flush();
+		SleepStop(); // Enter STOP mode (deep sleep)
+		key_pressed = BTN[0].cntr || BTN[1].cntr || BTN[2].cntr || BTN[3].cntr ||
+				BTN[0].state == BTN_Hold || BTN[1].state == BTN_Hold ||
+				BTN[2].state == BTN_Hold || BTN[3].state == BTN_Hold;
+ 		itts++;
+	} while (!key_pressed);
 	ClearKeys();
 }
