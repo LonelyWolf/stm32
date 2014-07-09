@@ -50,13 +50,6 @@ typedef enum {NORMAL = 0, INVERT = !NORMAL} InvertStatus;
 typedef enum {ENABLED = 0, DISABLED = !ENABLED} DisplayState;
 
 typedef enum {
-	CT_opaque      = 0,   // Normal character with opaque background
-	CT_transp      = 1,   // Normal character with transparent background
-	CT_opaque_inv  = 2,   // Inverted character with opaque background
-	CT_transp_inv  = 3    // Inverted character with transparent background
-} CharType_TypeDef;
-
-typedef enum {
 	PSet = 1,
 	PReset = 0
 } PSetReset_TypeDef;
@@ -67,6 +60,19 @@ typedef enum {
 	scr_CCW    = 2,
 	scr_180    = 3
 } ScrOrientation_TypeDef;
+
+typedef enum {
+	font_V     = 0,        // Vertical font scan lines
+	font_H     = 1         // Horizontal font scan lines
+} FontScan_TypeDef;
+
+typedef struct {
+	uint8_t font_Width;                // Width of character
+	uint8_t font_Height;               // Height of character
+	uint8_t font_BPC;                  // Bytes for one character
+	FontScan_TypeDef font_Scan;        // Font scan lines behavior
+	uint8_t font_Data[];               // Font data
+} Font_TypeDef;
 
 
 // Public variables
@@ -94,6 +100,7 @@ void UC1701_Fill(uint8_t pattern);
 
 void SetPixel(uint8_t X, uint8_t Y);
 void ResetPixel(uint8_t X, uint8_t Y);
+void InvertRect(uint8_t X, uint8_t Y, uint8_t W, uint8_t H);
 
 void HLine(uint8_t X1, uint8_t X2, uint8_t Y, PSetReset_TypeDef SR);
 void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, PSetReset_TypeDef SR);
@@ -102,13 +109,14 @@ void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef 
 void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2);
 void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B);
 
-void PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, CharType_TypeDef CharType);
-uint16_t PutStr5x7(uint8_t X, uint8_t Y, char *str, CharType_TypeDef CharType);
-uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef CharType);
-uint8_t PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
-uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType_TypeDef CharType);
-uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_TypeDef CharType);
-uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType);
+uint8_t PutChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font);
+uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
+uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
+uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font);
+uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
+uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font);
+uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font);
+uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
 
 void PutDigit3x5(uint8_t X, uint8_t Y, uint8_t digit);
 uint8_t PutIntULZ3x5(uint8_t X, uint8_t Y, uint32_t num, uint8_t digits);

@@ -21,12 +21,17 @@ uint8_t vRAM[SCR_W * SCR_H / 8]; // Display buffer
 
 
 // Send command to display controller
+// input:
+//   cmd - 8-bit command to send
 void UC1701_cmd(uint8_t cmd) {
 	UC1701_RS_L();
 	SPI2_Send(cmd);
 }
 
 // Send double byte command to display controller
+// input:
+//   cmd1 - first byte of command to send
+//   cmd2 - second byte of command to send
 void UC1701_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 	UC1701_RS_L();
 	SPI2_Send(cmd1);
@@ -34,6 +39,8 @@ void UC1701_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 }
 
 // Send data byte to display controller
+// input:
+//   data - date byte to send
 void UC1701_data(uint8_t data) {
 	UC1701_RS_H();
 	SPI2_Send(data);
@@ -126,8 +133,9 @@ void UC1701_Init(void) {
 	TIM2->CR1   |= TIM_CR1_ARPE; // Auto-preload enable
 	TIM2->CCMR1 |= TIM_CCMR1_OC2PE; // Output compare 2 preload enable
 	TIM2->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1; // PWM mode 1
-	TIM2->PSC    = 0x0318; // TIM2 prescaler (32MHz AHB -> 400Hz PWM) [ PSC = APB1clock / (PWMfreq * PWMlevels) ]
-	TIM2->ARR    = 100; // TIM2 auto reload value
+//	TIM2->PSC    = 0x0318; // TIM2 prescaler (32MHz AHB -> 400Hz PWM) [ PSC = APB1clock / (PWMfreq * PWMlevels) ]
+	TIM2->PSC    = SystemCoreClock / 40000; // PWM frequency 400Hz
+	TIM2->ARR    = 99; // TIM2 auto reload value
 	TIM2->CCR2   = 50; // 50% duty cycle
 	TIM2->CCER  |= TIM_CCER_CC2P; // Output polarity
 	TIM2->CCER  |= TIM_CCER_CC2E; // TIM2_CH2 output compare enable
@@ -163,7 +171,7 @@ void UC1701_Reset(void) {
 }
 
 // Set LCD contrast
-// Input:
+// input:
 //   res_ratio: internal resistor ratio [0..7], power on value is 4
 //   el_vol: electronic volume [0..63], power on value is 32
 void UC1701_Contrast(uint8_t res_ratio, uint8_t el_vol) {
@@ -174,9 +182,9 @@ void UC1701_Contrast(uint8_t res_ratio, uint8_t el_vol) {
 }
 
 // Set all LCD pixels on or off
-// Input:
+// input:
 //   state: ON or OFF
-// Doesn't affect the display memory
+// note: doesn't affect the display memory
 void UC1701_SetAllPixelOn(OnOffStatus state) {
 	UC1701_CS_L();
 	UC1701_cmd(state == ON ? 0xa5 : 0xa4);
@@ -193,9 +201,9 @@ void UC1701_SetInvert(InvertStatus state) {
 }
 
 // Toggle display on/off
-// Input:
+// input:
 //   state: ENABLED or DISABLED
-// Doesn't affect the display memory
+// note: doesn't affect the display memory
 void UC1701_SetDisplayState(DisplayState state) {
 	UC1701_CS_L();
 	UC1701_cmd(state == ENABLED ? 0xaf : 0xae);
@@ -203,9 +211,9 @@ void UC1701_SetDisplayState(DisplayState state) {
 }
 
 // Set X coordinate mapping (normal or mirrored)
-// Input:
+// input:
 //   state: NORMAL or INVERT
-// Doesn't affect the display memory
+// note: Doesn't affect the display memory
 void UC1701_SetXDir(InvertStatus MX) {
 	UC1701_CS_L();
 	UC1701_cmd(MX == NORMAL ? 0xa0 : 0xa1);
@@ -213,9 +221,9 @@ void UC1701_SetXDir(InvertStatus MX) {
 }
 
 // Set Y coordinate mapping (normal or mirrored)
-// Input:
+// input:
 //   state: NORMAL or INVERT
-// Doesn't affect the display memory
+// note: doesn't affect the display memory
 void UC1701_SetYDir(InvertStatus MY) {
 	UC1701_CS_L();
 	UC1701_cmd(MY == NORMAL ? 0xc8 : 0xc0);
@@ -223,7 +231,7 @@ void UC1701_SetYDir(InvertStatus MY) {
 }
 
 // Set display column:page according to pixel coordinates
-// Input:
+// input:
 //   X, Y - pixel coordinates
 void UC1701_SetAddr(uint8_t X, uint8_t Y) {
 	UC1701_CS_L();
@@ -234,7 +242,7 @@ void UC1701_SetAddr(uint8_t X, uint8_t Y) {
 }
 
 // Set scroll line number
-// Input:
+// input:
 //   line - start line number (0..63)
 void UC1701_SetScrollLine(uint8_t line) {
 	UC1701_CS_L();
@@ -243,6 +251,9 @@ void UC1701_SetScrollLine(uint8_t line) {
 }
 
 // Set display orientation
+// input:
+//   orientation - screen orientation (scr_*)
+// note: doesn't affect on current display memory
 void UC1701_Orientation(uint8_t orientation) {
 	UC1701_CS_L();
 	switch(orientation) {
@@ -292,13 +303,16 @@ void UC1701_Flush(void) {
 	UC1701_CS_H();
 }
 
-// Fill VRam memory with specified pattern
+// Fill vRAM memory with specified pattern
+// input:
+//   pattern - byte pattern to fill vRAM memory
 void UC1701_Fill(uint8_t pattern) {
 	memset(vRAM,pattern,sizeof(vRAM));
-//	for (i = 0; i < sizeof(vRAM); i++) vRAM[i] = pattern;
 }
 
 // Set pixel in vRAM buffer
+// input:
+//   X,Y - coordinates of pixel
 void SetPixel(uint8_t X, uint8_t Y) {
 	uint8_t XX = X;
 	uint8_t YY = Y;
@@ -310,6 +324,8 @@ void SetPixel(uint8_t X, uint8_t Y) {
 }
 
 // Clear pixel in vRAM buffer
+// input:
+//   X,Y - coordinates of pixel
 void ResetPixel(uint8_t X, uint8_t Y) {
 	uint8_t XX = X;
 	uint8_t YY = Y;
@@ -320,6 +336,31 @@ void ResetPixel(uint8_t X, uint8_t Y) {
 	vRAM[((YY >> 3) * SCR_W) + XX] &= ~(1 << (YY % 8));
 }
 
+// Invert rectangle in vRAM buffer
+// input:
+//   X,Y - top left coordinates of rectangle
+//   W - rectangle width
+//   H - rectangle height
+void InvertRect(uint8_t X, uint8_t Y, uint8_t W, uint8_t H) {
+	uint8_t i,j,pX;
+
+	for (j = 0; j < H; j++) {
+		pX = X;
+		for (i = 0; i < W; i++) {
+		 	vRAM[((Y >> 3) * SCR_W) + pX] ^= (1 << (Y % 8));
+		 	pX++;
+		}
+		Y++;
+	}
+}
+
+// Draw horizontal line
+// input:
+//   X1 - left horizontal coordinate of the line
+//   X2 - right horizontal coordinate of the line
+//   Y - vertical coordinate of the line
+//   SR - Set or reset line pixels (PSet or PReset)
+// note: X2 must be greater than X1
 void HLine(uint8_t X1, uint8_t X2, uint8_t Y, PSetReset_TypeDef SR) {
 	uint8_t x;
 
@@ -330,6 +371,13 @@ void HLine(uint8_t X1, uint8_t X2, uint8_t Y, PSetReset_TypeDef SR) {
 	}
 }
 
+// Draw vertical line
+// input:
+//   X - horizontal coordinate of the line
+//   Y1 - top vertical coordinate of the line
+//   Y2 - bottom vertical coordinate of the line
+//   SR - Set or reset line pixels (PSet or PReset)
+// note: Y2 must be greater than Y1
 void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, PSetReset_TypeDef SR) {
 	uint8_t y;
 
@@ -340,6 +388,14 @@ void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, PSetReset_TypeDef SR) {
 	}
 }
 
+// Draw rectangle
+// input:
+//   X1 - left horizontal coordinate of the line
+//   X2 - right horizontal coordinate of the line
+//   Y1 - top vertical coordinate of the line
+//   Y2 - bottom vertical coordinate of the line
+//   SR - Set or reset rectangle pixels (PSet or PReset)
+// note: must be (X2 > X1) and (Y2 > Y1)
 void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR) {
 	HLine(X1,X2,Y1,SR);
 	HLine(X1,X2,Y2,SR);
@@ -347,12 +403,26 @@ void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR) 
 	VLine(X2,Y1 + 1,Y2 - 1,SR);
 }
 
+// Draw filled rectangle
+// input:
+//   X1 - left horizontal coordinate of the line
+//   X2 - right horizontal coordinate of the line
+//   Y1 - top vertical coordinate of the line
+//   Y2 - bottom vertical coordinate of the line
+//   SR - Set or reset rectangle pixels (PSet or PReset)
+// note: must be (X2 > X1) and (Y2 > Y1)
 void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef SR) {
 	uint8_t y;
 
 	for (y = Y1; y <= Y2; y++) HLine(X1,X2,y,SR);
 }
 
+// Draw line
+// input:
+//   X1 - left horizontal coordinate of the line
+//   X2 - right horizontal coordinate of the line
+//   Y1 - top vertical coordinate of the line
+//   Y2 - bottom vertical coordinate of the line
 void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2) {
 	int16_t dX = X2-X1;
 	int16_t dY = Y2-Y1;
@@ -402,6 +472,10 @@ void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2) {
 	SetPixel(X1,Y1);
 }
 
+// Draw ellipse
+// input:
+//   X,Y - ellipse center coordinates
+//   A,B - horizontal and vertical radius of the ellipse
 void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B) {
 	int16_t Xc = 0, Yc = B;
 
@@ -438,72 +512,123 @@ void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B) {
 	}
 }
 
-void PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, CharType_TypeDef CharType) {
-	uint16_t i,j;
-	uint8_t buffer[5],tmpCh;
+// Draw single character
+// input:
+//   X,Y - character top left corner coordinates
+//   Char - character to be drawn
+//   Font - pointer to font
+// return: character width in pixels
+uint8_t PutChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
+	uint8_t chW,chH;
+	uint8_t pX = X;
+	uint8_t pY = Y;
+	uint16_t i,j,k;
+	uint8_t buffer[32];
+	uint8_t tmpCh;
 
+	chW = Font->font_Width; // Character width
+	chH = Font->font_Height; // Character height
 	if (Char < 32 || Char > 0x7e) Char = 0x7e;
-	memcpy(buffer,&Font5x7[(Char - 32) * 5],5);
+	memcpy(buffer,&Font->font_Data[(Char - 32) * Font->font_BPC],Font->font_BPC);
 
-	// code bigger, but much faster
-	switch(CharType) {
-		case CT_opaque_inv:
-			// Clear pixels, black background
-		    for (i = 0; i < 5; i++) {
-		    	tmpCh = buffer[i];
-		    	for (j = 0; j < 7; j++) {
-		    		if ((tmpCh >> j) & 0x01) ResetPixel(X + i,Y + j); else SetPixel(X + i,Y + j);
-		    	}
-		    }
-			break;
-		case CT_transp:
-			// Black pixels, untouched background
-			for (i = 0; i < 5; i++) {
+	if (Font->font_Scan == font_V) {
+		if (chH < 8) {
+			// Small font, one byte height
+			for (i = 0; i < chW; i++) {
 				tmpCh = buffer[i];
-				for (j = 0; j < 7; j++) {
-					if ((tmpCh >> j) & 0x01) SetPixel(X + i,Y + j);
+				for (j = 0; j < chH; j++) {
+					if ((tmpCh >> j) & 0x01) SetPixel(pX,pY);
+					pY++;
 				}
+				pY = Y;
+				pX++;
 			}
-			break;
-		case CT_transp_inv:
-			// Clear pixels, untouched background
-			for (i = 0; i < 5; i++) {
-				tmpCh = buffer[i];
-				for (j = 0; j < 7; j++) {
-					if ((tmpCh >> j) & 0x01) ResetPixel(X + i,Y + j);
+		} else {
+			// Big font, more than one byte height
+			for (k = 0; k <= (chH / 8); k++) {
+				for (i = 0; i < chW; i++) {
+					tmpCh = buffer[(i << 1) + k];
+					for (j = 0; j < 8; j++) {
+//						if ((tmpCh >> j) & 0x01) SetPixel(pX,pY);
+						if ((tmpCh >> (7 - j)) & 0x01) SetPixel(pX,pY);
+						pY++;
+						if (pY > Y + chH) break;
+					}
+					pX++;
 				}
+				pY = Y + (k << 3);
+				pX = X;
 			}
-			break;
-		default:
-			// Black pixels with clear background
-		    for (i = 0; i < 5; i++) {
-		    	tmpCh = buffer[i];
-		    	for (j = 0; j < 7; j++) {
-		    		if ((tmpCh >> j) & 0x01) SetPixel(X + i,Y + j); else ResetPixel(X + i,Y + j);
-		    	}
-		    }
-			break;
+		}
+	} else {
+		for (j = 0; j < chH; j++) {
+			tmpCh = buffer[j];
+			for (i = 0; i < chW; i++) {
+				if ((tmpCh >> i) & 0x01) SetPixel(pX,pY);
+				pX++;
+			}
+			pX = X;
+			pY++;
+		}
 	}
+
+	return Font->font_Width + 1;
 }
 
-uint16_t PutStr5x7(uint8_t X, uint8_t Y, char *str, CharType_TypeDef CharType) {
-	uint8_t strLen;
+// Draw string
+// input:
+//   X,Y - top left coordinates of first character
+//   str - pointer to zero-terminated string
+//   Font - pointer to font
+// return: string width in pixels
+uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
+	uint8_t strLen = 0;
 
-	strLen = 0;
     while (*str) {
-        PutChar5x7(X,Y,*str++,CharType);
-        if (CharType == CT_opaque_inv || CharType == CT_transp_inv) VLine(X + 5,Y,Y + 6,PSet);
-        if (X < scr_width - 7) { X += 6; } else if (Y < scr_height - 8) { X = 0; Y += 7; } else { X = 0; Y = 0; }
+        X += PutChar(X,Y,*str++,Font);
+        if (X > scr_width - Font->font_Width - 1) break;
         strLen++;
     };
 
-    return strLen * 6;
+    return strLen * (Font->font_Width + 1);
 }
 
-uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef CharType) {
-	char str[11]; // 10 chars max for UINT32_MAX
-	int i = 0;
+// Draw string with line feed (by screen edge)
+// input:
+//   X,Y - top left coordinates of first character
+//   str - pointer to zero-terminated string
+//   Font - pointer to font
+// return: string width in pixels
+uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
+	uint8_t strLen = 0;
+
+    while (*str) {
+        PutChar(X,Y,*str++,Font);
+        if (X < scr_width - Font->font_Width - 1) {
+        	X += Font->font_Width + 1;
+        } else if (Y < scr_height - Font->font_Height - 1) {
+        	X = 0; Y += Font->font_Height;
+        } else {
+        	X = 0; Y = 0;
+        }
+        strLen++;
+    };
+
+    return strLen * (Font->font_Width + 1);
+}
+
+// Draw signed integer value
+// input:
+//   X,Y - top left coordinates of first symbol
+//   num - signed integer value
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font) {
+	uint8_t str[11]; // 10 chars max for UINT32_MAX
+	int8_t i = 0;
 	uint8_t neg = 0;
+	int8_t intLen;
+	uint8_t pX;
 
 	if (num < 0) {
 		neg = 1;
@@ -511,27 +636,46 @@ uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, CharType_TypeDef CharType) 
 	}
 	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
 	if (neg) str[i++] = '-';
+	intLen = i;
+	pX = X + (intLen - 1) * (Font->font_Width + 1);
+	for (i = 0; i < intLen; i++) {
+		pX -= PutChar(pX,Y,str[i],Font);
+	}
 
-	int strLen = i;
-	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],CharType);
-
-	return strLen * 6;
+    return intLen * (Font->font_Width + 1);
 }
 
-uint8_t PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType) {
-	char str[11]; // 10 chars max for UINT32_MAX
-	int i = 0;
+// Draw unsigned integer value
+// input:
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
+	uint8_t str[11]; // 10 chars max for UINT32_MAX
+	int8_t i = 0;
+	int8_t intLen;
+	uint8_t pX;
 
 	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
+	intLen = i;
+	pX = X + (intLen - 1) * (Font->font_Width + 1);
+	for (i = 0; i < intLen; i++) {
+		pX -= PutChar(pX,Y,str[i],Font);
+	}
 
-	int strLen = i;
-	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],CharType);
-
-	return strLen * 6;
+    return intLen * (Font->font_Width + 1);
 }
 
-uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType_TypeDef CharType) {
-	char str[12];
+// Draw signed integer value with decimal point
+// input:
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   decimals - number of digits after decimal point
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font) {
+	uint8_t str[12];
 	int8_t i;
 	uint8_t neg;
 	int8_t strLen;
@@ -552,10 +696,10 @@ uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType
 
 	neg = X;
 	for (i = 0; i < strLen; i++) {
-		PutChar5x7(neg,Y,str[strLen - i - 1],CharType);
-		neg += 6;
+		PutChar(neg,Y,str[strLen - i - 1],Font);
+		neg += Font->font_Width + 1;
 		if (strLen - i - 1 == decimals && decimals != 0) {
-			Rect(neg,Y + 5,neg + 1,Y + 6,PSet);
+			Rect(neg,Y + Font->font_Height - 2,neg + 1,Y + Font->font_Height - 1,PSet);
 			neg += 3;
 		}
 	}
@@ -563,7 +707,14 @@ uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, CharType
 	return (neg - X);
 }
 
-uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_TypeDef CharType) {
+// Draw signed integer value with leading zeros
+// input:
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   digits - minimal number of length (e.g. num=35, digits=5 --> 00035)
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font) {
 	uint8_t i;
 	uint8_t neg;
 	int32_t tmp = num;
@@ -578,39 +729,48 @@ uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, CharType_
 	do { len++; } while ((tmp /= 10) > 0); // Calculate number length in symbols
 
 	if (len > digits) {
-		X += PutInt5x7(X,Y,num,CharType);
+		X += PutInt(X,Y,num,Font);
 		return X;
 	}
 
 	if (neg) {
-		PutChar5x7(X,Y,'-',CharType);
-		X += 6;
+		PutChar(X,Y,'-',Font);
+		X += Font->font_Width + 1;
 		num *= -1;
 	}
 	for (i = 0; i < digits - len; i++) {
-		PutChar5x7(X,Y,'0',CharType);
-		X += 6;
+		PutChar(X,Y,'0',Font);
+		X += Font->font_Width + 1;
 	}
-	X += PutInt5x7(X,Y,num,CharType);
+	X += PutInt(X,Y,num,Font);
 
 	return X - pX;
 }
 
-uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, CharType_TypeDef CharType) {
-	char str[11]; // 10 chars max for UINT32_MAX
-	int i = 0;
+// Draw integer as hexadecimal
+// input:
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
+	uint8_t str[11]; // 10 chars max for UINT32_MAX
+	int8_t i = 0;
 	uint32_t onum = num;
+	int8_t intLen;
+	uint8_t pX;
 
 	do { str[i++] = "0123456789ABCDEF"[num % 0x10]; } while ((num /= 0x10) > 0);
 	if (onum < 0x10) str[i++] = '0';
-//	str[i++] = 'x';
-//	str[i++] = '0';
 
-	int strLen = i;
+	intLen = i;
 
-	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],CharType);
+	pX = X + (intLen - 1) * (Font->font_Width + 1);
+	for (i = 0; i < intLen; i++) {
+		pX -= PutChar(pX,Y,str[i],Font);
+	}
 
-	return strLen * 6;
+    return intLen * (Font->font_Width + 1);
 }
 
 // Draw small digit (3x5)
