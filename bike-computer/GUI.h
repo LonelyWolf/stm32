@@ -109,8 +109,8 @@ static const Menu_TypeDef mnuStatistics = {
 		MA_center,
 		MS_over,
 		{
-				{"Sensor RAW"},
 				{"Trip values"},
+				{"Sensor RAW"},
 				{"BMP180 values"},
 				{"GPS values"}
 		}
@@ -121,8 +121,8 @@ static const Menu_TypeDef mnuTest = {
 		MA_left,
 		MS_over,
 		{
-				{"Testing #1"},
-				{"Testing #2"},
+				{"Reinit LCD"},
+				{"Screensaver"},
 				{"Testing #3"},
 				{"Testing #4"},
 				{"Testing #5"},

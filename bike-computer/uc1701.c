@@ -5,8 +5,6 @@
 #include <spi.h>
 #include <delay.h>
 #include <uc1701.h>
-
-#include <font5x7.h>
 #include <resources.h>
 
 

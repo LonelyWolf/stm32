@@ -3,6 +3,11 @@
 #define __WOLK_H
 
 
+// Defines to font pointer for a bit compact code
+#define fnt5x7              &Font5x7
+#define fnt7x10             &Font7x10
+
+
 // nRF24L01 working parameters
 #define nRF24_RX_Addr                 "WBC" // RX address for nRF24L01
 #define nRF24_RX_Addr_Size                3 // RX address size

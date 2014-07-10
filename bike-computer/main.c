@@ -20,9 +20,7 @@
 #include <stm32l1xx_syscfg.h>
 #include <stm32l1xx_dma.h>
 #include <string.h> // For memset, memmove
-#include <math.h>
 
-#include <wolk.h>
 #include <delay.h>
 #include <spi.h>
 #include <i2c.h>
@@ -31,10 +29,13 @@
 #include <nRF24.h>
 #include <bmp180.h>
 #include <RTC.h>
+#include <wolk.h>
 #include <GUI.h>
 #include <GPS.h>
 #include <beeper.h>
+
 #include <font5x7.h>
+#include <font7x10.h>
 #include <resources.h>
 
 
@@ -318,8 +319,6 @@ void RTC_WKUP_IRQHandler(void) {
 
 		_new_time = TRUE;
 
-//		BEEPER_Enable(3000,1);
-
 		PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
 		RTC_ClearITPendingBit(RTC_IT_WUT);
 		RTC_ClearFlag(RTC_FLAG_WUTF);
@@ -395,7 +394,7 @@ void callback_Delay(void) {
 
 // Parse received nRF24L01 data packet
 void ParsePacket(void) {
-	float tmp,tmp_f,tmp_i;
+	float tmp;
 	int16_t diff_SPD;
 
 	// memcpy doesn't work here due to struct alignments
@@ -408,29 +407,29 @@ void ParsePacket(void) {
 	nRF24_Packet.packets_lost = (nRF24_RX_Buf[11] << 8) + nRF24_RX_Buf[12];
 	nRF24_Packet.ride_time    = (nRF24_RX_Buf[13] << 8) + nRF24_RX_Buf[14];
 
-	// Magic number '992.9696969' - timer period in sensor MCU
-
 	// Convert SPD impulses period into speed
 	if (nRF24_Packet.tim_SPD > 0) {
-		//tmp = Settings.WheelCircumference * (992.9696969 * 0.036) / nRF24_Packet.tim_SPD;
-		tmp = (Settings.WheelCircumference * 35.7469090884) / nRF24_Packet.tim_SPD;
-		tmp_f = modff(tmp,&tmp_i);
-		CurData.Speed = ((uint32_t)tmp_i * 10) + (uint32_t)(tmp_f * 10);
+//		CurData.Speed = Settings.WheelCircumference * (992.9696969 * 0.36) / nRF24_Packet.tim_SPD;
+//		CurData.Speed = (Settings.WheelCircumference * 357.469090884) / nRF24_Packet.tim_SPD;
+//		CurData.Speed = Settings.WheelCircumference * (1007.08 * 0.36) / nRF24_Packet.tim_SPD;
+		CurData.Speed = (Settings.WheelCircumference * 362.5488) / nRF24_Packet.tim_SPD;
 		if (CurData.Speed > 999) CurData.Speed = 999; // Maximum 99.9km/h can be displayed
 	} else CurData.Speed = 0;
 
 	// Convert CDC impulses period into cadence
 	if (nRF24_Packet.tim_CDC > 0) {
-		//CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 992.9696969);
-		CurData.Cadence = (uint32_t)(59578.181814 / nRF24_Packet.tim_CDC);
-		if (CurData.Cadence > 250) CurData.Cadence = 250; // 250RPM pedaling, really?
+//		CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 992.9696969);
+//		CurData.Cadence = (uint32_t)(59578.181814 / nRF24_Packet.tim_CDC);
+//		CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 1007.08);
+		CurData.Cadence = (uint32_t)(60424.8 / nRF24_Packet.tim_CDC);
+		if (CurData.Cadence > 250) CurData.Cadence = 250; // pedaling 250RPM, really?
 	} else CurData.Cadence = 0;
 
 	// Update maximum values
 	if (CurData.Speed > CurData.MaxSpeed) CurData.MaxSpeed = CurData.Speed;
 	if (CurData.Cadence > CurData.MaxCadence) CurData.MaxCadence = CurData.Cadence;
 
-	// Update trip time
+	// Update current trip time
 /*
  	if (nRF24_Packet.tim_SPD != _prev_tim_SPD) {
 		if (nRF24_Packet.tim_SPD < 1007) {
@@ -450,12 +449,11 @@ void ParsePacket(void) {
 */
 	if (nRF24_Packet.ride_time) {
 		tmp = (nRF24_Packet.ride_time / 1007.08) + (_tim_excess / 1000.0);
-		tmp_f = modff(tmp,&tmp_i);
-		CurData.TripTime += tmp_i;
-		_tim_excess = tmp_f * 1000;
+		CurData.TripTime += (uint32_t)tmp;
+		_tim_excess = (uint32_t)(tmp * 1000) - ((uint32_t)tmp * 1000);
 	}
 
-	// Update odometer
+	// Update odometer and current trip distance
 	if (nRF24_Packet.cntr_SPD != 0 && nRF24_Packet.cntr_SPD != _prev_cntr_SPD) {
 		diff_SPD = nRF24_Packet.cntr_SPD - _prev_cntr_SPD;
 		if (diff_SPD < 0) diff_SPD *= -1;
@@ -465,9 +463,7 @@ void ParsePacket(void) {
 	_prev_cntr_SPD = nRF24_Packet.cntr_SPD;
 
 	// Update average values
-	tmp = (CurData.TripDist / CurData.TripTime) * 0.036;
-	tmp_f = modff(tmp,&tmp_i);
-	CurData.AvgSpeed = (tmp_i * 10) + (uint32_t)(tmp_f * 10);
+	CurData.AvgSpeed = (uint32_t)((CurData.TripDist * 0.36) / CurData.TripTime);
 	if (CurData.Cadence > 0) {
 		// A simple calculation of the average cadence.
 		// At a constant value in a fantastic 300RPM accumulator will overflow
@@ -628,20 +624,20 @@ int main(void) {
 	GUI_DrawBitmap(98,39,30,25,&bmp_bike_man[0]);
 
 	// Boot screen
-	PutStr(0,0,"Wolk bike computer:",&Font5x7);
-	PutStr(0,42,"CPU:",&Font5x7);
-	i = 24 + PutIntF(24,42,SystemCoreClock / 1000,3,&Font5x7);
-	PutStr(i,42,"MHz",&Font5x7);
+	PutStr(0,0,"Wolk bike computer:",fnt5x7);
+	PutStr(0,42,"CPU:",fnt5x7);
+	i = 24 + PutIntF(24,42,SystemCoreClock / 1000,3,fnt5x7);
+	PutStr(i,42,"MHz",fnt5x7);
 	UC1701_Flush();
 
-	PutStr(0,56,"STAT:",&Font5x7);
-	PutStr(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",&Font5x7);
+	PutStr(0,56,"STAT:",fnt5x7);
+	PutStr(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",fnt5x7);
 
 	// Init the RTC and configure it clock to LSE
-	PutStr(0,8,"LSE:",&Font5x7);
+	PutStr(0,8,"LSE:",fnt5x7);
 	UC1701_Flush();
 	RTC_Config();
-	PutStr(24,8,"Ok",&Font5x7);
+	PutStr(24,8,"Ok",fnt5x7);
 	UC1701_Flush();
 
 	// Configure nRF24L01+
@@ -652,21 +648,21 @@ int main(void) {
     //   PB15 -> MOSI
     //   PB14 <- MISO
     //   PC6  <- IRQ
-	PutStr(0,16,"nRF24L01:",&Font5x7);
+	PutStr(0,16,"nRF24L01:",fnt5x7);
 	UC1701_Flush();
     nRF24_init();
     if (nRF24_Check()) {
     	nRF24_SetRXMode();
-    	PutStr(54,16,"Ok",&Font5x7);
+    	PutStr(54,16,"Ok",fnt5x7);
     	UC1701_Flush();
     } else {
-    	PutStr(54,16,"Fail",&Font5x7);
+    	PutStr(54,16,"Fail",fnt5x7);
         UC1701_Flush();
     	while(1);
     }
 
     // I2C2 port initialization
-    PutStr(0,24,"BMP180:",&Font5x7);
+    PutStr(0,24,"BMP180:",fnt5x7);
     UC1701_Flush();
     // I2C fast mode (400kHz)
     if (I2C2_Init(400000) == I2C_SUCCESS) {
@@ -674,26 +670,26 @@ int main(void) {
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
     		_bmp180_present = TRUE;
-    		PutChar(42,24,'v',&Font5x7);
+    		PutChar(42,24,'v',fnt5x7);
     		i = BMP180_GetVersion();
-    		PutInt(48,24,i,&Font5x7);
+    		PutInt(48,24,i,fnt5x7);
     		BMP180_ReadCalibration();
 			CurData.MinTemperature =  32767;
 			CurData.MaxTemperature = -32767;
 			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
     		if (UpdateBMP180()) {
-        		GUI_PutTemperature(60,24,CurData.Temperature,&Font5x7);
-        		GUI_PutPressure(60,32,CurData.Pressure,PT_mmHg,&Font5x7);
+        		GUI_PutTemperature(60,24,CurData.Temperature,fnt5x7);
+        		GUI_PutPressure(60,32,CurData.Pressure,PT_mmHg,fnt5x7);
         		altitude_history[0] = BMP180_hPa_to_Altitude(CurData.Pressure);
     		} else {
-    			PutStr(60,24,"Readings",&Font5x7);
-    			PutStr(60,32,"failed",&Font5x7);
+    			PutStr(60,24,"Readings",fnt5x7);
+    			PutStr(60,32,"failed",fnt5x7);
     		}
     	} else {
-    		PutStr(42,24,"Not present",&Font5x7);
+    		PutStr(42,24,"Not present",fnt5x7);
     	}
     } else {
-    	PutStr(42,24,"I2C timeout",&Font5x7);
+    	PutStr(42,24,"I2C timeout",fnt5x7);
     }
 	UC1701_Flush();
 
@@ -810,7 +806,7 @@ int main(void) {
 			else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
 			else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
 
-			PutStr(scr_width - 30,scr_height - 27,"CDC",&Font5x7);
+			PutStr(scr_width - 30,scr_height - 27,"CDC",fnt5x7);
 			if (_no_signal_time > NO_SIGNAL_TIME) {
 				for (i = 0; i < 3; i++)	FillRect(scr_width - (i * 10) - 15,scr_height - 3,scr_width - (i * 10) - 7,scr_height - 1,PSet);
 			} else {
@@ -818,17 +814,17 @@ int main(void) {
 			}
 			GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
 
-			PutStr(3,scr_height - 27,"Ride Time",&Font5x7);
+			PutStr(3,scr_height - 27,"Ride Time",fnt5x7);
 			GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
 
-			GUI_PutPressure(0,26,CurData.Pressure,PT_mmHg,&Font5x7);
-			GUI_PutTemperature(0,18,CurData.Temperature,&Font5x7);
+			GUI_PutPressure(0,26,CurData.Pressure,PT_mmHg,fnt5x7);
+			GUI_PutTemperature(0,18,CurData.Temperature,fnt5x7);
 
-			GUI_PutTimeSec(0,10,RTC_Time.RTC_Hours * 3600 + RTC_Time.RTC_Minutes * 60 + RTC_Time.RTC_Seconds,&Font5x7);
+			GUI_PutTimeSec(0,10,RTC_Time.RTC_Hours * 3600 + RTC_Time.RTC_Minutes * 60 + RTC_Time.RTC_Seconds,fnt5x7);
 
 			ccc++;
 	/*
-			i = PutInt(3,3,ccc,&Font5x7);
+			i = PutInt(3,3,ccc,fnt5x7);
 			Rect(0,0,i + 4,12,PReset);
 			Rect(1,1,i + 3,11,PSet);
 			Rect(2,2,i + 2,10,PReset);

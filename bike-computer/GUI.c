@@ -283,36 +283,36 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
 		HLine(4,scr_width - 5,4,PReset);
-		PutStr(19,1,"Sensor RAW data",&Font5x7);
+		PutStr(19,1,"Sensor RAW data",fnt5x7);
 		InvertRect(4,0,scr_width - 8,9);
 		// Cadence data
 		X = 5; Y = 10;
-		X += PutStr(X,Y,"CDC c:",&Font5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.tim_CDC,&Font5x7);
+		X += PutStr(X,Y,"CDC c:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.tim_CDC,fnt5x7);
 		// Speed data
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"SPD c:",&Font5x7) - 1;
-		X += PutInt(X,Y,nRF24_Packet.cntr_SPD,&Font5x7) + 8;
-		X += PutStr(X,Y,"t:",&Font5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.tim_SPD,&Font5x7);
+		X += PutStr(X,Y,"SPD c:",fnt5x7) - 1;
+		X += PutInt(X,Y,nRF24_Packet.cntr_SPD,fnt5x7) + 8;
+		X += PutStr(X,Y,"t:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.tim_SPD,fnt5x7);
 		// Packets lost
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"P.Lost:",&Font5x7) - 1;
-		X += PutInt(X,Y,nRF24_Packet.packets_lost,&Font5x7) + 5;
+		X += PutStr(X,Y,"P.Lost:",fnt5x7) - 1;
+		X += PutInt(X,Y,nRF24_Packet.packets_lost,fnt5x7) + 5;
 		// OBSERVER_TX
-		X += PutStr(X,Y,"OTX:",&Font5x7) - 1;
-		X += PutHex(X,Y,nRF24_Packet.observe_TX,&Font5x7);
+		X += PutStr(X,Y,"OTX:",fnt5x7) - 1;
+		X += PutHex(X,Y,nRF24_Packet.observe_TX,fnt5x7);
 		// Wake-ups
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"Wake:",&Font5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.cntr_wake,&Font5x7);
+		X += PutStr(X,Y,"Wake:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.cntr_wake,fnt5x7);
 		X = 76;
-		X += PutStr(X,Y,"RT:",&Font5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.ride_time,&Font5x7);
+		X += PutStr(X,Y,"RT:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.ride_time,fnt5x7);
 		// Battery
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"Battery:",&Font5x7) - 1;
-		PutChar(X + PutIntF(X,Y,nRF24_Packet.vrefint,2,&Font5x7),Y,'V',&Font5x7);
+		X += PutStr(X,Y,"Battery:",fnt5x7) - 1;
+		PutChar(X + PutIntF(X,Y,nRF24_Packet.vrefint,2,fnt5x7),Y,'V',fnt5x7);
 
 		UC1701_Flush();
 
@@ -334,38 +334,38 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
 		HLine(4,scr_width - 5,4,PReset);
-		PutStr(18,1,"Trip statistics",&Font5x7);
+		PutStr(18,1,"Trip statistics",fnt5x7);
 		InvertRect(4,0,scr_width - 8,9);
 
 		X = 4; Y = 10;
-		X += PutStr(X,Y,"SPD:",&Font5x7) - 1;
-		PutIntF(X,Y,CurData.Speed,1,&Font5x7);
+		X += PutStr(X,Y,"SPD:",fnt5x7) - 1;
+		PutIntF(X,Y,CurData.Speed,1,fnt5x7);
 		X = 63;
-		X += PutStr(X,Y,"CDC:",&Font5x7) - 1;
-		PutInt(X,Y,CurData.Cadence,&Font5x7);
+		X += PutStr(X,Y,"CDC:",fnt5x7) - 1;
+		PutInt(X,Y,CurData.Cadence,fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"A.S:",&Font5x7) - 1;
-		PutIntF(X,Y,CurData.AvgSpeed,1,&Font5x7);
+		X += PutStr(X,Y,"A.S:",fnt5x7) - 1;
+		PutIntF(X,Y,CurData.AvgSpeed,1,fnt5x7);
 		X = 63;
-		X += PutStr(X,Y,"A.C:",&Font5x7) - 1;
-		PutInt(X,Y,CurData.AvgCadence,&Font5x7);
+		X += PutStr(X,Y,"A.C:",fnt5x7) - 1;
+		PutInt(X,Y,CurData.AvgCadence,fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"M.S:",&Font5x7) - 1;
-		PutIntF(X,Y,CurData.MaxSpeed,1,&Font5x7);
+		X += PutStr(X,Y,"M.S:",fnt5x7) - 1;
+		PutIntF(X,Y,CurData.MaxSpeed,1,fnt5x7);
 		X = 63;
-		X += PutStr(X,Y,"M.C:",&Font5x7) - 1;
-		PutInt(X,Y,CurData.MaxCadence,&Font5x7);
+		X += PutStr(X,Y,"M.C:",fnt5x7) - 1;
+		PutInt(X,Y,CurData.MaxCadence,fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"T.D:",&Font5x7) - 1;
-		X += PutIntF(X,Y,CurData.TripDist / 100,3,&Font5x7);
-		PutStr(X,Y,"km",&Font5x7);
+		X += PutStr(X,Y,"T.D:",fnt5x7) - 1;
+		X += PutIntF(X,Y,CurData.TripDist / 100,3,fnt5x7);
+		PutStr(X,Y,"km",fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Odo:",&Font5x7) - 1;
-		X += PutIntF(X,Y,CurData.Odometer / 10000,1,&Font5x7);
-		PutStr(X,Y,"km",&Font5x7);
+		X += PutStr(X,Y,"Odo:",fnt5x7) - 1;
+		X += PutIntF(X,Y,CurData.Odometer / 10000,1,fnt5x7);
+		PutStr(X,Y,"km",fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Time:",&Font5x7) - 1;
-		GUI_PutTimeSec(X,Y,CurData.TripTime,&Font5x7);
+		X += PutStr(X,Y,"Time:",fnt5x7) - 1;
+		GUI_PutTimeSec(X,Y,CurData.TripTime,fnt5x7);
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh); else return;
@@ -386,30 +386,30 @@ void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
 		HLine(4,scr_width - 5,4,PReset);
-		PutStr(24,1,"BMP180 values",&Font5x7);
+		PutStr(24,1,"BMP180 values",fnt5x7);
 		InvertRect(4,0,scr_width - 8,9);
 
 		X = 4; Y = 10;
-		X += PutStr(X,Y,"Temperature:",&Font5x7) - 1;
-		GUI_PutTemperature(X,Y,CurData.Temperature,&Font5x7);
+		X += PutStr(X,Y,"Temperature:",fnt5x7) - 1;
+		GUI_PutTemperature(X,Y,CurData.Temperature,fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Min:",&Font5x7) - 1;
-		GUI_PutTemperature(X,Y,CurData.MinTemperature,&Font5x7);
+		X += PutStr(X,Y,"Min:",fnt5x7) - 1;
+		GUI_PutTemperature(X,Y,CurData.MinTemperature,fnt5x7);
 		X = 67;
-		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
-		GUI_PutTemperature(X,Y,CurData.MaxTemperature,&Font5x7);
+		X += PutStr(X,Y,"Max:",fnt5x7) - 1;
+		GUI_PutTemperature(X,Y,CurData.MaxTemperature,fnt5x7);
 
 		HLine(1,scr_width - 2,Y + 10,PSet);
 
 		X = 4; Y += 14;
-		X += PutStr(X,Y,"Pressure:",&Font5x7) - 1;
-		GUI_PutPressure(X,Y,CurData.Pressure,PT_mmHg,&Font5x7);
+		X += PutStr(X,Y,"Pressure:",fnt5x7) - 1;
+		GUI_PutPressure(X,Y,CurData.Pressure,PT_mmHg,fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Min:",&Font5x7) - 1;
-		PutIntF(X,Y,CurData.MinPressure * 75 / 1000,1,&Font5x7);
+		X += PutStr(X,Y,"Min:",fnt5x7) - 1;
+		PutIntF(X,Y,CurData.MinPressure * 75 / 1000,1,fnt5x7);
 		X = 67;
-		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
-		PutIntF(X,Y,CurData.MaxPressure * 75 / 1000,1,&Font5x7);
+		X += PutStr(X,Y,"Max:",fnt5x7) - 1;
+		PutIntF(X,Y,CurData.MaxPressure * 75 / 1000,1,fnt5x7);
 
 		UC1701_Flush();
 
@@ -431,32 +431,32 @@ void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Fill(0x00);
 		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
 		HLine(4,scr_width - 5,4,PReset);
-		PutStr(9,1,"GPS current values",&Font5x7);
+		PutStr(9,1,"GPS current values",fnt5x7);
 		InvertRect(4,0,scr_width - 8,9);
 
 		X = 4; Y = 10;
-		X += PutStr(X,Y,"Speed:",&Font5x7) - 1;
-		X += PutIntF(X,Y,CurData.GPSSpeed,2,&Font5x7);
-		PutStr(X,Y,"km/h",&Font5x7);
+		X += PutStr(X,Y,"Speed:",fnt5x7) - 1;
+		X += PutIntF(X,Y,CurData.GPSSpeed,2,fnt5x7);
+		PutStr(X,Y,"km/h",fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
-		X += PutIntF(X,Y,CurData.MaxGPSSpeed,2,&Font5x7);
-		PutStr(X,Y,"km/h",&Font5x7);
+		X += PutStr(X,Y,"Max:",fnt5x7) - 1;
+		X += PutIntF(X,Y,CurData.MaxGPSSpeed,2,fnt5x7);
+		PutStr(X,Y,"km/h",fnt5x7);
 
 		HLine(1,scr_width - 2,Y + 10,PSet);
 
 		X = 4; Y += 14;
-		X += PutStr(X,Y,"Altitude:",&Font5x7) - 1;
-		X += PutInt(X,Y,CurData.GPSAlt,&Font5x7);
-		PutChar(X,Y,'m',&Font5x7);
+		X += PutStr(X,Y,"Altitude:",fnt5x7) - 1;
+		X += PutInt(X,Y,CurData.GPSAlt,fnt5x7);
+		PutChar(X,Y,'m',fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Min:",&Font5x7) - 1;
-		X += PutInt(X,Y,CurData.MinGPSAlt,&Font5x7);
-		PutChar(X,Y,'m',&Font5x7);
+		X += PutStr(X,Y,"Min:",fnt5x7) - 1;
+		X += PutInt(X,Y,CurData.MinGPSAlt,fnt5x7);
+		PutChar(X,Y,'m',fnt5x7);
 		X = 4; Y += 9;
-		X += PutStr(X,Y,"Max:",&Font5x7) - 1;
-		X += PutInt(X,Y,CurData.MaxGPSAlt,&Font5x7);
-		PutChar(X,Y,'m',&Font5x7);
+		X += PutStr(X,Y,"Max:",fnt5x7) - 1;
+		X += PutInt(X,Y,CurData.MaxGPSAlt,fnt5x7);
+		PutChar(X,Y,'m',fnt5x7);
 
 		UC1701_Flush();
 
@@ -507,7 +507,7 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		if (!GPSData.sats_view) {
 			// Just for decoration
-			X = PutStr(12,21,"No satellites",&Font5x7);
+			X = PutStr(12,21,"No satellites",fnt5x7);
 			for (i = 0; i < 12; i++) PutIntULZ3x5(i * 10,52,0,2);
 		} else {
 			// Satellites SNR graphs
@@ -548,52 +548,52 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		Rect(0,0,scr_width - 1,scr_height - 1,PSet);
 
 		X = 4; Y = 4;
-		X += GUI_PutTimeSec(X,Y,GPSData.time,&Font5x7) + 5;
-		X += GUI_PutDate(X,Y,GPSData.date,&Font5x7);
+		X += GUI_PutTimeSec(X,Y,GPSData.time,fnt5x7) + 5;
+		X += GUI_PutDate(X,Y,GPSData.date,fnt5x7);
 
 		X = 4; Y += 8;
-		X += PutStr(X,Y,"Fix:",&Font5x7) - 1;
+		X += PutStr(X,Y,"Fix:",fnt5x7) - 1;
 		if (GPSData.fix != 2 && GPSData.fix != 3)
-			X += PutStr(X,Y,"NA",&Font5x7) + 5;
+			X += PutStr(X,Y,"NA",fnt5x7) + 5;
 		else {
-			X += PutInt(X,Y,GPSData.fix,&Font5x7);
-			X += PutChar(X,Y,'D',&Font5x7);
+			X += PutInt(X,Y,GPSData.fix,fnt5x7);
+			X += PutChar(X,Y,'D',fnt5x7);
 			X += 5;
 		}
-		X += PutStr(X,Y,"Qlty:",&Font5x7) - 1;
-		X += PutChar(X,Y,GPSData.fix_quality + '0',&Font5x7);
+		X += PutStr(X,Y,"Qlty:",fnt5x7) - 1;
+		X += PutChar(X,Y,GPSData.fix_quality + '0',fnt5x7);
 		X += 5;
-		X += PutStr(X,Y,"Mode:",&Font5x7) - 1;
-		PutChar(X,Y,GPSData.mode,&Font5x7);
+		X += PutStr(X,Y,"Mode:",fnt5x7) - 1;
+		PutChar(X,Y,GPSData.mode,fnt5x7);
 
 		X = 4; Y += 8;
-		GUI_PutCoord(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,&Font5x7);
+		GUI_PutCoord(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,fnt5x7);
 		X = 67;
-		GUI_PutCoord(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,&Font5x7);
+		GUI_PutCoord(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,fnt5x7);
 
 		X = 4; Y += 8;
-		X += PutStr(X,Y,"Alt:",&Font5x7) - 1;
-		X += PutInt(X,Y,GPSData.altitude,&Font5x7) + 5;
-		X += PutStr(X,Y,"Spd:",&Font5x7) - 1;
-		X += PutIntF(X,Y,GPSData.speed,2,&Font5x7);
+		X += PutStr(X,Y,"Alt:",fnt5x7) - 1;
+		X += PutInt(X,Y,GPSData.altitude,fnt5x7) + 5;
+		X += PutStr(X,Y,"Spd:",fnt5x7) - 1;
+		X += PutIntF(X,Y,GPSData.speed,2,fnt5x7);
 
 		X = 4; Y += 8;
-		X += PutStr(X,Y,"Crs:",&Font5x7) - 1;
-		X += PutIntF(X,Y,GPSData.course,2,&Font5x7) + 5;
-		X += PutStr(X,Y,"Sat:",&Font5x7) - 1;
-		X += PutInt(X,Y,GPSData.sats_used,&Font5x7);
-		X += PutChar(X,Y,'/',&Font5x7);
-		X += PutInt(X,Y,GPSData.sats_view,&Font5x7);
+		X += PutStr(X,Y,"Crs:",fnt5x7) - 1;
+		X += PutIntF(X,Y,GPSData.course,2,fnt5x7) + 5;
+		X += PutStr(X,Y,"Sat:",fnt5x7) - 1;
+		X += PutInt(X,Y,GPSData.sats_used,fnt5x7);
+		X += PutChar(X,Y,'/',fnt5x7);
+		X += PutInt(X,Y,GPSData.sats_view,fnt5x7);
 
 		X = 4; Y += 8;
-		X += PutStr(X,Y,"PDOP:",&Font5x7) - 1;
-		X += PutIntF(X,Y,GPSData.PDOP,2,&Font5x7) + 5;
+		X += PutStr(X,Y,"PDOP:",fnt5x7) - 1;
+		X += PutIntF(X,Y,GPSData.PDOP,2,fnt5x7) + 5;
 
 		X = 4; Y += 8;
-		X += PutStr(X,Y,"HDOP:",&Font5x7) - 1;
-		X += PutIntF(X,Y,GPSData.HDOP,2,&Font5x7) + 5;
-		X += PutStr(X,Y,"VDOP:",&Font5x7) - 1;
-		X += PutIntF(X,Y,GPSData.VDOP,2,&Font5x7) + 5;
+		X += PutStr(X,Y,"HDOP:",fnt5x7) - 1;
+		X += PutIntF(X,Y,GPSData.HDOP,2,fnt5x7) + 5;
+		X += PutStr(X,Y,"VDOP:",fnt5x7) - 1;
+		X += PutIntF(X,Y,GPSData.VDOP,2,fnt5x7) + 5;
 
 		UC1701_Flush();
 
@@ -625,7 +625,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		X = 0; Y = 0;
 		i = pos;
 		do {
-			X += PutChar(X,Y,pBuf[i++],&Font5x7);
+			X += PutChar(X,Y,pBuf[i++],fnt5x7);
 			if (X > scr_width - 6) {
 				X  = 0;
 				Y += 8;
@@ -1135,8 +1135,8 @@ void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
 
 		// Draw value
 		i = mid - ((stringlen(unit) + numlen(val)) * 3);
-		i += PutInt(i,vY,val,&Font5x7) + 1;
-		PutStr(i,vY,unit,&Font5x7);
+		i += PutInt(i,vY,val,fnt5x7) + 1;
+		PutStr(i,vY,unit,fnt5x7);
 		InvertRect(X + 1,vY - 2,frame_width - 1,11);
 		UC1701_Flush();
 
@@ -1185,7 +1185,7 @@ void GUI_MainMenu(void) {
 	ClearKeys();
 	mnu_sel = 0;
 	do {
-		mnu_sel = GUI_Menu(0,0,scr_width,scr_height,&Font7x10,MF_none,
+		mnu_sel = GUI_Menu(0,0,scr_width,scr_height,fnt7x10,MF_none,
 				&mnuMain,mnu_sel,WaitForKeyPress);
 		mnu_sub_sel = 0;
 		switch (mnu_sel) {
@@ -1193,18 +1193,18 @@ void GUI_MainMenu(void) {
 			// Statistics
 			do {
 				UC1701_Fill(0x00);
-				PutStr(11,1,"Statistics...",&Font7x10);
+				PutStr(11,1,"Statistics...",fnt7x10);
 				InvertRect(0,0,scr_width,12);
-				mnu_sub_sel = GUI_Menu(5,11,scr_width - 10,scr_height - 11,&Font7x10,MF_rect,
+				mnu_sub_sel = GUI_Menu(5,11,scr_width - 10,scr_height - 11,fnt7x10,MF_rect,
 						&mnuStatistics,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
-						// Sensor RAW values
-						GUI_Screen_SensorRAW(WaitForKeyPress);
-						break;
-					case 1:
 						// Current trip values
 						GUI_Screen_CurVal1(WaitForKeyPress);
+						break;
+					case 1:
+						// Sensor RAW values
+						GUI_Screen_SensorRAW(WaitForKeyPress);
 						break;
 					case 2:
 						// BMP180 current values
@@ -1223,9 +1223,9 @@ void GUI_MainMenu(void) {
 			// GPS
 			do {
 				UC1701_Fill(0x00);
-				PutStr(39,1,"GPS...",&Font7x10);
+				PutStr(39,1,"GPS...",fnt7x10);
 				InvertRect(0,0,scr_width,12);
-				mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 18,&Font7x10,MF_rect,
+				mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 18,fnt7x10,MF_rect,
 						&mnuGPS,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
@@ -1246,17 +1246,17 @@ void GUI_MainMenu(void) {
 			// Settings
 			do {
 				UC1701_Fill(0x00);
-				PutStr(19,1,"Settings...",&Font7x10);
+				PutStr(19,1,"Settings...",fnt7x10);
 				InvertRect(0,0,scr_width,12);
-				mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 11,&Font7x10,MF_rect,
+				mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 11,fnt7x10,MF_rect,
 						&mnuSettings,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
 						do {
 							UC1701_Fill(0x00);
-							PutStr(19,1,"Display...",&Font7x10);
+							PutStr(19,1,"Display...",fnt7x10);
 							InvertRect(0,0,scr_width,12);
-							mnu_sub_sel = GUI_Menu(2,11,scr_width - 4,scr_height - 22,&Font7x10,MF_rect,
+							mnu_sub_sel = GUI_Menu(2,11,scr_width - 4,scr_height - 22,fnt7x10,MF_rect,
 									&mnuDisplay,mnu_sub_sel,WaitForKeyPress);
 							if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 								case 0:
@@ -1302,10 +1302,23 @@ void GUI_MainMenu(void) {
 			// Debug
 			do {
 				UC1701_Fill(0x00);
-				PutStr(31,1,"Debug...",&Font7x10);
+				PutStr(31,1,"Debug...",fnt7x10);
 				InvertRect(0,0,scr_width,12);
-				mnu_sub_sel = GUI_Menu(0,12,scr_width,scr_height - 13,&Font7x10,MF_none,
+				mnu_sub_sel = GUI_Menu(0,12,scr_width,scr_height - 13,fnt7x10,MF_none,
 						&mnuTest,mnu_sub_sel,WaitForKeyPress);
+				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
+					case 0:
+						UC1701_Init();
+						UC1701_Contrast(4,24);
+						UC1701_Orientation(scr_normal);
+						UC1701_SetBacklight(Settings.LCD_brightness);
+						break;
+					case 1:
+						GUI_ScreenSaver();
+						break;
+					default:
+						break;
+				}
 			} while (mnu_sub_sel != 0xff);
 		default:
 			break;
@@ -1324,9 +1337,11 @@ void GUI_ScreenSaver(void) {
 		UC1701_Fill(0x00);
 //		GUI_DrawTime(30,11,&RTC_Time,TT_Short,DS_Big);
 		GUI_DrawTime(12,11,&RTC_Time,TT_Full,DS_Big);
-		GUI_PutDate(33,scr_height - 12,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) +
-				RTC_Date.RTC_Year + 2000,&Font5x7);
-		PutInt(1,1,itts,&Font5x7);
+		GUI_PutDate(26,scr_height - 12,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) +
+				RTC_Date.RTC_Year + 2000,fnt7x10);
+//		GUI_PutDate(33,scr_height - 12,(RTC_Date.RTC_Date * 1000000) + (RTC_Date.RTC_Month * 10000) +
+//				RTC_Date.RTC_Year + 2000,fnt5x7);
+		PutInt(1,1,itts,fnt5x7);
 		UC1701_Flush();
 		SleepStop(); // Enter STOP mode (deep sleep)
 		key_pressed = BTN[0].cntr || BTN[1].cntr || BTN[2].cntr || BTN[3].cntr ||
