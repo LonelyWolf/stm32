@@ -119,7 +119,9 @@ void BEEPER_Disable(void) {
 	GPIO_Init(BEEPER_GPIO,&PORT);
 }
 
-// Play RTTTL tones
+// Start playing tones sequence
+// input:
+//   tones - pointer to tones array
 void BEEPER_PlayTones(const Tone_TypeDef * tones) {
 	_tones = tones;
 	_tones_playing = TRUE;

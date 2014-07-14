@@ -2,6 +2,16 @@
 #ifndef __NRF24_H
 #define __NRF24_H
 
+
+// nRF24L01+ connection pinout:
+//   PC7  -> CE
+//   PB12 -> CS
+//   PB13 -> SCK
+//   PB15 -> MOSI
+//   PB14 <- MISO
+//   PC6  <- IRQ
+
+
 // nRF24L01 GPIO peripherals
 #define nRF24_PORT_PERIPH RCC_AHBPeriph_GPIOC
 

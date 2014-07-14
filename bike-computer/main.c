@@ -32,6 +32,7 @@
 #include <wolk.h>
 #include <GUI.h>
 #include <GPS.h>
+#include <USB.h>
 #include <beeper.h>
 
 #include <font5x7.h>
@@ -42,7 +43,8 @@
 /////////////////////////////////////////////////////////////////////////
 
 
-#define SCREENSAVER_TIMEOUT            600  // Timeout for screensaver activation (seconds)
+#define SCREENSAVER_TIMEOUT           1800  // Timeout for screensaver activation (seconds)
+#define SCREENSAVER_UPDATE              60  // Screensaver update interval (seconds)
 #define ALT_MEASURE_DUTY_CYCLE          30  // Temperature/pressure measurement duty cycle (seconds)
 #define NO_SIGNAL_TIME                  10  // Sensor signal timeout (seconds)
 
@@ -79,14 +81,26 @@ bool UpdateBMP180(void);
 /////////////////////////////////////////////////////////////////////////
 
 
-void InitPeripherals(void) {
-	GPIO_InitTypeDef PORT;
-	NVIC_InitTypeDef NVICInit;
-	EXTI_InitTypeDef EXTIInit;
+// Configure the different system clocks
+void RCC_Configuration(void) {
+	RCC_AHBPeriphClockCmd(
+			RCC_AHBPeriph_GPIOA |     // PORTA
+			RCC_AHBPeriph_GPIOC,      // PORTC
+			ENABLE);
 
-	// Configure GPIO
-	// Enable PORTA and PORTC peripheral
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOC,ENABLE);
+	RCC_APB1PeriphClockCmd(
+			RCC_APB1Periph_TIM7,      // TIM7 peripheral
+			ENABLE);
+
+	RCC_APB2PeriphClockCmd(
+			RCC_APB2Periph_SYSCFG,    // System configuration controller
+			ENABLE);
+}
+
+// Configure pins
+void GPIO_Configuration(void) {
+	GPIO_InitTypeDef PORT;
+
 	// Charge STAT pin (PA15)
 	PORT.GPIO_Mode  = GPIO_Mode_IN;
 	PORT.GPIO_Speed = GPIO_Speed_2MHz;
@@ -94,108 +108,89 @@ void InitPeripherals(void) {
 	PORT.GPIO_Pin   = GPIO_Pin_15;
 	GPIO_Init(GPIOA,&PORT);
 
-	// BTN1 pin (PA5)
+	// Button#0 (PA5)
 	PORT.GPIO_Mode = GPIO_Mode_IN;
 	PORT.GPIO_PuPd = GPIO_PuPd_UP;
+	PORT.GPIO_Pin  = BTN0_PIN;
+	GPIO_Init(BTN0_PORT,&PORT);
+
+	// Button#1 (PA7)
 	PORT.GPIO_Pin  = BTN1_PIN;
 	GPIO_Init(BTN1_PORT,&PORT);
-	// BTN2 pin (PA7)
+
+	// Button#2 pin (PC10)
 	PORT.GPIO_Pin  = BTN2_PIN;
 	GPIO_Init(BTN2_PORT,&PORT);
-	// BTN3 pin (PC10)
+
+	// Button#3 pin (PC11)
 	PORT.GPIO_Pin  = BTN3_PIN;
 	GPIO_Init(BTN3_PORT,&PORT);
-	// BTN4 pin (PC11)
-	PORT.GPIO_Pin  = BTN4_PIN;
-	GPIO_Init(BTN4_PORT,&PORT);
+}
 
-	// Initialize buzzer out
-	BEEPER_Init();
+// Configure the interrupt controller
+void NVIC_Configuration(void) {
+	NVIC_InitTypeDef NVICInit;
+	EXTI_InitTypeDef EXTIInit;
 
-	// Initialize delay timer without callback function
-	Delay_Init(NULL);
-
-	// UART port initialization
-	UART2_Init(115200);
-
-	// Configure basic timer TIM7 (for DMA timeout)
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM7,ENABLE); // Enable TIMx peripheral
-	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM7->PSC   = SystemCoreClock / 20000; // prescaler
-	TIM7->ARR   = 999; // auto reload value
-	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
-	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
-	// TIM7 IRQ
+	// TIM7 IRQ (USART DMA timeout control)
 	NVICInit.NVIC_IRQChannel = TIM7_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x05; // below middle priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x05; // below middle priority
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0e; // lowest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
 	NVIC_Init(&NVICInit);
-
-	// SPI2 port initialization
-	SPI2_Init();
-
-    // External interrupts
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG,ENABLE); // Enable the system configuration controller
 
 	// PC6 -> EXTI line 6 (nRF24L01 IRQ)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource6);
-	// Configure EXTI on Line6
-	EXTIInit.EXTI_Line = EXTI_Line6;              // EXTI will be on line 6
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Falling; // IRQ on edge fall
+	EXTIInit.EXTI_Line = EXTI_Line6;
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Falling;
 	EXTIInit.EXTI_LineCmd = ENABLE;
 	EXTI_Init(&EXTIInit);
 
-	// Configure EXTI9_5 interrupt
+	// EXTI9_5 interrupt
 	NVICInit.NVIC_IRQChannel = EXTI9_5_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x01; // 1 - highest priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x01;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x00; // highest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
 	NVIC_Init(&NVICInit);
 
-	// Configure EXTI15_10 interrupt
+	// EXTI15_10 interrupt
 	NVICInit.NVIC_IRQChannel = EXTI15_10_IRQn;
 	NVIC_Init(&NVICInit);
 
-	// PA5 -> EXTI line 5 (Button#1)
+	// PA5 -> EXTI line 5 (Button#0)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource5);
-	// Configure EXTI on Line5
-	EXTIInit.EXTI_Line = EXTI_Line5;              // EXTI will be on line 5
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising_Falling; // IRQ on edge fall
+	EXTIInit.EXTI_Line = EXTI_Line5;
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
 	EXTIInit.EXTI_LineCmd = ENABLE;
 	EXTI_Init(&EXTIInit);
 
-	// PA7 -> EXTI line 7  (Button#2)
+	// PA7 -> EXTI line 7  (Button#1)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource7);
-	// Configure EXTI on Line7
-	EXTIInit.EXTI_Line = EXTI_Line7;              // EXTI will be on line 7
+	EXTIInit.EXTI_Line = EXTI_Line7;
 	EXTI_Init(&EXTIInit);
 
-	// PC10 -> EXTI line 10  (Button#3)
+	// PC10 -> EXTI line 10  (Button#2)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource10);
-	// Configure EXTI on Line10
-	EXTIInit.EXTI_Line = EXTI_Line10;             // EXTI will be on line 10
+	EXTIInit.EXTI_Line = EXTI_Line10;
 	EXTI_Init(&EXTIInit);
 
-	// PC10 -> EXTI line 11  (Button#4)
+	// PC10 -> EXTI line 11  (Button#3)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource11);
-	// Configure EXTI on Line11
-	EXTIInit.EXTI_Line = EXTI_Line11;             // EXTI will be on line 11
+	EXTIInit.EXTI_Line = EXTI_Line11;
 	EXTI_Init(&EXTIInit);
 
 	// RTC wake-up -> EXTI line 20
-	EXTIInit.EXTI_Line = EXTI_Line20;             // RTC wake-up on EXTI line 20
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;     // Generate IRQ
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising;  // IRQ on rising edge
+	EXTIInit.EXTI_Line = EXTI_Line20;
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising; // Must be rising edge
 	EXTIInit.EXTI_LineCmd = ENABLE;
 	EXTI_Init(&EXTIInit);
-	// RTC wake-up IRQ
 	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
 	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x0f;
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
 	NVIC_Init(&NVICInit);
 }
 
@@ -209,6 +204,41 @@ void Display_Init(void) {
 	UC1701_Contrast(4,24);
 	UC1701_Orientation(scr_normal);
 	UC1701_SetBacklight(Settings.LCD_brightness);
+}
+
+// Configure peripherals
+void InitPeripherals(void) {
+	// Configure priority group: 4 bits for preemption priority, 0 bits for subpriority.
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+
+	RCC_Configuration();
+	GPIO_Configuration();
+	NVIC_Configuration();
+
+	// Initialize buzzer out
+	BEEPER_Init();
+
+	// Initialize delay timer without callback function
+	Delay_Init(NULL);
+
+	// UART port initialization
+	UART2_Init(115200);
+
+	// USB port initialization
+//	USB_Init();
+
+	// Configure basic timer TIM7 (for DMA timeout)
+	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
+	TIM7->PSC   = SystemCoreClock / 20000; // prescaler
+	TIM7->ARR   = 999; // auto reload value
+	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
+	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
+
+	// SPI2 port initialization
+	SPI2_Init();
+
+	// Initialize and configure LCD
+	Display_Init();
 }
 
 // Turn on transceiver and configure it for RX mode
@@ -295,34 +325,34 @@ void EXTI15_10_IRQHandler(void) {
 
 // RTC wake-up IRQ handler
 void RTC_WKUP_IRQHandler(void) {
-	if (RTC_GetITStatus(RTC_IT_WUT)) {
+	if (RTC->ISR & RTC_ISR_WUTF) {
 		// RTC Wake-up interrupt
 		RTC_GetDateTime();
 
 		_no_signal_time++;
+		_altitude_duty_cycle++;
+		_idle_time++;
+		_new_time = TRUE;
+
 		if (_no_signal_time > 3600) _no_signal_time = 3600; // Counter overflow protection (1hour)
+		if (_idle_time > 3600) _idle_time = 3600; // Counter overflow protection (1hour)
+
 		if (_no_signal_time > NO_SIGNAL_TIME) {
-			CurData.Speed = 0;
+			CurData.Speed   = 0;
 			CurData.Cadence = 0;
 		}
-
-		_idle_time++;
-		if (_idle_time > 3600) _idle_time = 3600; // Counter overflow protection (1hour)
-		if (_idle_time > Settings.LCD_timeout)	UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
 		if (_idle_time > SCREENSAVER_TIMEOUT) _screensaver = TRUE; else _screensaver = FALSE;
-
 		if (!_screensaver) {
-			_altitude_duty_cycle++;
-			// WARNING! This is really slow! Calling from this place it's a really bad idea!
+			// The following procedures must be executed only when no screensaver active
+			if (_idle_time > Settings.LCD_timeout && Settings.LCD_timeout) UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
+			// ATTENTION! BMP180 polling pretty slow!
+			// Execute it from this place is really a bad idea!
 			if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
 		}
 
-		_new_time = TRUE;
-
-		PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-		RTC_ClearITPendingBit(RTC_IT_WUT);
-		RTC_ClearFlag(RTC_FLAG_WUTF);
-		PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+		PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+		RTC->ISR &= ~RTC_ISR_WUTF; // Clear RTC wakeup timer flag
+		PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 		EXTI_ClearITPendingBit(EXTI_Line20);
 	}
 }
@@ -588,14 +618,14 @@ int main(void) {
 
 	// Buttons initialization
 	for (i = 0; i < 4; i++) memset(&BTN[i],0,sizeof(BTN[i]));
-	BTN[0].PORT = BTN1_PORT;
-	BTN[0].PIN  = BTN1_PIN;
-	BTN[1].PORT = BTN2_PORT;
-	BTN[1].PIN  = BTN2_PIN;
-	BTN[2].PORT = BTN3_PORT;
-	BTN[2].PIN  = BTN3_PIN;
-	BTN[3].PORT = BTN4_PORT;
-	BTN[3].PIN  = BTN4_PIN;
+	BTN[0].PORT = BTN0_PORT;
+	BTN[0].PIN  = BTN0_PIN;
+	BTN[1].PORT = BTN1_PORT;
+	BTN[1].PIN  = BTN1_PIN;
+	BTN[2].PORT = BTN2_PORT;
+	BTN[2].PIN  = BTN2_PIN;
+	BTN[3].PORT = BTN3_PORT;
+	BTN[3].PIN  = BTN3_PIN;
 
 	// These values stored in EEPROM
 	Settings.GMT_offset = 3;
@@ -611,19 +641,9 @@ int main(void) {
 
 	InitPeripherals();
 
-	// Display initialization
-	// Pinout:
-	//   PB7  -> CS
-	//   PB8  -> RST
-	//   PB9  -> RS
-	//   PB13 -> SCK (SPI SCK)
-	//   PB15 -> SDA (SPI MOSI)
-	//   PA1  -> LEDA (Backlight LED anode)
-	Display_Init();
+	// Boot screen
 	UC1701_Fill(0x00);
 	GUI_DrawBitmap(98,39,30,25,&bmp_bike_man[0]);
-
-	// Boot screen
 	PutStr(0,0,"Wolk bike computer:",fnt5x7);
 	PutStr(0,42,"CPU:",fnt5x7);
 	i = 24 + PutIntF(24,42,SystemCoreClock / 1000,3,fnt5x7);
@@ -641,13 +661,6 @@ int main(void) {
 	UC1701_Flush();
 
 	// Configure nRF24L01+
-    // Pinout:
-    //   PC7  -> CE
-    //   PB12 -> CS
-    //   PB13 -> SCK
-    //   PB15 -> MOSI
-    //   PB14 <- MISO
-    //   PC6  <- IRQ
 	PutStr(0,16,"nRF24L01:",fnt5x7);
 	UC1701_Flush();
     nRF24_init();
@@ -693,16 +706,16 @@ int main(void) {
     }
 	UC1701_Flush();
 
-	BEEPER_Enable(1500,15);
+	BEEPER_PlayTones(tones_startup);
 //	Delay_ms(2500); // Fancy startup delay
 
 	UC1701_Fill(0x00);
     UC1701_Flush();
 
-	// Set custom time for debug purposes
-	RTC_Time.RTC_Hours   = 23;
-	RTC_Time.RTC_Minutes = 58;
-	RTC_Time.RTC_Seconds = 51;
+	// Set time
+	RTC_Time.RTC_Hours   = 0;
+	RTC_Time.RTC_Minutes = 0;
+	RTC_Time.RTC_Seconds = 0;
 	RTC_Date.RTC_Date    = 16;
 	RTC_Date.RTC_Month   = 04;
 	RTC_Date.RTC_Year    = 14;
@@ -736,8 +749,8 @@ int main(void) {
 
 	while(1) {
 		if (_screensaver) {
-			RTC_SetWakeUp(60); // Wake once per minute
-			nRF24_Sleep(); // Turn off transceiver
+			RTC_SetWakeUp(SCREENSAVER_UPDATE);
+			nRF24_Sleep(); // Turn off the receiver
 			UC1701_SetBacklight(0);
 
 			GUI_ScreenSaver();
@@ -746,7 +759,7 @@ int main(void) {
  			Display_Init();
 			UC1701_Fill(0x00);
 
-			nRF24_SetRXMode(); // Turn on transceiver in RX mode
+			nRF24_SetRXMode(); // Wake the receiver and configure it for RX mode
  			RTC_SetWakeUp(1); // Wake every second
 
 			GUI_refresh = TRUE;

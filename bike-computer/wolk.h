@@ -16,19 +16,20 @@
 
 
 // Buttons
+#define      BTN0_PORT   GPIOA
+#define      BTN0_PIN    GPIO_Pin_5
 #define      BTN1_PORT   GPIOA
-#define      BTN1_PIN    GPIO_Pin_5
-#define      BTN2_PORT   GPIOA
-#define      BTN2_PIN    GPIO_Pin_7
+#define      BTN1_PIN    GPIO_Pin_7
+#define      BTN2_PORT   GPIOC
+#define      BTN2_PIN    GPIO_Pin_10
 #define      BTN3_PORT   GPIOC
-#define      BTN3_PIN    GPIO_Pin_10
-#define      BTN4_PORT   GPIOC
-#define      BTN4_PIN    GPIO_Pin_11
+#define      BTN3_PIN    GPIO_Pin_11
 
 #define      BTN_UP      0
 #define      BTN_DOWN    1
 #define      BTN_ENTER   2
 #define      BTN_ESCAPE  3
+
 
 // NULL declaration
 #ifndef NULL
@@ -132,7 +133,7 @@ uint8_t numlen(int32_t num);
 void ReadSettings_EEPROM(void);
 void SaveSettings_EEPROM(void);
 
-void WaitForKeyPress(bool Sleep, bool *WaitFlag);
+void WaitForKeyPress(bool Sleep, bool *WaitFlag, uint32_t Timeout);
 void ClearKeys(void);
 
 #endif // __WOLK_H

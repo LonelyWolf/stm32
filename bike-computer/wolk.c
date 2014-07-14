@@ -165,16 +165,18 @@ void SaveSettings_EEPROM(void) {
 // input:
 //   Sleep - execute SleepWait if TRUE
 //   WaitFlag - pointer to bool variable with flag (function exits wait loop when flag set to TRUE)
+//   Timeout - wait timeout (seconds), no timeout if this parameter is zero
 // note: WaitFlag ignored if it NULL
-void WaitForKeyPress(bool Sleep, bool *WaitFlag) {
+void WaitForKeyPress(bool Sleep, bool *WaitFlag, uint32_t Timeout) {
 	bool key_pressed = FALSE;
 
 	do {
 		key_pressed = BTN[0].cntr || BTN[1].cntr || BTN[2].cntr || BTN[3].cntr ||
 				BTN[0].state == BTN_Hold || BTN[1].state == BTN_Hold ||
-				BTN[2].state == BTN_Hold || BTN[3].state == BTN_Hold ||
-				*WaitFlag;
+				BTN[2].state == BTN_Hold || BTN[3].state == BTN_Hold;
+		if (WaitFlag) key_pressed |= *WaitFlag;
 		if (Sleep) SleepWait();
+		if (_idle_time > Timeout && Timeout) key_pressed = TRUE;
 	} while (!key_pressed);
 }
 
