@@ -6,6 +6,7 @@
 #include <GUI.h>
 #include <GPS.h>
 #include <RTC.h>
+#include <beeper.h> // <----- just for debug, remove it later
 
 #include <font5x7.h>
 #include <font7x10.h>
@@ -18,7 +19,7 @@ bool GUI_new_BMP180;                  // BMP180 data updated
 
 // Callback function for change display brightness settings
 void callback_Brightness(int32_t param) {
-	Settings.LCD_brightness = param;
+	Settings.LCD_brightness = substDisplayBrightness.Items[param].subst_val;
 	UC1701_SetBacklight(Settings.LCD_brightness);
 }
 
@@ -316,7 +317,7 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,0); else return;
 		GUI_refresh = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -368,7 +369,7 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		GUI_PutTimeSec(X,Y,CurData.TripTime,fnt5x7);
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,0); else return;
 		GUI_refresh = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -413,7 +414,7 @@ void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GUI_new_BMP180); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GUI_new_BMP180,0); else return;
 		GUI_new_BMP180 = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -460,7 +461,7 @@ void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,0); else return;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -524,7 +525,7 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,0); else return;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -597,7 +598,7 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,0); else return;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -639,7 +640,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		UC1701_Flush();
 
 		// Wait for key press
-		if (WaitForKey) WaitForKey(TRUE,UpdateFlag);
+		if (WaitForKey) WaitForKey(TRUE,UpdateFlag,0);
 		*UpdateFlag = FALSE;
 
 		// "Down" key
@@ -1013,7 +1014,10 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef 
 		UC1701_Flush();
 
 		// Wait for key press
-		if (WaitForKey) WaitForKey(FALSE,NULL);
+		if (WaitForKey) WaitForKey(FALSE,NULL,GUI_MENU_TIMEOUT);
+		if (_idle_time >= GUI_MENU_TIMEOUT) {
+			return 0xff;
+		}
 		_idle_time = 0;
 
 		// Up button
@@ -1079,69 +1083,106 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef 
 //   Max - maximum value
 //   Step - step change of numeric value
 //   unit - unit to add to value
+//   Subst - pointer to array with substitute values (NULL if none)
 //   CallBack - pointer to function, which will be called on every Value change
 //   WaitForKey - function pointer to WaitForKeyPress function
-void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
-		int32_t Min, int32_t Max, int32_t Step, char *unit,	funcPtrParam_TypeDef CallBack,
-		funcPtrKeyPress_TypeDef WaitForKey) {
+// note: when Subst pointer is not NULL, Min, Max, Step and unit parameters are ignored
+void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
+		int32_t *Value, int32_t Min, int32_t Max, int32_t Step,	char *unit,
+		const Subst_TypeDef *Subst, funcPtrParam_TypeDef CallBack, funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t i;
-	uint8_t vY; // Numeric value vertical coordinate
-	uint8_t mid; // Middle horizontal position
+	uint8_t mX; // Middle horizontal position
+	uint8_t mY; // Middle vertical position
+	uint8_t mT; // Text horizontal position
 	int32_t val = *Value; // Value to change
+	int32_t sV; // Unchanged value
 	uint8_t frame_width = W;
 	uint8_t frame_height = H;
 
-	// Check range
-	if (val > Max || val < Min) val = Min + ((Max - Min) >> 1);
-
 	// Calculate dialog width
 	if (W == 0) {
-		i = stringlen(unit) + numlen(Min);
-		mid = stringlen(unit) + numlen(Max);
-		if (i > mid) mid = i;
-		frame_width = (mid * 6) + 3;
+		mX = stringlen(unit);
+		if (Subst) {
+			mY = 0;
+			for (i = 0; i < Subst->NumItems; i++) {
+				mT = stringlen(Subst->Items[i].subst_str);
+				if (mT > mY) mY = mT;
+			}
+		} else {
+			mY = numlen(Min) + mX;
+			mT = numlen(Max) + mX;
+			if (mT > mY) mY = mT;
+		}
+		frame_width = (mY * (Font->font_Width + 1)) + 3;
 	}
 
+	// Check range
+	if (Subst) {
+		Min = 0;
+		Max = Subst->NumItems - 1;
+		Step = 1;
+		for (i = 0; i < Subst->NumItems; i++) if (val == Subst->Items[i].subst_val) {
+			val = i;
+			break;
+		}
+	}
+	sV = val;
+	if (val > Max || val < Min) val = Min + ((Max - Min) >> 1);
+
 	// Calculate dialog height
-	if (H == 0) frame_height = 29;
+	if (H == 0) frame_height = 20 + Font->font_Height;
 
 	// If X negative -> adjust dialog left horizontal coordinate
-	if (X < 0) X = (-1 * X) - frame_width;
+	if (X < 0) X = (-1 * X) - frame_width + 1;
 
 	// If Y negative -> adjust dialog top horizontal coordinate
 	if (Y < 0) Y = (-1 * Y) - frame_height + 1;
 
-	// Middle of dialog
-	vY = Y + ((frame_height - 4) / 2) - 1;
-	mid = X + (frame_width / 2) + 1; // Middle of the dialog window
+	// Middle of dialog frame
+	mY = Y + (frame_height / 2);
+	mX = X + (frame_width / 2);
+
+	// Vertical text position
+	mT = mY - (Font->font_Height / 2);
 
 	// Dialog frame
-	Rect(X,Y,X + frame_width,Y + frame_height - 1,PSet);
+	Rect(X,Y,X + frame_width - 1,Y + frame_height - 1,PSet);
 
 	while(1) {
 		ClearKeys();
 
-		// Call a callback function
-		if (CallBack) CallBack(val);
-
 		// Clear dialog background
-		FillRect(X + 1,Y + 1,X + frame_width - 1,Y + frame_height - 2,PReset);
+		FillRect(X + 1,Y + 1,X + frame_width - 2,Y + frame_height - 2,PReset);
 
 		// Draw up/down arrows
 		for (i = 6; i > 0; i --) {
-			if (val + Step <= Max) HLine(mid - i,mid + i - 1,vY + i - 10,PSet);
-			if (val - Step >= Min) HLine(mid - i,mid + i - 1,vY - i + 16,PSet);
+			if (val + Step <= Max) HLine(mX - i,mX + i - 1,Y + i + 1,PSet);
+			if (val - Step >= Min) HLine(mX - i,mX + i - 1,Y + frame_height - i - 2,PSet);
 		}
 
 		// Draw value
-		i = mid - ((stringlen(unit) + numlen(val)) * 3);
-		i += PutInt(i,vY,val,fnt5x7) + 1;
-		PutStr(i,vY,unit,fnt5x7);
-		InvertRect(X + 1,vY - 2,frame_width - 1,11);
+		if (Subst) {
+			i = mX - (stringlen(Subst->Items[val].subst_str) * ((Font->font_Width + 1) / 2)) + 1;
+		    PutStr(i,mT,Subst->Items[val].subst_str,Font);
+		} else {
+			i = mX - ((stringlen(unit) + numlen(val)) * ((Font->font_Width + 1) / 2)) + 1;
+			i += PutInt(i,mT,val,Font);
+			PutStr(i,mT,unit,Font);
+		}
+		InvertRect(X + 1,Y + 9,frame_width - 2,frame_height - 18);
 		UC1701_Flush();
 
+		// Execute a callback function
+		if (CallBack) CallBack(val);
+
 		// Wait for key press
-		if (WaitForKey) WaitForKey(FALSE,NULL);
+		if (WaitForKey) WaitForKey(FALSE,NULL,GUI_MENU_TIMEOUT);
+		if (_idle_time >= GUI_MENU_TIMEOUT) {
+			// Execute callback function with original value
+			if (CallBack) CallBack(sV);
+			*Value = sV;
+			return;
+		}
 		_idle_time = 0;
 
 		// Up button
@@ -1168,8 +1209,9 @@ void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
 
 		// "Escape" button
 		if (BTN[BTN_ESCAPE].cntr) {
-			// Restore old value by calling callback function with original value
-			if (CallBack) CallBack(*Value);
+			// Execute callback function with original value
+			if (CallBack) CallBack(sV);
+			*Value = sV;
 			ClearKeys();
 			return;
 		}
@@ -1261,13 +1303,13 @@ void GUI_MainMenu(void) {
 							if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 								case 0:
 									mnu_val = Settings.LCD_brightness;
-									GUI_NumericScroll(-100,10,0,0,&mnu_val,0,100,5,"%",callback_Brightness,WaitForKeyPress);
-									Settings.LCD_brightness = (uint8_t)mnu_val;
+									GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,0,0,0,NULL,&substDisplayBrightness,callback_Brightness,WaitForKeyPress);
+									Settings.LCD_brightness = substDisplayBrightness.Items[mnu_val].subst_val;
 									break;
 								case 1:
 									mnu_val = Settings.LCD_timeout;
-									GUI_NumericScroll(-100,10,0,0,&mnu_val,0,120,15,"s",NULL,WaitForKeyPress);
-									Settings.LCD_timeout = (uint8_t)mnu_val;
+									GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,0,0,0,NULL,&substDisplayTimeout,NULL,WaitForKeyPress);
+									Settings.LCD_timeout = substDisplayTimeout.Items[mnu_val].subst_val;
 									break;
 								case 2:
 									break;
@@ -1279,17 +1321,17 @@ void GUI_MainMenu(void) {
 						break;
 					case 1:
 						mnu_val = Settings.WheelCircumference;
-						GUI_NumericScroll(-100,10,0,0,&mnu_val,150,300,1,"cm",NULL,WaitForKeyPress);
+						GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,150,300,1,"cm",NULL,NULL,WaitForKeyPress);
 						Settings.WheelCircumference = (uint16_t)mnu_val;
 						break;
 					case 2:
 						mnu_val = Settings.GMT_offset;
-						GUI_NumericScroll(-100,10,0,0,&mnu_val,-12,13,1,"hr",NULL,WaitForKeyPress);
+						GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,-12,13,1,"hr",NULL,NULL,WaitForKeyPress);
 						Settings.GMT_offset = (int8_t)mnu_val;
 						break;
 					case 3:
 						mnu_val = Settings.altitude_home;
-						GUI_NumericScroll(-100,10,0,0,&mnu_val,-1000,9999,1,"m",NULL,WaitForKeyPress);
+						GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,-1000,9999,1,"m",NULL,NULL,WaitForKeyPress);
 						Settings.altitude_home = (int16_t)mnu_val;
 						break;
 					default:
@@ -1314,7 +1356,15 @@ void GUI_MainMenu(void) {
 						UC1701_SetBacklight(Settings.LCD_brightness);
 						break;
 					case 1:
+						RTC_SetWakeUp(10);
 						GUI_ScreenSaver();
+			 			RTC_SetWakeUp(1);
+						break;
+					case 2:
+						BEEPER_PlayTones(tones_SMB);
+						break;
+					case 3:
+						GPS_SendCommand("$PMTK101*"); // GPS hot restart
 						break;
 					default:
 						break;

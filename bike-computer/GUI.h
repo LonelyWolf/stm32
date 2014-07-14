@@ -3,9 +3,12 @@
 #define __GUI_H
 
 
+#define GUI_MENU_TIMEOUT               120  // Timeout for menu (seconds)
+
+
 typedef void (*funcPtrParam_TypeDef)(int32_t param);
 typedef void (*funcPtrVoid_TypeDef)(void);
-typedef void (*funcPtrKeyPress_TypeDef)(bool Sleep, bool *WaitFlag);
+typedef void (*funcPtrKeyPress_TypeDef)(bool Sleep, bool *WaitFlag, uint32_t Timeout);
 
 typedef enum {
 	DS_Big   = 0,
@@ -56,6 +59,16 @@ typedef enum {
 	MF_rect = 1,
 	MF_top_bottom = 2
 } MenuFrame_TypeDef;
+
+typedef struct {
+	char                   *subst_str;
+	int32_t                 subst_val;
+} SubstItem_TypeDef;
+
+typedef struct {
+	uint8_t                 NumItems;
+	SubstItem_TypeDef       Items[];
+} Subst_TypeDef;
 
 // Menus
 static const Menu_TypeDef mnuMain = {
@@ -123,14 +136,37 @@ static const Menu_TypeDef mnuTest = {
 		{
 				{"Reinit LCD"},
 				{"Screensaver"},
-				{"Testing #3"},
-				{"Testing #4"},
+				{"Play SMB"},
+				{"GPS restart"},
 				{"Testing #5"},
 				{"Testing #6"},
 				{"Testing #7"},
 				{"Testing #8"},
 				{"Testing #9"},
 				{"Testing #10"}
+		}
+};
+
+static const Subst_TypeDef substDisplayBrightness = {
+		6,
+		{
+				{"Off",   0},
+				{  "1",   5},
+				{  "2",  25},
+				{  "3",  50},
+				{  "4",  75},
+				{  "5", 100}
+		}
+};
+
+static const Subst_TypeDef substDisplayTimeout = {
+		5,
+		{
+				{   "Stay on",   0},
+				{"15 Seconds",  15},
+				{"30 Seconds",  30},
+				{  "1 Minute",  60},
+				{ "2 Minutes", 120}
 		}
 };
 
@@ -171,9 +207,12 @@ uint8_t GUI_PutTemperature(uint8_t X, uint8_t Y, int32_t temperature, const Font
 uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
 		MenuFrame_TypeDef MenuFrame, const Menu_TypeDef *Menu, uint8_t StartPos,
 		funcPtrKeyPress_TypeDef WaitForKey);
-void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, int32_t *Value,
-		int32_t Min, int32_t Max, int32_t Step, char *unit,	funcPtrParam_TypeDef CallBack,
-		funcPtrKeyPress_TypeDef WaitForKey);
+//void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
+//		int32_t *Value, int32_t Min, int32_t Max, int32_t Step,
+//		char *unit,	funcPtrParam_TypeDef CallBack, funcPtrKeyPress_TypeDef WaitForKey);
+void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
+		int32_t *Value, int32_t Min, int32_t Max, int32_t Step,	char *unit,
+		const Subst_TypeDef *Subst, funcPtrParam_TypeDef CallBack, funcPtrKeyPress_TypeDef WaitForKey);
 
 void GUI_MainMenu(void);
 void GUI_ScreenSaver(void);
