@@ -14,7 +14,6 @@ uint8_t USART_FIFO[FIFO_BUFFER_SIZE];       // DMA FIFO receive buffer from USAR
 //   baudrate - UART speed (bits/s)
 void UART2_Init(uint32_t baudrate) {
 	GPIO_InitTypeDef PORT;
-	USART_InitTypeDef UART;
 	NVIC_InitTypeDef NVICInit;
 	DMA_InitTypeDef  DMAInit;
 
@@ -37,15 +36,8 @@ void UART2_Init(uint32_t baudrate) {
 	PORT.GPIO_Pin   = UART_RX_PIN;
 	GPIO_Init(UART_GPIO_PORT,&PORT);
 
-	// UART port
-	UART.USART_BaudRate = baudrate;
-	UART.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // No flow control
-	UART.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // RX+TX mode
-	UART.USART_WordLength = USART_WordLength_8b; // 8-bit frame
-	UART.USART_Parity = USART_Parity_No; // No parity check
-	UART.USART_StopBits = USART_StopBits_1; // 1 stop bit
-	USART_Init(UART_PORT,&UART);
-	USART_Cmd(UART_PORT,ENABLE);
+	// Init USART port at given speed
+	UART_SetSpeed(baudrate);
 
 	// USART2 IRQ
 	USART_ITConfig(UART_PORT,USART_IT_RXNE,ENABLE); // Enable USART2
@@ -74,9 +66,26 @@ void UART2_Init(uint32_t baudrate) {
 	DMA_ITConfig(DMA1_Channel6,DMA_IT_TC,ENABLE); // Enable DMA transfer complete interrupt
 }
 
+// Init USART port at given baudrate
+// input:
+//   baudrate - port speed in bps (bits per second)
+void UART_SetSpeed(uint32_t baudrate) {
+	USART_InitTypeDef UART;
+
+	// UART port
+	UART.USART_BaudRate = baudrate;
+	UART.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // No flow control
+	UART.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // RX+TX mode
+	UART.USART_WordLength = USART_WordLength_8b; // 8-bit frame
+	UART.USART_Parity = USART_Parity_No; // No parity check
+	UART.USART_StopBits = USART_StopBits_1; // 1 stop bit
+	USART_Init(UART_PORT,&UART);
+	USART_Cmd(UART_PORT,ENABLE);
+}
+
 void UART_SendChar(char ch) {
-	while (!(UART_PORT->SR & USART_SR_TC)); // wait for "Transmission Complete" flag cleared
 	UART_PORT->DR = ch;
+	while (!(UART_PORT->SR & USART_SR_TC)); // wait for "Transmission Complete" flag cleared
 }
 
 void UART_SendInt(int32_t num) {

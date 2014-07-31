@@ -19,6 +19,7 @@ extern uint8_t USART_FIFO[];
 
 // Function prototypes
 void UART2_Init(uint32_t baudrate);
+void UART_SetSpeed(uint32_t baudrate);
 
 void UART_SendChar(char ch);
 
