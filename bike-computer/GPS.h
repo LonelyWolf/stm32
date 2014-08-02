@@ -7,6 +7,20 @@
 #define MAX_SATELLITES_VIEW   12  // Maximum number of satellites in view to handle
 
 
+#define PMTK_TEST                       "$PMTK000*" // MTK test packet (MTK should respond with "$PMTK001,0,3*30")
+#define PMTK_SET_NMEA_OUTPUT_ALLDATA    "$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*" // All supported NMEA sentences
+#define PMTK_SET_NMEA_BAUDRATE_115200   "$PMTK251,115200*" // Set NMEA baudrate to 115200bps
+#define PMTK_CMD_HOT_START              "$PMTK101*" // Hot start the GPS module
+#define PMTK_CMD_STANDBY_MODE           "$PMTK161,0*" // Enter standby mode
+#define PMTK_SET_AIC_ENABLED            "$PMTK286,1*" // Enable AIC multi-tone Active Interference Cancellation
+                                                      // in cost of 1mA consumption
+#define PMTK_API_SET_STATIC_NAV_THD_OFF "$PMTK386,0*" // Disable the speed threshold for static navigation (MT333x)
+                                                      // this mode is useful for high speed applications
+#define PMTK_EASY_ENABLE                "$PMTK869,1,1*" // Enable EASY function (MT333x)
+#define PMTK_EASY_DISABLE               "$PMTK869,1,0*" // Disable EASY function (MT333x)
+#define PMTK_SET_PERIODIC_MODE_NORMAL   "$PMTK225,0*" // Disable periodic mode
+
+
 typedef enum {
 	NMEA_BAD = 0,
 	NMEA_GLL = 1,
@@ -89,7 +103,7 @@ extern GPS_Satellite_TypeDef GPS_sats_view[];      // Information about satellit
 uint8_t GPS_CRC(char *str);
 void GPS_SendCommand(char *cmd);
 NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size);
-void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence);
+void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence);
 void GPS_InitData(void);
 void GPS_CheckUsedSats(void);
 

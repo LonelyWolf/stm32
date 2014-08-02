@@ -17,19 +17,18 @@ uint8_t GPS_sats[12];                       // IDs of satellites used in positio
 GPS_Satellite_TypeDef GPS_sats_view[MAX_SATELLITES_VIEW];
 
 
-// Calculate CRC for NMEA command
+// Calculate CRC of NMEA command
 // input:
-//   str - pointer to string with command
-//         command must begin with '$' char and end with '*'
-// output:
+//   str - pointer to the string with command
+// return:
 //   checksum of command
+// note: command must begin with '$' char and end with '*' or zero symbol
 uint8_t GPS_CRC(char *str) {
-	uint8_t str_CRC = 0;
-	uint16_t i = 1;
+	uint8_t result = 0;
 
-	while (str[i] != '*') str_CRC ^= str[i++];
+	if (*str++ == '$') while (*str != '*' && *str != '\0') result ^= *str++;
 
-	return str_CRC;
+	return result;
 }
 
 // Send NMEA command
@@ -52,8 +51,7 @@ void GPS_SendCommand(char *cmd) {
 //   buf - pointer to buffer with NMEA packet
 //   start - position in buffer to start search
 //   buf_size - size of buffer
-// output:
-//   position of sentence beginning or 0 if no sentence found
+// return: position of sentence beginning or 0 if no sentence found
 NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size) {
 	uint16_t pos = start;
 	uint32_t hdr;
@@ -101,6 +99,9 @@ NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf
 }
 
 // Parse latitude and longitude
+// input:
+//   buf - pointer to the data buffer
+// return: number of parsed bytes
 uint16_t GPS_ParseCoordinates(uint8_t *buf) {
 	uint16_t pos = 0;
 
@@ -140,6 +141,10 @@ uint16_t GPS_ParseCoordinates(uint8_t *buf) {
 }
 
 // Parse one satellite from $GPGSV sentence
+// input:
+//   buf - pointer to the data buffer
+//   set_num - satellite number in GPS_sats_view[]
+// return: number of parsed bytes
 uint16_t GPS_ParseSatelliteInView(uint8_t *buf, uint8_t sat_num) {
 	uint16_t pos = 0;
 
@@ -171,8 +176,7 @@ uint16_t GPS_ParseSatelliteInView(uint8_t *buf, uint8_t sat_num) {
 	}
 
 	// Satellite SNR
-//	if (buf[pos] != ',') {
-	// Checking for asterisk here is workaround for bug in EB-500 firmware
+	// additional checking for asterisk here is workaround for a bug in EB-500 firmware
 	if (buf[pos] != ',' && buf[pos] != '*') {
 		GPS_sats_view[sat_num].SNR = atos_len(&buf[pos],2);
 		pos += 3;
@@ -187,8 +191,33 @@ uint16_t GPS_ParseSatelliteInView(uint8_t *buf, uint8_t sat_num) {
 	return pos;
 }
 
-void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
-	uint16_t pos = Sentence.start + 4;
+// Parse time from NMEA sentence
+// input:
+//   buf - pointer to the data buffer
+//   time - pointer to variable where time will be stored
+// return: number of parsed bytes
+uint16_t GPS_ParseTime(uint8_t *buf, uint32_t *time) {
+	uint16_t pos = 0;
+
+	// Parse time
+	*time  = atos_len(&buf[pos],2) * 3600;
+	pos += 2;
+	*time += atos_len(&buf[pos],2) * 60;
+	pos += 2;
+	*time += atos_len(&buf[pos],2);
+	pos += 3;
+	// Ignore milliseconds
+	if (buf[pos] != ',') atos_char(&buf[pos],&pos);
+
+	return pos;
+}
+
+// Parse NMEA sentence
+// input:
+//   buf - pointer to the data buffer
+//   Sentence - pointer to the structure with NMEA sentence parameters
+void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
+	uint16_t pos = Sentence->start + 4;
 	uint8_t i;
 	uint8_t GSV_msg;   // GSV sentence number
 	uint8_t GSV_sats;  // Total number of satellites in view
@@ -196,17 +225,12 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 	GPSData.time_valid = FALSE;
 	GPSData.datetime_valid = FALSE;
 
-	switch (Sentence.type) {
+	switch (Sentence->type) {
 	case NMEA_RMC:
 		// $GPRMC - Recommended minimum specific GPS/Transit data
 
 		// Time of fix
-		if (buf[pos] != ',') {
-			GPSData.fix_time  = atos_len(&buf[pos],2) * 3600;
-			GPSData.fix_time += atos_len(&buf[pos + 2],2) * 60;
-			GPSData.fix_time += atos_len(&buf[pos + 4],2);
-			pos += 11;
-		} else pos++;
+		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
 
 		// Valid data marker
 		if (buf[pos] != ',') {
@@ -252,12 +276,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 		pos += GPS_ParseCoordinates(&buf[pos]);
 
 		// Time of fix
-		if (buf[pos] != ',') {
-			GPSData.fix_time  = atos_len(&buf[pos],2) * 3600;
-			GPSData.fix_time += atos_len(&buf[pos + 2],2) * 60;
-			GPSData.fix_time += atos_len(&buf[pos + 4],2);
-			pos += 11;
-		} else pos++;
+		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
 
 		// Valid data marker
 		if (buf[pos] != ',') {
@@ -277,11 +296,8 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		// Time
 		if (buf[pos] != ',') {
-			GPSData.time  = atos_len(&buf[pos],2) * 3600;
-			GPSData.time += atos_len(&buf[pos + 2],2) * 60;
-			GPSData.time += atos_len(&buf[pos + 4],2);
+			pos += GPS_ParseTime(&buf[pos],&GPSData.time);
 			GPSData.time_valid = TRUE;
-			pos += 11;
 		} else {
 			GPSData.time = 0;
 			pos++;
@@ -310,10 +326,11 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 			GPSData.date += atos_len(&buf[pos],4);
 		} else GPSData.date += 2013;
 
-		if (GPSData.time != 0 && GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
-
 		// Local time zone offset
 		// ..... (not supported by EB-500)
+
+		// Check for year, if it less than 2014 then time reported from GPS is useless
+		if (GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
 
 		break; // NMEA_ZDA
 	case NMEA_VTG:
@@ -357,11 +374,8 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		// Time
 		if (buf[pos] != ',') {
-			GPSData.time  = atos_len(&buf[pos],2) * 3600;
-			GPSData.time += atos_len(&buf[pos + 2],2) * 60;
-			GPSData.time += atos_len(&buf[pos + 4],2);
+			pos += GPS_ParseTime(&buf[pos],&GPSData.time);
 			GPSData.time_valid = TRUE;
-			pos += 11;
 		} else {
 			GPSData.time = 0;
 			GPSData.time_valid = FALSE;
@@ -399,12 +413,12 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		// MSL Altitude (mean-sea-level)
 		if (buf[pos] != ',') {
+			// This value can be negative
 			// Only integer part, fractional is useless
 			GPSData.altitude  = atos_char(&buf[pos],&pos);
 			pos += 4;
 /*
 			GPSData.altitude  = atos_char(&buf[pos],&pos) * 1000;
-			// This value can be negative
 			if (GPSData.altitude >= 0)
 				GPSData.altitude += atos_len(&buf[pos],3);
 			else
@@ -435,7 +449,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 	case NMEA_GSA:
 		// $GPGSA - GPS DOP and active satellites
 
-		// Satellite acquisition mode (M = manually force 2D or 3D, A = automatic swich between 2D and 3D)
+		// Satellite acquisition mode (M = manually force 2D or 3D, A = automatic switch between 2D and 3D)
 		if (buf[pos] != ',') pos += 2; else pos++; // Skip this field
 
 		// Position mode (1=fix not available, 2=2D fix, 3=3D fix)
@@ -492,7 +506,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 	case NMEA_GSV:
 		// $GPGSV - GPS Satellites in view
 
-		// Skip total number of GSV sentences in this cycle field
+		// Skip field with "total number of GSV sentences in this cycle"
 		pos += 2;
 
 		// GSV sentence number
@@ -517,7 +531,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 		// Parse no more than 12 satellites in view
 		uint8_t sat_num = (GSV_msg - 1) * 4;
 		if (GSV_sats != 0 && sat_num < MAX_SATELLITES_VIEW) {
-			// 4 satellites in one sentence
+			// 4 satellites per sentence
 			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
 			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
 			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
@@ -526,7 +540,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef Sentence) {
 
 		break; // NMEA_GSV
 	default:
-		// Some banana
+		// Unknown NMEA sentence
 		break;
 	}
 }
