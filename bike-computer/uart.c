@@ -19,11 +19,11 @@ void UART2_Init(uint32_t baudrate) {
 
 	// UART peripheral clock enable
 	RCC_AHBPeriphClockCmd(UART_PORT_PERIPH,ENABLE);
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2,ENABLE);
+	RCC_APB1PeriphClockCmd(UART_PORT_APB,ENABLE);
 
 	// Alternative functions of GPIO pins
-	GPIO_PinAFConfig(GPIOA,GPIO_PinSource2,GPIO_AF_USART2);
-	GPIO_PinAFConfig(GPIOA,GPIO_PinSource3,GPIO_AF_USART2);
+	GPIO_PinAFConfig(UART_GPIO_PORT,UART_TX_PIN_SRC,UART_GPIO_AF);
+	GPIO_PinAFConfig(UART_GPIO_PORT,UART_RX_PIN_SRC,UART_GPIO_AF);
 
 	// TX pin
 	PORT.GPIO_Mode  = GPIO_Mode_AF;
@@ -40,16 +40,16 @@ void UART2_Init(uint32_t baudrate) {
 	UART_SetSpeed(baudrate);
 
 	// USART2 IRQ
-	USART_ITConfig(UART_PORT,USART_IT_RXNE,ENABLE); // Enable USART2
+	USART_ITConfig(UART_PORT,USART_IT_RXNE,ENABLE); // Enable USART2 RX interrupt
 	NVICInit.NVIC_IRQChannel = USART2_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
 	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x02; // high priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x02; // high priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
 	NVIC_Init(&NVICInit);
 
 	USART_DMACmd(UART_PORT,USART_DMAReq_Rx,ENABLE); // Enable DMA for USART2 RX
 
-	// UART RX DMA configuration
+	// USART RX DMA configuration
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1,ENABLE); // Enable DMA1 peripheral clock
 	DMAInit.DMA_BufferSize = FIFO_BUFFER_SIZE;
 	DMAInit.DMA_DIR = DMA_DIR_PeripheralSRC; // Copy from peripheral
@@ -61,9 +61,16 @@ void UART2_Init(uint32_t baudrate) {
 	DMAInit.DMA_PeripheralBaseAddr = (uint32_t)(&UART_PORT->DR); // Pointer to USART_DR register
 	DMAInit.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte; // Read bytes from peripheral
 	DMAInit.DMA_PeripheralInc = DMA_PeripheralInc_Disable; // Do not increment peripheral pointer
-	DMAInit.DMA_Priority = DMA_Priority_High; // High priority
+	DMAInit.DMA_Priority = DMA_Priority_VeryHigh; // Highest priority
 	DMA_Init(DMA1_Channel6,&DMAInit); // USART2_RX connected to DMA1_Channel6 (from datasheet table 54)
 	DMA_ITConfig(DMA1_Channel6,DMA_IT_TC,ENABLE); // Enable DMA transfer complete interrupt
+
+	// USART2 DMA interrupt
+	NVICInit.NVIC_IRQChannel = DMA1_Channel6_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x02; // high priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
+	NVIC_Init(&NVICInit);
 }
 
 // Init USART port at given baudrate

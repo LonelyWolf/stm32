@@ -5,12 +5,15 @@
 #define UART_PORT         USART2
 #define UART_TX_PIN       GPIO_Pin_2    // PA2 (USART2_TX)
 #define UART_RX_PIN       GPIO_Pin_3    // PA3 (USART2_RX)
+#define UART_TX_PIN_SRC   GPIO_PinSource2
+#define UART_RX_PIN_SRC   GPIO_PinSource3
+#define UART_GPIO_AF      GPIO_AF_USART2
 #define UART_GPIO_PORT    GPIOA
 #define UART_PORT_PERIPH  RCC_AHBPeriph_GPIOA
+#define UART_PORT_APB     RCC_APB1Periph_USART2
 
-
-#define FIFO_BUFFER_SIZE  1024  // FIFO buffer size
-#define HEX_CHARS         "0123456789ABCDEF"
+#define FIFO_BUFFER_SIZE  32                    // FIFO buffer size
+#define HEX_CHARS         "0123456789ABCDEF"    // HEX characters
 
 
 // Public variables
