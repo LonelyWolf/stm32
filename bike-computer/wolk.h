@@ -56,7 +56,7 @@ typedef struct {
 	uint16_t tim_SPD;          // SPD interval
 	uint16_t vrefint;          // VrefInt of sensor MCU
 	uint8_t  observe_TX;       // Previous value of the OBSERVE_TX register
-	uint16_t cntr_wake;        // Wakeups counter
+	uint16_t cntr_wake;        // Wake-ups counter
 	uint16_t packets_lost;     // Lost packets counter
 	uint16_t ride_time;        // SPD interval from last delivered packet
 } nRF24_Packet_TypeDef;

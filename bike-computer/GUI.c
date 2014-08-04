@@ -322,7 +322,7 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -344,6 +344,7 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		X = 63;
 		X += PutStr(X,Y,"CDC:",fnt5x7) - 1;
 		PutInt(X,Y,CurData.Cadence,fnt5x7);
+
 		X = 4; Y += 9;
 		X += PutStr(X,Y,"A.S:",fnt5x7) - 1;
 		PutIntF(X,Y,CurData.AvgSpeed,1,fnt5x7);
@@ -374,7 +375,7 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -419,7 +420,7 @@ void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -466,7 +467,7 @@ void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -530,7 +531,7 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -590,6 +591,12 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		X += PutStr(X,Y,"PDOP:",fnt5x7) - 1;
 		X += PutIntF(X,Y,GPSData.PDOP,2,fnt5x7) + 5;
 
+		X += PutStr(X,Y,GPSData.time_valid ? "V" : "X",fnt5x7) + 2;
+		X += PutStr(X,Y,GPSData.datetime_valid ? "V" : "X",fnt5x7) + 5;
+
+		X += PutInt(X,Y,GPS_sentences_parsed,fnt5x7) + 2;
+		X += PutInt(X,Y,GPS_sentences_unknown,fnt5x7) + 2;
+
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"HDOP:",fnt5x7) - 1;
 		X += PutIntF(X,Y,GPSData.HDOP,2,fnt5x7) + 5;
@@ -603,7 +610,7 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -664,7 +671,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		}
 	} while (!BTN[BTN_ESCAPE].cntr);
 
-	BTN[BTN_ESCAPE].cntr = 0;;
+	BTN[BTN_ESCAPE].cntr = 0;
 	UC1701_Fill(0x00);
 }
 
@@ -1364,7 +1371,13 @@ void GUI_MainMenu(void) {
 						BEEPER_PlayTones(tones_SMB);
 						break;
 					case 3:
-						GPS_SendCommand("$PMTK101*"); // GPS hot restart
+						GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
+						break;
+					case 4:
+						GPS_SendCommand(PMTK_EASY_ENABLE); // GPS EASY enable
+						break;
+					case 5:
+						GPS_SendCommand(PMTK_EASY_DISABLE); // GPS EASY disable
 						break;
 					default:
 						break;

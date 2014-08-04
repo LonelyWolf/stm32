@@ -92,7 +92,7 @@ void RCC_Configuration(void) {
 			ENABLE);
 
 	RCC_APB1PeriphClockCmd(
-			RCC_APB1Periph_TIM7,      // TIM7 peripheral (DMA timeout check)
+			RCC_APB1Periph_TIM7,      // TIM7 peripheral
 			ENABLE);
 
 	RCC_APB2PeriphClockCmd(
@@ -232,7 +232,7 @@ void InitPeripherals(void) {
 
 	// Configure basic timer TIM7 (for DMA timeout)
 	TIM7->CR1  |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM7->PSC   = SystemCoreClock / 16000; // prescaler
+	TIM7->PSC   = SystemCoreClock / 20000; // prescaler
 	TIM7->ARR   = 999; // auto reload value
 	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
 	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
@@ -367,18 +367,14 @@ void TIM7_IRQHandler(void) {
 	if (_DMA_cntr == (uint16_t)DMA1_Channel6->CNDTR) {
 		// DMA pointer unchanged from last IRQ -> UART timeout
 		TIM7->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); // Disable TIM7
-		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA
-		UART_PORT->CR1 |= USART_CR1_RXNEIE; // Enable USART2 RX complete interrupt
-		// Copy rest of data from the FIFO buffer to GPS buffer
-		_DMA_cntr = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR; // Last piece of data size
-		// Cut data buffer to prevent overflow
-		if (GPS_buf_cntr + _DMA_cntr > GPS_BUFFER_SIZE)	_DMA_cntr -= GPS_BUFFER_SIZE - GPS_buf_cntr;
-		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,_DMA_cntr);
-		GPS_buf_cntr += _DMA_cntr;
+		GPS_buf_cntr = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR; // Remember how many bytes received in FIFO buffer
+		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR1_EN); // Disable DMA
+		UART_PORT->CR1 |= (1<<5); // Enable USART2 RX complete interrupt
 		_DMA_cntr = 0;
+		// Copy data from the FIFO buffer to another one in case of new GPS data arrival
+		memcpy(&GPS_buf[0],&USART_FIFO[0],GPS_buf_cntr);
 		ParseGPS(); // About 3ms with full buffer
 	} else {
-		// Data still coming from USART
 		_DMA_cntr = (uint16_t)DMA1_Channel6->CNDTR;
 	}
 }
@@ -386,34 +382,24 @@ void TIM7_IRQHandler(void) {
 // USART2 IRQ handler
 void USART2_IRQHandler(void) {
 	if (UART_PORT->SR & USART_IT_RXNE) {
-		// Received data ready to be read
-		UART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART2 RX complete interrupt
-		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
-		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE;
-		DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
-		TIM7->CNT  = 0;
-		TIM7->CR1 |= TIM_CR1_CEN; // Enable TIM7
+		// Received data read to be read
+		UART_PORT->CR1 &= ~(1<<5); // Disable USART2 RX complete interrupt
+		if ((DMA1_Channel6->CCR & DMA_CCR1_EN) == RESET) {
+			// Byte received, DMA disabled -> enable DMA and TIM7
+			DMA1_Channel6->CMAR = (uint32_t)&USART_FIFO[0];
+			DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE;
+			DMA1_Channel6->CCR |= DMA_CCR1_EN; // Enable DMA
+			TIM7->CNT = 0;
+			TIM7->EGR = 1;
+			TIM7->CR1 |= TIM_CR1_CEN; // Enable TIM7
+		}
 	}
 }
 
-
 // UART2_RX DMA IRQ handler
 void DMA1_Channel6_IRQHandler() {
-	uint16_t b_rcvd;
-
-	if (DMA1->ISR & DMA_ISR_TCIF6) {
-		// Channel 6 transfer complete
-		DMA1->IFCR |= DMA_IFCR_CTCIF6; // Clear DMA1 channel6 transfer complete flag
-		// Amount of received data (in fact should be equal to FIFO_BUFFER_SIZE)
-		b_rcvd = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
-		// Cut data buffer to prevent overflow
-		if (GPS_buf_cntr + _DMA_cntr > GPS_BUFFER_SIZE)	_DMA_cntr -= GPS_BUFFER_SIZE - GPS_buf_cntr;
-		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,b_rcvd); // Copy data to the GPS buffer
-		GPS_buf_cntr += b_rcvd;
-		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (for reload it counter value)
-		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE;
-		DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
-	};
+	DMA1->IFCR |= DMA_ISR_TCIF6; // Clear DMA1 channel6 transfer complete flag
+	UART_PORT->CR1 |= (1<<5); // Enable USART2 RX complete interrupt
 }
 
 
@@ -527,13 +513,15 @@ void ParsePacket(void) {
 // Parse GPS data
 void ParseGPS(void) {
 	GPS_InitData(); // Clear previously parsed GPS data
-	while (GPS_msg.end < GPS_buf_cntr) {
-		GPS_msg = GPS_FindSentence(GPS_buf,GPS_msg.end,GPS_buf_cntr);
+	GPS_sentences_parsed = 0;
+	GPS_msg = GPS_FindSentence(GPS_buf,0,GPS_BUFFER_SIZE); // Find first NMEA sentence
+	do {
 		if (GPS_msg.type != NMEA_BAD) {
 			GPS_sentences_parsed++;
 			GPS_ParseSentence(GPS_buf,&GPS_msg);
-		} else GPS_sentences_unknown++;
-	}
+		}
+		GPS_msg = GPS_FindSentence(GPS_buf,GPS_msg.end,GPS_BUFFER_SIZE);
+	} while (GPS_msg.end < GPS_buf_cntr);
 	GPS_buf_cntr = 0;
 	if (GPS_sentences_parsed) {
 		GPS_CheckUsedSats();

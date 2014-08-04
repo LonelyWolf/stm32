@@ -130,20 +130,18 @@ static const Menu_TypeDef mnuStatistics = {
 };
 
 static const Menu_TypeDef mnuTest = {
-		10,
+		8,
 		MA_left,
 		MS_over,
 		{
 				{"Reinit LCD"},
 				{"Screensaver"},
 				{"Play SMB"},
-				{"GPS restart"},
-				{"Testing #5"},
-				{"Testing #6"},
-				{"Testing #7"},
-				{"Testing #8"},
-				{"Testing #9"},
-				{"Testing #10"}
+				{"GPS hot start"},
+				{"GPS EASY on"},
+				{"GPS EASY off"},
+				{"- debug -"},
+				{"- debug -"}
 		}
 };
 
@@ -207,9 +205,6 @@ uint8_t GUI_PutTemperature(uint8_t X, uint8_t Y, int32_t temperature, const Font
 uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
 		MenuFrame_TypeDef MenuFrame, const Menu_TypeDef *Menu, uint8_t StartPos,
 		funcPtrKeyPress_TypeDef WaitForKey);
-//void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
-//		int32_t *Value, int32_t Min, int32_t Max, int32_t Step,
-//		char *unit,	funcPtrParam_TypeDef CallBack, funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, const Font_TypeDef *Font,
 		int32_t *Value, int32_t Min, int32_t Max, int32_t Step,	char *unit,
 		const Subst_TypeDef *Subst, funcPtrParam_TypeDef CallBack, funcPtrKeyPress_TypeDef WaitForKey);
