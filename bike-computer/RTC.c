@@ -57,15 +57,22 @@ void RTC_SetWakeUp(uint32_t interval) {
 }
 
 // Set date and time from RTC_Date and RTC_Time variables
-void RTC_SetDateTime(void) {
+// input:
+//   Time - pointer to RTC time structure
+//   Date - pointer to RTC date structure
+void RTC_SetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date) {
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-	RTC_SetTime(RTC_Format_BIN,&RTC_Time);
-	RTC_SetDate(RTC_Format_BIN,&RTC_Date);
+	RTC_SetTime(RTC_Format_BIN,Time);
+	RTC_SetDate(RTC_Format_BIN,Date);
 	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 }
 
-// Get current date and time into RTC_Date and RTC_Time variables
-void RTC_GetDateTime(void) {
+// Get current date and time
+// input:
+//   Time - pointer to RTC time structure
+//   Date - pointer to RTC date structure
+// return: date and time in Time and Date structures
+void RTC_GetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date) {
 	RTC_GetTime(RTC_Format_BIN,&RTC_Time);
 	RTC_GetDate(RTC_Format_BIN,&RTC_Date);
 }

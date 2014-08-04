@@ -15,8 +15,8 @@ extern RTC_DateTypeDef RTC_Date;                   // Current RTC date
 // Function prototypes
 void RTC_Config(void);
 void RTC_SetWakeUp(uint32_t interval);
-void RTC_SetDateTime(void);
-void RTC_GetDateTime(void);
+void RTC_SetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date);
+void RTC_GetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date);
 
 uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
