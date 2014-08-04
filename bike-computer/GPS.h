@@ -92,7 +92,8 @@ extern GPS_Data_TypeDef GPSData;                   // Parsed GPS information
 extern bool GPS_new_data;                          // TRUE if received new GPS packet
 extern uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
 extern NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
-extern uint8_t GPS_sentences_parsed;               // NMEA sentences parsed
+extern uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter
+extern uint8_t GPS_sentences_unknown;               // Found unknown NMEA sentences counter
 extern uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 extern GPS_Data_TypeDef GPSData;                   // Parsed GPS data
 extern uint8_t GPS_sats[];                         // IDs of satellites used in position fix

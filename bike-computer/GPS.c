@@ -10,7 +10,8 @@ GPS_Data_TypeDef GPSData;                   // Parsed GPS information
 bool GPS_new_data;                          // TRUE if received new GPS packet
 uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
 NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
-uint8_t GPS_sentences_parsed;               // NMEA sentences parsed
+uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter
+uint8_t GPS_sentences_unknown;               // Found unknown NMEA sentences counter
 uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 uint8_t GPS_sats[12];                       // IDs of satellites used in position fix
 // Information about satellites in view (can be increased if receiver able handle more)
@@ -208,6 +209,7 @@ uint16_t GPS_ParseTime(uint8_t *buf, uint32_t *time) {
 	pos += 3;
 	// Ignore milliseconds
 	if (buf[pos] != ',') atos_char(&buf[pos],&pos);
+	GPSData.time_valid = TRUE;
 
 	return pos;
 }
@@ -221,9 +223,6 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 	uint8_t i;
 	uint8_t GSV_msg;   // GSV sentence number
 	uint8_t GSV_sats;  // Total number of satellites in view
-
-	GPSData.time_valid = FALSE;
-	GPSData.datetime_valid = FALSE;
 
 	switch (Sentence->type) {
 	case NMEA_RMC:
@@ -297,9 +296,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		// Time
 		if (buf[pos] != ',') {
 			pos += GPS_ParseTime(&buf[pos],&GPSData.time);
-			GPSData.time_valid = TRUE;
 		} else {
-			GPSData.time = 0;
 			pos++;
 		}
 
@@ -327,7 +324,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		} else GPSData.date += 2013;
 
 		// Local time zone offset
-		// ..... (not supported by EB-500)
+		// ..... (usually not supported by GPS modules)
 
 		// Check for year, if it less than 2014 then time reported from GPS is useless
 		if (GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
@@ -375,10 +372,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		// Time
 		if (buf[pos] != ',') {
 			pos += GPS_ParseTime(&buf[pos],&GPSData.time);
-			GPSData.time_valid = TRUE;
 		} else {
-			GPSData.time = 0;
-			GPSData.time_valid = FALSE;
 			pos++;
 		}
 
@@ -558,6 +552,11 @@ void GPS_InitData(void) {
 	GPSData.longitude_char = 'X';
 	GPSData.latitude_char  = 'X';
 	GPSData.mode = 'N';
+
+	GPS_sentences_parsed = 0;
+	GPS_sentences_unknown = 0;
+
+	memset(&GPS_msg,0,sizeof(GPS_msg));
 }
 
 // Check which satellites in view used in location fix
