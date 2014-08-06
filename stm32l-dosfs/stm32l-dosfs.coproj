@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Project version="2G - 1.7.6" name="stm32l-dosfs">
+  <Target name="stm32l-dosfs" isCurrent="1">
+    <Device manufacturerId="9" manufacturerName="ST" chipId="532" chipName="STM32L151RB" boardId="" boardName=""/>
+    <BuildOption>
+      <Compile>
+        <Option name="OptimizationLevel" value="0"/>
+        <Option name="UseFPU" value="0"/>
+        <Option name="UserEditCompiler" value=""/>
+        <Option name="SupportCPlusplus" value="0"/>
+        <Includepaths>
+          <Includepath path="."/>
+        </Includepaths>
+        <DefinedSymbols>
+          <Define name="STM32L151RB"/>
+          <Define name="STM32L1XX_MD"/>
+        </DefinedSymbols>
+      </Compile>
+      <Link useDefault="0">
+        <Option name="DiscardUnusedSection" value="0"/>
+        <Option name="UserEditLinkder" value=""/>
+        <Option name="UseMemoryLayout" value="1"/>
+        <Option name="nostartfiles" value="1"/>
+        <Option name="LTO" value="0"/>
+        <Option name="IsNewStartupCode" value="1"/>
+        <LinkedLibraries/>
+        <MemoryAreas debugInFlashNotRAM="1">
+          <Memory name="IROM1" type="ReadOnly" size="0x00020000" startValue="0x08000000"/>
+          <Memory name="IRAM1" type="ReadWrite" size="0x00004000" startValue="0x20000000"/>
+          <Memory name="IROM2" type="ReadOnly" size="" startValue=""/>
+          <Memory name="IRAM2" type="ReadWrite" size="" startValue=""/>
+        </MemoryAreas>
+        <LocateLinkFile path="../../coocox/coide/configuration/programdata/stm32l-dosfs/arm-gcc-link.ld" type="0"/>
+      </Link>
+      <Output>
+        <Option name="OutputFileType" value="0"/>
+        <Option name="Path" value="./"/>
+        <Option name="Name" value="stm32l-dosfs"/>
+        <Option name="HEX" value="1"/>
+        <Option name="BIN" value="1"/>
+      </Output>
+      <User>
+        <UserRun name="Run#1" type="Before" checked="0" value=""/>
+        <UserRun name="Run#1" type="After" checked="0" value=""/>
+      </User>
+    </BuildOption>
+    <DebugOption>
+      <Option name="org.coocox.codebugger.gdbjtag.core.adapter" value="ST-Link"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.debugMode" value="SWD"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.clockDiv" value="1M"/>
+      <Option name="org.coocox.codebugger.gdbjtag.corerunToMain" value="1"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.jlinkgdbserver" value=""/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.userDefineGDBScript" value=""/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.targetEndianess" value="0"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.jlinkResetMode" value="Type 0: Normal"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.resetMode" value="SYSRESETREQ"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.ifSemihost" value="0"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.ifCacheRom" value="1"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.ipAddress" value="127.0.0.1"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.portNumber" value="2009"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.autoDownload" value="1"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.verify" value="1"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.downloadFuction" value="Erase Effected"/>
+      <Option name="org.coocox.codebugger.gdbjtag.core.defaultAlgorithm" value="STM32L1xx_128.elf"/>
+    </DebugOption>
+    <ExcludeFile/>
+  </Target>
+  <Components path="./">
+    <Component id="50" name="CMSIS core" path="" type="2"/>
+    <Component id="1279" name="cmsis_boot" path="" type="2"/>
+    <Component id="1282" name="RCC" path="" type="2"/>
+    <Component id="1283" name="GPIO" path="" type="2"/>
+    <Component id="1337" name="SPI" path="" type="2"/>
+    <Component id="1338" name="TIM" path="" type="2"/>
+    <Component id="1339" name="USART" path="" type="2"/>
+    <Component id="1341" name="misc" path="" type="2"/>
+    <Component id="1342" name="syscfg" path="" type="2"/>
+  </Components>
+  <Files>
+    <File name="cmsis_lib/Source/stm32l1xx_tim.c" path="cmsis_lib/Source/stm32l1xx_tim.c" type="1"/>
+    <File name="wolk.c" path="wolk.c" type="1"/>
+    <File name="font7x10.h" path="font7x10.h" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_rcc.h" path="cmsis_lib/Include/stm32l1xx_rcc.h" type="1"/>
+    <File name="cmsis_boot" path="" type="2"/>
+    <File name="delay.h" path="delay.h" type="1"/>
+    <File name="dosfs/dosfs.h" path="dosfs/dosfs.h" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_rcc.c" path="cmsis_lib/Source/stm32l1xx_rcc.c" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_gpio.c" path="cmsis_lib/Source/stm32l1xx_gpio.c" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_usart.c" path="cmsis_lib/Source/stm32l1xx_usart.c" type="1"/>
+    <File name="cmsis/core_cmFunc.h" path="cmsis/core_cmFunc.h" type="1"/>
+    <File name="uart.c" path="uart.c" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_usart.h" path="cmsis_lib/Include/stm32l1xx_usart.h" type="1"/>
+    <File name="cmsis_lib/Source" path="" type="2"/>
+    <File name="spi1.c" path="spi1.c" type="1"/>
+    <File name="sdcard.h" path="sdcard.h" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_syscfg.c" path="cmsis_lib/Source/stm32l1xx_syscfg.c" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_gpio.h" path="cmsis_lib/Include/stm32l1xx_gpio.h" type="1"/>
+    <File name="log.h" path="log.h" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_spi.c" path="cmsis_lib/Source/stm32l1xx_spi.c" type="1"/>
+    <File name="uart.h" path="uart.h" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_spi.h" path="cmsis_lib/Include/stm32l1xx_spi.h" type="1"/>
+    <File name="spi.c" path="spi.c" type="1"/>
+    <File name="cmsis_boot/stm32l1xx.h" path="cmsis_boot/stm32l1xx.h" type="1"/>
+    <File name="uc1701.c" path="uc1701.c" type="1"/>
+    <File name="cmsis_boot/system_stm32l1xx.h" path="cmsis_boot/system_stm32l1xx.h" type="1"/>
+    <File name="wolk.h" path="wolk.h" type="1"/>
+    <File name="cmsis_boot/Startup/startup_stm32l1xx_md.c" path="cmsis_boot/Startup/startup_stm32l1xx_md.c" type="1"/>
+    <File name="cmsis_lib/Include" path="" type="2"/>
+    <File name="cmsis/core_cmInstr.h" path="cmsis/core_cmInstr.h" type="1"/>
+    <File name="font5x7.h" path="font5x7.h" type="1"/>
+    <File name="cmsis/core_cm3.h" path="cmsis/core_cm3.h" type="1"/>
+    <File name="spi1.h" path="spi1.h" type="1"/>
+    <File name="cmsis_boot/system_stm32l1xx.c" path="cmsis_boot/system_stm32l1xx.c" type="1"/>
+    <File name="spi.h" path="spi.h" type="1"/>
+    <File name="log.c" path="log.c" type="1"/>
+    <File name="dosfs/dosfs.c" path="dosfs/dosfs.c" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_syscfg.h" path="cmsis_lib/Include/stm32l1xx_syscfg.h" type="1"/>
+    <File name="dosfs" path="" type="2"/>
+    <File name="cmsis" path="" type="2"/>
+    <File name="cmsis_lib" path="" type="2"/>
+    <File name="sdcard.c" path="sdcard.c" type="1"/>
+    <File name="delay.c" path="delay.c" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_tim.h" path="cmsis_lib/Include/stm32l1xx_tim.h" type="1"/>
+    <File name="cmsis_lib/Include/misc.h" path="cmsis_lib/Include/misc.h" type="1"/>
+    <File name="uc1701.h" path="uc1701.h" type="1"/>
+    <File name="cmsis_boot/Startup" path="" type="2"/>
+    <File name="main.c" path="main.c" type="1"/>
+    <File name="cmsis_lib/Source/misc.c" path="cmsis_lib/Source/misc.c" type="1"/>
+  </Files>
+</Project>

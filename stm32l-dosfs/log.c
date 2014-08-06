@@ -91,6 +91,7 @@ uint32_t LOG_NewFile(void) {
 	uint32_t log_num = 0;
 	uint32_t i;
 
+//	i = DFS_OpenDir(&vol_info,(uint8_t *)"",&dir_info);
 	i = DFS_OpenDir(&vol_info,(uint8_t *)LOG_DIR_LOGS,&dir_info);
 	if (i == DFS_NOTFOUND) {
 		// Unable to open logs directory, try to create it
@@ -121,6 +122,7 @@ uint32_t LOG_NewFile(void) {
 	strcpy((char *)path,"LOGS/");
 	strcat((char *)path,(char *)filename);
 	i = DFS_OpenFile(&vol_info,(uint8_t *)path,DFS_WRITE,sector,&log_file);
+//	i = DFS_OpenFile(&vol_info,(uint8_t *)filename,DFS_WRITE,sector,&log_file);
 	if (i != DFS_OK) return LOG_CREATEERROR;
 
 	// Write header to log file

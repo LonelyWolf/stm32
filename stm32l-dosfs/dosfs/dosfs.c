@@ -260,17 +260,18 @@ uint32_t DFS_GetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, 
 uint32_t DFS_SetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, uint32_t cluster, uint32_t new_contents)
 {
 	uint32_t offset, sector, result;
+
 	if (volinfo->filesystem == FAT12) {
 		offset = cluster + (cluster / 2);
-		new_contents &=0xfff;
+		new_contents &= 0x00000fff;
 	}
 	else if (volinfo->filesystem == FAT16) {
 		offset = cluster * 2;
-		new_contents &=0xffff;
+		new_contents &= 0x0000ffff;
 	}
 	else if (volinfo->filesystem == FAT32) {
 		offset = cluster * 4;
-		new_contents &=0x0fffffff;	// FAT32 is really "FAT28"
+		new_contents &= 0x0fffffff;	// FAT32 is really "FAT28"
 	}
 	else
 		return DFS_ERRMISC;	
@@ -281,7 +282,7 @@ uint32_t DFS_SetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, 
 
 	// If this is not the same sector we last read, then read it into RAM
 	if (sector != *scratchcache) {
-		if(DFS_ReadSector(volinfo->unit, scratch, sector, 1)) {
+		if (DFS_ReadSector(volinfo->unit, scratch, sector, 1)) {
 			// avoid anyone assuming that this cache value is still valid, which
 			// might cause disk corruption
 			*scratchcache = 0;
@@ -297,7 +298,6 @@ uint32_t DFS_SetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, 
 	offset = ldiv(offset, SECTOR_SIZE).rem;
 
 	if (volinfo->filesystem == FAT12) {
-
 		// If this is an odd cluster, pre-shift the desired new contents 4 bits to
 		// make the calculations below simpler
 		if (cluster & 1)
@@ -312,8 +312,9 @@ uint32_t DFS_SetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, 
 			}
 			// Even cluster: Low 12 bits being set
 			else {
-				scratch[offset] = new_contents & 0xff;
+				scratch[offset] = new_contents & 0x00ff;
 			}
+
 			result = DFS_WriteSector(volinfo->unit, scratch, *scratchcache, 1);
 			// mirror the FAT into copy 2
 			if (DFS_OK == result)
@@ -322,17 +323,17 @@ uint32_t DFS_SetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, 
 			// If we wrote that sector OK, then read in the subsequent sector
 			// and poke the first byte with the remainder of this FAT entry.
 			if (DFS_OK == result) {
-//				*scratchcache++;
-//				result = DFS_ReadSector(volinfo->unit, scratch, *scratchcache, 1);
-				result = DFS_ReadSector(volinfo->unit, scratch, *scratchcache++, 1); // SDA: compiler warning fix
+				(*scratchcache)++; // 06.08.14 SDA: fix pointer value increment
+				result = DFS_ReadSector(volinfo->unit, scratch, *scratchcache, 1);
+
 				if (DFS_OK == result) {
 					// Odd cluster: High 12 bits being set
 					if (cluster & 1) {
-						scratch[0] = new_contents & 0xff00;
+						scratch[0] = new_contents >> 8; // 06.08.14 SDA: FAT12 fix
 					}
 					// Even cluster: Low 12 bits being set
 					else {
-						scratch[0] = (scratch[0] & 0xf0) | (new_contents & 0x0f);
+						scratch[0] = (scratch[0] & 0xf0) | ((new_contents >> 8) & 0x0f); // 06.08.14 SDA: FAT12 fix
 					}
 					result = DFS_WriteSector(volinfo->unit, scratch, *scratchcache, 1);
 					// mirror the FAT into copy 2
@@ -353,14 +354,15 @@ uint32_t DFS_SetFAT(PVOLINFO volinfo, uint8_t *scratch, uint32_t *scratchcache, 
 			// Odd cluster: High 12 bits being set
 			if (cluster & 1) {
 				scratch[offset] = (scratch[offset] & 0x0f) | (new_contents & 0xf0);
-				scratch[offset+1] = new_contents & 0xff00;
+				scratch[offset+1] = new_contents >> 8; // 06.08.14 SDA: FAT12 fix
 			}
 			// Even cluster: Low 12 bits being set
 			else {
-				scratch[offset] = new_contents & 0xff;
-				scratch[offset+1] = (scratch[offset+1] & 0xf0) | (new_contents & 0x0f);
+				scratch[offset] = new_contents & 0x00ff;
+				scratch[offset+1] = (scratch[offset+1] & 0xf0) | ((new_contents >> 8) & 0x0f);
 			}
-			result = DFS_WriteSector(volinfo->unit, scratch, *scratchcache, 1);
+
+	        result = DFS_WriteSector(volinfo->unit, scratch, *scratchcache, 1);
 			// mirror the FAT into copy 2
 			if (DFS_OK == result)
 				result = DFS_WriteSector(volinfo->unit, scratch, (*scratchcache)+volinfo->secperfat, 1);
@@ -803,9 +805,6 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
 		return DFS_NOTFOUND;
 
 	while (!DFS_GetNext(volinfo, &di, &de)) {
-		UART_SendStr("di.currentcluster = ");
-		UART_SendInt(di.currentcluster);
-		UART_SendChar('\n');
 		if (!memcmp(de.name, filename, 11)) {
 			// You can't use this function call to open a directory.
             //NTRF: allows to create directories
@@ -899,20 +898,21 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
 		if (DFS_ReadSector(volinfo->unit, scratch, fileinfo->dirsector, 1))
 			return DFS_ERRMISC;
 		memcpy(&(((PDIRENT) scratch)[di.currententry-1]), &de, sizeof(DIRENT));
-		if (DFS_WriteSector(volinfo->unit, scratch, fileinfo->dirsector, 1))
-			return DFS_ERRMISC;
+
+		if (DFS_WriteSector(volinfo->unit, scratch, fileinfo->dirsector, 1)) return DFS_ERRMISC;
 
 		// Mark newly allocated cluster as end of chain			
 		switch(volinfo->filesystem) {
-			case FAT12:	cluster = 0x00000ff8; break;
+			case FAT12:	cluster = 0x00000ff8; break; // SDA: Windows uses 0xfff here
 			case FAT16:	cluster = 0x0000fff8; break;
 			case FAT32:	cluster = 0x0ffffff8; break;
 			default: return DFS_ERRMISC;
 		}
 		temp = 0;
-		DFS_SetFAT(volinfo, scratch, &temp, fileinfo->cluster, cluster);
 
-		// NTRF: Fill new directory with required info
+        DFS_SetFAT(volinfo, scratch, &temp, fileinfo->cluster, cluster);
+
+        // NTRF: Fill new directory with required info
         if (mode == DFS_CREATEDIR)
         {
             if (dircluster <= 2) dircluster = 0; // Root
@@ -922,8 +922,7 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
 
             memset(scratch,0,SECTOR_SIZE);
 
-            for (; endsector > startsector; endsector -= 1)
-                DFS_WriteSector(volinfo->unit,scratch,endsector,1);
+            for (; endsector > startsector; endsector -= 1)	DFS_WriteSector(volinfo->unit,scratch,endsector,1);
 
             // Create '.' and '..' directory entries
             memset(&de.name,' ',11);
@@ -938,21 +937,7 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
             de.startclus_l_h = (dircluster & 0x0000ff00) >> 8;
             de.startclus_h_l = (dircluster & 0x00ff0000) >> 16;
             de.startclus_h_h = (dircluster & 0xff000000) >> 24;
-
-            // '..' entry should point to root cluster
-            // e.g. de.startclus_l_l and de.startclus_l_h should be zero!
-            // TODO: FIXME
-//            volinfo->dataarea + ((volinfo->rootdir - 2) * volinfo->secperclus)
-
             memcpy(scratch + sizeof(DIRENT),&de,sizeof(DIRENT));
-
-            UART_SendStr("volinfo->rootdir = ");
-            UART_SendInt(volinfo->rootdir);
-            UART_SendChar('\n');
-            UART_SendStr("dircluster = ");
-            UART_SendHex32(dircluster);
-            UART_SendChar('\n');
-            UART_SendBufHexFancy((char *)scratch,512,32,'.');
 
             DFS_WriteSector(volinfo->unit,scratch,startsector,1);
         }

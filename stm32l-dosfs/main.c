@@ -91,27 +91,31 @@ int main(void) {
 			UART_SendChar('\n');
 			while(1);
 		}
+//		while(1);
 
+		uint32_t k = 0;
 
-		j = LOG_NewFile();
-		UART_SendStr("Log number: ");
-		UART_SendInt(j);
-		UART_SendChar('\n');
+		for (; k < 500; k++) {
+			j = LOG_NewFile();
+			UART_SendStr("Log number: ");
+			UART_SendInt(j);
+			UART_SendChar('\n');
 
-		j = 26;
-		for (i = 0; i < j; i++) {
-			if (!(i % 25)) {
-				UART_SendStr("write... ");
-				UART_SendInt(i);
-				UART_SendChar('\\');
-				UART_SendInt(j);
-				UART_SendChar('\n');
+			j = 10;
+			for (i = 0; i < j; i++) {
+				if (!(i % 25)) {
+					UART_SendStr("write... ");
+					UART_SendInt(i);
+					UART_SendChar('\\');
+					UART_SendInt(j);
+					UART_SendChar('\n');
+				}
+				LOG_WriteInt(-100 * (i + 1));
+				LOG_WriteStr(" of ");
+				LOG_WriteInt(-100 * j);
+				LOG_WriteStr(" checkpoint!\r\n");
+	//			Delay_ms(50);
 			}
-			LOG_WriteInt(-100 * (i + 1));
-			LOG_WriteStr(" of ");
-			LOG_WriteInt(-100 * j);
-			LOG_WriteStr(" checkpoint!\r\n");
-//			Delay_ms(50);
 		}
 
 		UART_SendStr("---------------------------\n");
@@ -176,6 +180,7 @@ int main(void) {
 
 					di.scratch = sector;
 					if (DFS_OpenDir(&vi,(uint8_t *)LOG_DIR_LOGS,&di)) {
+//					if (DFS_OpenDir(&vi,(uint8_t *)"",&di)) {
 						UART_SendStr("Error opening root directory\n");
 					} else {
 						UART_SendStr("Directory enumeration:\n");

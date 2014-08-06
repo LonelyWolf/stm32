@@ -357,14 +357,14 @@ SDResult_TypeDef SD_ReadCSD(void) {
 		}
 	} else {
 		// MMC
-		SDCard.CardMaxBusClkFreq = 0;
+		SDCard.CardMaxBusClkFreq = SDCard.CSD[3];
 		dev_size  = (uint32_t)(SDCard.CSD[6] & 0x03) << 8; // C_SIZE
 		dev_size += (uint32_t)SDCard.CSD[7];
 		dev_size <<= 2;
 		dev_size += SDCard.CSD[8] >> 6;
-		rd_block_len = 1 << (SDCard.CSD[5] & 0x0f); // MMC read block length
+		SDCard.CardBlockSize = 1 << (SDCard.CSD[5] & 0x0f); // MMC read block length
 		dev_size_mul = ((SDCard.CSD[9] & 0x03) << 1) + ((SDCard.CSD[10] & 0x80) >> 7);
-		SDCard.CardCapacity = (dev_size + 1) * (1 << (dev_size_mul + 2)) * rd_block_len;
+		SDCard.CardCapacity = (dev_size + 1) * (1 << (dev_size_mul + 2)) * SDCard.CardBlockSize;
 	}
 
 	return SDR_Success;
