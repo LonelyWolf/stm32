@@ -569,9 +569,9 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		PutChar(X,Y,GPSData.mode,fnt5x7);
 
 		X = 4; Y += 8;
-		GUI_PutCoord(X,Y,GPSData.latitude_degree,GPSData.latitude_seconds,GPSData.latitude_char,fnt5x7);
+		GUI_PutCoord(X,Y,GPSData.latitude,GPSData.latitude_char,fnt5x7);
 		X = 67;
-		GUI_PutCoord(X,Y,GPSData.longitude_degree,GPSData.longitude_seconds,GPSData.longitude_char,fnt5x7);
+		GUI_PutCoord(X,Y,GPSData.longitude,GPSData.longitude_char,fnt5x7);
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"Alt:",fnt5x7) - 1;
@@ -589,13 +589,13 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"PDOP:",fnt5x7) - 1;
-		X += PutIntF(X,Y,GPSData.PDOP,2,fnt5x7) + 5;
-
-		X += PutStr(X,Y,GPSData.time_valid ? "V" : "X",fnt5x7) + 2;
-		X += PutStr(X,Y,GPSData.datetime_valid ? "V" : "X",fnt5x7) + 5;
+		X += PutIntF(X,Y,GPSData.PDOP,2,fnt5x7) + 3;
 
 		X += PutInt(X,Y,GPS_sentences_parsed,fnt5x7) + 2;
-		X += PutInt(X,Y,GPS_sentences_unknown,fnt5x7) + 2;
+		X += PutInt(X,Y,GPS_sentences_unknown,fnt5x7) + 3;
+
+		X += PutInt(X,Y,GPSData.dgps_age,fnt5x7) + 2;
+		X += PutInt(X,Y,GPSData.dgps_id,fnt5x7) + 2;
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"HDOP:",fnt5x7) - 1;
@@ -782,23 +782,22 @@ void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* da
 	}
 }
 
-// Put coordinates in format "Ndd.xxxxxx"
+// Put coordinates in format "Cdd.xxxx"
 // input:
 //   X,Y - top left coordinates of the text
-//   degree - coordinates degree
-//   seconds - coordinates seconds
-//   ch - coordinates character
+//   coord - coordinate in degrees
+//   ch - coordinate character
 //   Font - pointer to font
-uint8_t GUI_PutCoord(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch, const Font_TypeDef *Font) {
+uint8_t GUI_PutCoord(uint8_t X, uint8_t Y, uint32_t coord, char ch, const Font_TypeDef *Font) {
 	uint8_t pX = X;
 
 	X += PutChar(X,Y,ch,Font);
-	X += PutIntF(X,Y,(degree * 1000000) + (seconds / 60),6,Font);
+	X += PutIntF(X,Y,coord,4,Font);
 
 	return X - pX;
 }
 
-// Draw time with standard 5x7 font
+// Draw time
 // input:
 //   X,Y - top left coordinates of the text
 //   time - time in seconds (max value = 3599999 seconds or 999:59:59)
@@ -831,7 +830,7 @@ uint8_t GUI_PutTimeSec(uint8_t X, uint8_t Y, uint32_t time, const Font_TypeDef *
 	return X - pX;
 }
 
-// Draw date with standard 5x7 font
+// Draw date
 // input:
 //   X,Y - top left coordinates of text
 //   date - date in format DDMMYYYY

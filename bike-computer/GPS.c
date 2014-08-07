@@ -22,7 +22,7 @@ GPS_Satellite_TypeDef GPS_sats_view[MAX_SATELLITES_VIEW];
 // input:
 //   exp - exponent value
 // return: ten in raised to the exponent
-uint32_t _pow10(uint32_t exp) {
+uint32_t pwr10(uint32_t exp) {
 	uint32_t result = 1;
 
 	while (exp--) result *= 10;
@@ -137,50 +137,56 @@ uint16_t GPS_ParseFloat(uint8_t *buf, uint32_t *value) {
 		*value = 0;
 		return 1;
 	}
-	ip = atos_char(&buf[pos],&pos);
-	len = pos;
-	*value  = atos_char(&buf[pos],&pos);
-	*value += ip * _pow10(pos - len - 1);
+	ip = atos_char(&buf[pos],&pos); // integer part
+	if (buf[pos - 1] == '.') {
+		// fractional part
+		len = pos;
+		*value  = atos_char(&buf[pos],&pos);
+		*value += ip * pwr10(pos - len - 1);
+	} else {
+		// this value is not float
+		*value = ip;
+	}
 
 	return pos;
 }
 
-// Parse latitude and longitude
+// Parse latitude or longitude coordinate
 // input:
 //   buf - pointer to the data buffer
+//   len - length of the degrees value (2 for latitude, 3 for longitude)
+//   value - pointer to the coordinate variable
+//   char_value - pointer to the coordinate character variable
 // return: number of parsed bytes
-uint16_t GPS_ParseCoordinates(uint8_t *buf) {
+uint16_t GPS_ParseCoordinate(uint8_t *buf, uint8_t len, uint32_t *value, uint8_t *char_value) {
 	uint16_t pos = 0;
+	uint32_t coord_minutes;
+	int16_t f_len; // fractional part length
 
-	// Latitude
+	// Coordinate
 	if (buf[pos] != ',') {
-		GPSData.latitude_degree = atos_len(&buf[pos],2);
-		pos += 2;
-		GPSData.latitude_seconds  = atos_char(&buf[pos],&pos) * 1000000;
-		GPSData.latitude_seconds += atos_char(&buf[pos],&pos);
+		// '10000' determines length of the fractional part in result
+		// e.g. 10000 means 4 fractional digits
+		*value = atos_len(&buf[pos],len) * 10000; // degrees
+		pos += len;
+		f_len = pos;
+		pos += GPS_ParseFloat(&buf[pos],&coord_minutes); // minutes
+		f_len = pos - f_len - 4; // fractional part length
+		if (f_len > 0) {
+			// Float calculations, slow
+			*value += (uint32_t)((coord_minutes / (pwr10(f_len) * 60.0)) * 10000);
+		} else {
+			// Are you serious? Floating part is mandatory!
+			*value += coord_minutes * 100;
+		}
 	} else pos++;
-	// Latitude char
+
+	// Coordinate character
 	if (buf[pos] != ',') {
-		GPSData.latitude_char = buf[pos];
+		*char_value = buf[pos];
 		pos += 2;
 	} else {
-		GPSData.latitude_char = 'X';
-		pos++;
-	}
-
-	// Longitude
-	if (buf[pos] != ',') {
-		GPSData.longitude_degree = atos_len(&buf[pos],3);
-		pos += 3;
-		GPSData.longitude_seconds  = atos_char(&buf[pos],&pos) * 1000000;
-		GPSData.longitude_seconds += atos_char(&buf[pos],&pos);
-	} else pos++;
-	// Longitude char
-	if (buf[pos] != ',') {
-		GPSData.longitude_char = buf[pos];
-		pos += 2;
-	} else {
-		GPSData.longitude_char = 'X';
+		*char_value = 'X';
 		pos++;
 	}
 
@@ -282,32 +288,17 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 			pos += 2;
 		} else pos++;
 
-		// Latitude + Longitude
-		pos += GPS_ParseCoordinates(&buf[pos]);
+		// Latitude
+		pos += GPS_ParseCoordinate(&buf[pos],2,&GPSData.latitude,&GPSData.latitude_char);
+
+		// Longitude
+		pos += GPS_ParseCoordinate(&buf[pos],3,&GPSData.longitude,&GPSData.longitude_char);
 
 		// Horizontal speed (in knots)
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
-/*
-		if (buf[pos] != ',') {
-			GPSData.speed_k  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.speed_k += atos_char(&buf[pos],&pos);
-		} else {
-			GPSData.speed_k = 0;
-			pos++;
-		}
-*/
 
 		// Course
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
-/*
-		if (buf[pos] != ',') {
-			GPSData.course  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.course += atos_char(&buf[pos],&pos);
-		} else {
-			GPSData.course = 0;
-			pos++;
-		}
-*/
 
 		// Date of fix
 		if (buf[pos] != ',') {
@@ -332,8 +323,11 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 	case NMEA_GLL:
 		// $GPGLL - Geographic position, latitude / longitude
 
-		// Latitude + Longitude
-		pos += GPS_ParseCoordinates(&buf[pos]);
+		// Latitude
+		pos += GPS_ParseCoordinate(&buf[pos],2,&GPSData.latitude,&GPSData.latitude_char);
+
+		// Longitude
+		pos += GPS_ParseCoordinate(&buf[pos],3,&GPSData.longitude,&GPSData.longitude_char);
 
 		// Time of fix
 		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
@@ -379,9 +373,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		} else GPSData.date += 2013;
 
 		// Local time zone offset
-		// ..... (mostly not supported by GPS receivers)
+		// sad but true: this feature mostly not supported by GPS receivers
 
-		// Check for year, if it less than 2014 then date reported from GPS is incorrect
+		// Check for year, if it less than 2014, the date from the GPS receiver is not valid
 		if (GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
 
 		break; // NMEA_ZDA
@@ -390,13 +384,6 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// Course (heading relative to true north)
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
-/*
-		if (buf[pos] != ',') {
-			GPSData.course  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.course += atos_len(&buf[pos],2);
-			pos += 3;
-		} else pos++;
-*/
 
 		// Field with 'T' letter - "track made good is relative to true north"
 		// ignore it
@@ -412,26 +399,12 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// Speed over ground in knots
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
-/*
-		if (buf[pos] != ',') {
-			GPSData.speed_k  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.speed_k += atos_len(&buf[pos],2);
-			pos += 3;
-		} else pos++;
-*/
 
 		// Field with 'N' - speed over ground measured in knots, ignore it
 		pos += GPS_NextField(&buf[pos]);
 
 		// Speed over ground in km/h
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed);
-/*
-		if (buf[pos] != ',') {
-			GPSData.speed  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.speed += atos_len(&buf[pos],2);
-			pos += 3;
-		}
-*/
 
 		// Field with 'K' - speed over ground measured in km/h, ignore it
 		pos += GPS_NextField(&buf[pos]);
@@ -446,8 +419,11 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		// Time
 		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.time); else pos++;
 
-		// Latitude + Longitude
-		pos += GPS_ParseCoordinates(&buf[pos]);
+		// Latitude
+		pos += GPS_ParseCoordinate(&buf[pos],2,&GPSData.latitude,&GPSData.latitude_char);
+
+		// Longitude
+		pos += GPS_ParseCoordinate(&buf[pos],3,&GPSData.longitude,&GPSData.longitude_char);
 
 		// Position fix indicator
 		if (buf[pos] != ',') {
@@ -460,12 +436,6 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// HDOP - horizontal dilution of precision
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
-/*
- 		if (buf[pos] != ',') {
-			GPSData.HDOP  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.HDOP += atos_char(&buf[pos],&pos);
-		} else pos++;
-*/
 
 		// MSL Altitude (mean-sea-level)
 		if (buf[pos] != ',') {
@@ -537,33 +507,12 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// PDOP - position dilution
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.PDOP);
-/*
-		if (buf[pos] != ',') {
-			GPSData.PDOP  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.PDOP += atos_len(&buf[pos],2);
-			pos += 3;
-		} else pos++;
-*/
 
 		// HDOP - horizontal position dilution
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
-/*
-		if (buf[pos] != ',') {
-			GPSData.HDOP  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.HDOP += atos_len(&buf[pos],2);
-			pos += 3;
-		} else pos++;
-*/
 
 		// VDOP - vertical position dilution
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.VDOP);
-/*
-		if (buf[pos] != ',' && buf[pos] != '*') {
-			GPSData.VDOP  = atos_char(&buf[pos],&pos) * 100;
-			GPSData.VDOP += atos_len(&buf[pos],2);
-			pos += 3;
-		} else pos++;
-*/
 
 		break; // NMEA_GSA
 	case NMEA_GSV:

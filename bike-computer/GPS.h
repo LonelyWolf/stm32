@@ -40,11 +40,9 @@ typedef struct {
 } NMEASentence_TypeDef;
 
 typedef struct {
-	uint8_t  latitude_degree;     // Latitude degrees
-	uint32_t latitude_seconds;    // Latitude seconds
+	uint32_t latitude;            // Latitude (degrees)
 	uint8_t  latitude_char;       // Latitude N/S indicator (X if no valid data)
-	uint8_t  longitude_degree;    // Longitude degrees
-	uint32_t longitude_seconds;   // Longitude seconds
+	uint32_t longitude;           // Longitude (degrees)
 	uint8_t  longitude_char;      // Longitude E/W indicator (X if no valid data)
 	uint32_t speed_k;             // Speed over ground (Knots, 1 knot = 1.825km/h)
 	uint32_t speed;               // Speed over ground (km/h)

@@ -21,6 +21,7 @@
 #include <stm32l1xx_dma.h>
 #include <string.h> // For memset, memmove
 
+#include <wolk.h>
 #include <delay.h>
 #include <spi.h>
 #include <i2c.h>
@@ -29,7 +30,6 @@
 #include <nRF24.h>
 #include <bmp180.h>
 #include <RTC.h>
-#include <wolk.h>
 #include <GUI.h>
 #include <GPS.h>
 #include <USB.h>
@@ -723,7 +723,6 @@ int main(void) {
 	UC1701_Flush();
 
 	BEEPER_PlayTones(tones_startup);
-//	Delay_ms(2500); // Fancy startup delay
 
 	// Set time
 	_time.RTC_Hours   = 0;
@@ -745,7 +744,7 @@ int main(void) {
 	GPS_SendCommand(PMTK_API_SET_STATIC_NAV_THD_OFF); // Disable speed threshold
 	GPS_SendCommand(PMTK_EASY_ENABLE); // Enable EASY (for MT3339)
 	GPS_SendCommand(PMTK_SET_PERIODIC_MODE_NORMAL); // Disable periodic mode
-	GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
+//	GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
 
 	ccc = 0;
 

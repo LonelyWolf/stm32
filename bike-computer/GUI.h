@@ -194,8 +194,7 @@ void GUI_DrawSpeed(int8_t X, int8_t Y, uint32_t speed, uint32_t avg);
 void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time);
 void GUI_DrawGraph(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const int16_t* data, GraphType_TypeDef GraphType);
 
-uint8_t GUI_PutCoord(uint8_t X, uint8_t Y, uint8_t degree, uint32_t seconds, char ch,
-		const Font_TypeDef *Font);
+uint8_t GUI_PutCoord(uint8_t X, uint8_t Y, uint32_t coord, char ch, const Font_TypeDef *Font);
 uint8_t GUI_PutTimeSec(uint8_t X, uint8_t Y, uint32_t time, const Font_TypeDef *Font);
 uint8_t GUI_PutDate(uint8_t X, uint8_t Y, uint32_t date, const Font_TypeDef *Font);
 uint8_t GUI_PutPressure(uint8_t X, uint8_t Y, int32_t pressure, PressureType_TypeDef PressureType,
