@@ -18,6 +18,18 @@ uint8_t GPS_sats[12];                       // IDs of satellites used in positio
 GPS_Satellite_TypeDef GPS_sats_view[MAX_SATELLITES_VIEW];
 
 
+// Calculates ten raised to the given power
+// input:
+//   exp - exponent value
+// return: ten in raised to the exponent
+uint32_t _pow10(uint32_t exp) {
+	uint32_t result = 1;
+
+	while (exp--) result *= 10;
+
+	return result;
+}
+
 // Calculate CRC of NMEA command
 // input:
 //   str - pointer to the string with command
@@ -35,7 +47,7 @@ uint8_t GPS_CRC(char *str) {
 // Send NMEA command
 // input:
 //   cmd - pointer to string with command
-//         command must begin with '$' char and end with '*'
+// note: command must begin with '$' char and end with '*'
 void GPS_SendCommand(char *cmd) {
 	uint8_t cmd_CRC;
 
@@ -97,6 +109,40 @@ NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf
 	} while (pos < buf_size - 3);
 
 	return result;
+}
+
+// Find next field in GPS sentence
+// input:
+//   buf - pointer to the data buffer
+// return: buffer offset of next field
+uint16_t GPS_NextField(uint8_t *buf) {
+	uint16_t pos = 1;
+
+	while (*buf != ',' && *buf++ != '*') pos++;
+
+	return pos;
+}
+
+// Parse float value from a GPS sentence
+// input:
+//   buf - pointer to the data buffer
+//   value - pointer to parsed value (float represented as integer, e.g. 1234.567 -> 1234567)
+// return: number of parsed bytes
+uint16_t GPS_ParseFloat(uint8_t *buf, uint32_t *value) {
+	uint16_t pos = 0;
+	uint32_t ip;
+	uint16_t len;
+
+	if (*buf == ',' || *buf == '*') {
+		*value = 0;
+		return 1;
+	}
+	ip = atos_char(&buf[pos],&pos);
+	len = pos;
+	*value  = atos_char(&buf[pos],&pos);
+	*value += ip * _pow10(pos - len - 1);
+
+	return pos;
 }
 
 // Parse latitude and longitude
@@ -177,7 +223,6 @@ uint16_t GPS_ParseSatelliteInView(uint8_t *buf, uint8_t sat_num) {
 	}
 
 	// Satellite SNR
-	// additional checking for asterisk here is workaround for a bug in EB-500 firmware
 	if (buf[pos] != ',' && buf[pos] != '*') {
 		GPS_sats_view[sat_num].SNR = atos_len(&buf[pos],2);
 		pos += 3;
@@ -207,8 +252,7 @@ uint16_t GPS_ParseTime(uint8_t *buf, uint32_t *time) {
 	pos += 2;
 	*time += atos_len(&buf[pos],2);
 	pos += 3;
-	// Ignore milliseconds
-	if (buf[pos] != ',') atos_char(&buf[pos],&pos);
+	pos += GPS_NextField(&buf[pos]); // Ignore milliseconds
 	GPSData.time_valid = TRUE;
 
 	return pos;
@@ -232,18 +276,18 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
 
 		// Valid data marker
+		GPSData.valid = FALSE;
 		if (buf[pos] != ',') {
-			GPSData.valid = (buf[pos] == 'A') ? TRUE : FALSE;
+			if (buf[pos] == 'A') GPSData.valid = TRUE;
 			pos += 2;
-		} else {
-			GPSData.valid = FALSE;
-			pos++;
-		}
+		} else pos++;
 
 		// Latitude + Longitude
 		pos += GPS_ParseCoordinates(&buf[pos]);
 
 		// Horizontal speed (in knots)
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
+/*
 		if (buf[pos] != ',') {
 			GPSData.speed_k  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.speed_k += atos_char(&buf[pos],&pos);
@@ -251,8 +295,11 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 			GPSData.speed_k = 0;
 			pos++;
 		}
+*/
 
 		// Course
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
+/*
 		if (buf[pos] != ',') {
 			GPSData.course  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.course += atos_char(&buf[pos],&pos);
@@ -260,13 +307,27 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 			GPSData.course = 0;
 			pos++;
 		}
+*/
 
 		// Date of fix
 		if (buf[pos] != ',') {
 			GPSData.fix_date  = atos_len(&buf[pos],2) * 1000000;
 			GPSData.fix_date += atos_len(&buf[pos + 2],2) * 100000;
 			GPSData.fix_date += atos_len(&buf[pos + 4],2) + 2000;
-		};
+			pos += 6;
+		} pos++;
+
+		// Magnetic variation
+		// ignore this (mostly not supported by GPS receivers)
+		pos += GPS_NextField(&buf[pos]);
+
+		// Magnetic variation direction
+		// ignore this (mostly not supported by GPS receivers)
+		pos += GPS_NextField(&buf[pos]);
+
+		// Mode indicator (NMEA 0183 v3.0 or never)
+		if (buf[pos] != ',' && buf[pos] != '*') GPSData.mode = buf[pos];
+
 		break; // NMEA_RMC
 	case NMEA_GLL:
 		// $GPGLL - Geographic position, latitude / longitude
@@ -278,13 +339,11 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
 
 		// Valid data marker
+		GPSData.valid = FALSE;
 		if (buf[pos] != ',') {
-			GPSData.valid = (buf[pos] == 'A') ? TRUE : FALSE;
+			if (buf[pos] == 'A') GPSData.valid = TRUE;
 			pos += 2;
-		} else {
-			GPSData.valid = FALSE;
-			pos++;
-		}
+		} else pos++;
 
 		// Mode indicator
 		if (buf[pos] != ',') GPSData.mode = buf[pos]; else GPSData.mode = 'N';
@@ -294,11 +353,7 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		// $GPZDA - Date & Time
 
 		// Time
-		if (buf[pos] != ',') {
-			pos += GPS_ParseTime(&buf[pos],&GPSData.time);
-		} else {
-			pos++;
-		}
+		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.time); else pos++;
 
 		// Date: day
 		if (buf[pos] != ',') {
@@ -324,9 +379,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		} else GPSData.date += 2013;
 
 		// Local time zone offset
-		// ..... (usually not supported by GPS modules)
+		// ..... (mostly not supported by GPS receivers)
 
-		// Check for year, if it less than 2014 then time reported from GPS is useless
+		// Check for year, if it less than 2014 then date reported from GPS is incorrect
 		if (GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
 
 		break; // NMEA_ZDA
@@ -334,47 +389,62 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		// $GPVTG - Course over ground and ground speed
 
 		// Course (heading relative to true north)
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
+/*
 		if (buf[pos] != ',') {
 			GPSData.course  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.course += atos_len(&buf[pos],2);
-			pos += 9;
-		} else pos += 6;
-		// Skip field with 'T' letter - "track made good is relative to true north"
-		// Skip field with course relative to magnetic north (not supported)
-		// Skip field with 'N' letter - "track made good is relative to magnetic north"
+			pos += 3;
+		} else pos++;
+*/
 
-		// Speed in knots
+		// Field with 'T' letter - "track made good is relative to true north"
+		// ignore it
+		pos += GPS_NextField(&buf[pos]);
+
+		// Field with course relative to magnetic north
+		// mostly not supported by GPS receivers, ignore it
+		pos += GPS_NextField(&buf[pos]);
+
+		// Field with 'M' letter - "track made good is relative to magnetic north"
+		// mostly not supported by GPS receivers, ignore it
+		pos += GPS_NextField(&buf[pos]);
+
+		// Speed over ground in knots
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
+/*
 		if (buf[pos] != ',') {
 			GPSData.speed_k  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.speed_k += atos_len(&buf[pos],2);
-			pos += 5;
-		} else {
-			GPSData.speed_k = 0;
-			pos += 4;
-		}
-		// Skip field with 'N' - speed over ground measured in knots
+			pos += 3;
+		} else pos++;
+*/
 
-		// Speed in km/h
+		// Field with 'N' - speed over ground measured in knots, ignore it
+		pos += GPS_NextField(&buf[pos]);
+
+		// Speed over ground in km/h
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed);
+/*
 		if (buf[pos] != ',') {
 			GPSData.speed  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.speed += atos_len(&buf[pos],2);
-			pos += 5;
+			pos += 3;
 		}
-		// Skip field with 'K' - speed over ground measured in km/h
+*/
 
-		// Mode indicator
-		if (buf[pos] != ',') GPSData.mode = buf[pos]; else GPSData.mode = 'N';
+		// Field with 'K' - speed over ground measured in km/h, ignore it
+		pos += GPS_NextField(&buf[pos]);
+
+		// Mode indicator (NMEA 0183 v3.0 or later)
+		if (buf[pos] != ',' && buf[pos] != '*') GPSData.mode = buf[pos]; else GPSData.mode = 'N';
 
 		break; // NMEA_VTG
 	case NMEA_GGA:
-		// $GPGGA - GPS fixed data
+		// $GPGGA - GPS fix data
 
 		// Time
-		if (buf[pos] != ',') {
-			pos += GPS_ParseTime(&buf[pos],&GPSData.time);
-		} else {
-			pos++;
-		}
+		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.time); else pos++;
 
 		// Latitude + Longitude
 		pos += GPS_ParseCoordinates(&buf[pos]);
@@ -383,34 +453,26 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		if (buf[pos] != ',') {
 			GPSData.fix_quality = buf[pos] - '0';
 			pos += 2;
-		} else {
-			GPSData.fix_quality = 0;
-			pos++;
-		}
+		} else pos++;
 
 		// Satellites used
-		if (buf[pos] != ',') {
-			GPSData.sats_used = atos_char(&buf[pos],&pos);
-		} else {
-			GPSData.sats_used = 0;
-			pos++;
-		}
+		if (buf[pos] != ',') GPSData.sats_used = atos_char(&buf[pos],&pos); else pos++;
 
 		// HDOP - horizontal dilution of precision
-		if (buf[pos] != ',') {
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
+/*
+ 		if (buf[pos] != ',') {
 			GPSData.HDOP  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.HDOP += atos_char(&buf[pos],&pos);
-		} else {
-			GPSData.HDOP = 0;
-			pos++;
-		}
+		} else pos++;
+*/
 
 		// MSL Altitude (mean-sea-level)
 		if (buf[pos] != ',') {
 			// This value can be negative
 			// Only integer part, fractional is useless
-			GPSData.altitude  = atos_char(&buf[pos],&pos);
-			pos += 4;
+			GPSData.altitude = atos_char(&buf[pos],&pos);
+			pos += GPS_NextField(&buf[pos]);
 /*
 			GPSData.altitude  = atos_char(&buf[pos],&pos) * 1000;
 			if (GPSData.altitude >= 0)
@@ -419,12 +481,11 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 				GPSData.altitude -= atos_len(&buf[pos],3);
 			pos += 4;
 */
-		} else {
-			GPSData.altitude = 0;
-			pos++;
-		}
+		} else pos++;
+
 		// Altitude measurement units
-		if (buf[pos] != ',') pos += 2; else pos++; // skip this field
+		// ignore this field and assume what units is meters
+		buf += GPS_NextField(&buf[pos]);
 
 		// Geoid-to-ellipsoid separation (Ellipsoid altitude = MSL altitude + Geoid separation)
 		if (buf[pos] != ',') {
@@ -434,17 +495,25 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 				GPSData.geoid_separation += atos_char(&buf[pos],&pos);
 			else
 				GPSData.geoid_separation -= atos_char(&buf[pos],&pos);
-		} else {
-			GPSData.geoid_separation = 0;
-			pos++;
+		} else pos++;
+
+		// Time since last DGPS update
+		if (buf[pos] != ',') {
+			GPSData.dgps_age = atos_char(&buf[pos],&pos);
+		} else pos++;
+
+		// DGPS station ID
+		if (buf[pos] != ',' && buf[pos] != '*') {
+			GPSData.dgps_id = atos_char(&buf[pos],&pos);
 		}
 
 		break; // NMEA_GGA
 	case NMEA_GSA:
 		// $GPGSA - GPS DOP and active satellites
 
-		// Satellite acquisition mode (M = manually force 2D or 3D, A = automatic switch between 2D and 3D)
-		if (buf[pos] != ',') pos += 2; else pos++; // Skip this field
+		// Satellite acquisition mode (M = manually forced 2D or 3D, A = automatic switch between 2D and 3D)
+		// ignore this field
+		pos += GPS_NextField(&buf[pos]);
 
 		// Position mode (1=fix not available, 2=2D fix, 3=3D fix)
 		if (buf[pos] != ',') {
@@ -467,59 +536,55 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		}
 
 		// PDOP - position dilution
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.PDOP);
+/*
 		if (buf[pos] != ',') {
 			GPSData.PDOP  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.PDOP += atos_len(&buf[pos],2);
 			pos += 3;
-		} else {
-			GPSData.PDOP = 0;
-			pos++;
-		}
+		} else pos++;
+*/
 
 		// HDOP - horizontal position dilution
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
+/*
 		if (buf[pos] != ',') {
 			GPSData.HDOP  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.HDOP += atos_len(&buf[pos],2);
 			pos += 3;
-		} else {
-			GPSData.HDOP = 0;
-			pos++;
-		}
+		} else pos++;
+*/
 
 		// VDOP - vertical position dilution
-		if (buf[pos] != ',') {
+		pos += GPS_ParseFloat(&buf[pos],&GPSData.VDOP);
+/*
+		if (buf[pos] != ',' && buf[pos] != '*') {
 			GPSData.VDOP  = atos_char(&buf[pos],&pos) * 100;
 			GPSData.VDOP += atos_len(&buf[pos],2);
 			pos += 3;
-		} else {
-			GPSData.VDOP = 0;
-			pos++;
-		}
+		} else pos++;
+*/
 
 		break; // NMEA_GSA
 	case NMEA_GSV:
 		// $GPGSV - GPS Satellites in view
 
-		// Skip field with "total number of GSV sentences in this cycle"
-		pos += 2;
+		// Field with "total number of GSV sentences in this cycle"
+		// ignore it
+		pos += GPS_NextField(&buf[pos]);
 
 		// GSV sentence number
 		if (buf[pos] != ',') {
 			GSV_msg = atos_len(&buf[pos],1);
 			pos += 2;
-		} else {
-			GSV_msg = 0; // This should not happen
-			pos++;
-		}
+		} else pos++;
 
 		// Total number of satellites in view
 		if (buf[pos] != ',') {
 			GSV_sats = atos_len(&buf[pos],2);
 			pos += 3;
-		} else {
-			GSV_sats = 0;
-			pos++;
-		}
+		} else pos++;
+
 		GPSData.sats_view = GSV_sats;
 
 		// Parse no more than 12 satellites in view

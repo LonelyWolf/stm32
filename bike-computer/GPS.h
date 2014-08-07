@@ -3,7 +3,7 @@
 #define __GPS_H
 
 
-#define GPS_BUFFER_SIZE     1024  // Size of GPS buffer (must be equal to or greater than FIFO buffer)
+#define GPS_BUFFER_SIZE     1024  // Size of GPS buffer
 #define MAX_SATELLITES_VIEW   12  // Maximum number of satellites in view to handle
 
 
@@ -46,12 +46,12 @@ typedef struct {
 	uint8_t  longitude_degree;    // Longitude degrees
 	uint32_t longitude_seconds;   // Longitude seconds
 	uint8_t  longitude_char;      // Longitude E/W indicator (X if no valid data)
-	int32_t  speed_k;             // Speed over ground (Knots, 1 knot = 1.825km/h)
-	int32_t  speed;               // Speed over ground (km/h)
-	int32_t  course;              // Track angle relative to North (Degrees)
-	uint16_t PDOP;                // Dilution of precision
-	uint16_t HDOP;                // Horizontal dilution of precision
-	uint16_t VDOP;                // Vertical dilution of precision
+	uint32_t speed_k;             // Speed over ground (Knots, 1 knot = 1.825km/h)
+	uint32_t speed;               // Speed over ground (km/h)
+	uint32_t course;              // Track angle relative to North (Degrees)
+	uint32_t PDOP;                // Dilution of precision
+	uint32_t HDOP;                // Horizontal dilution of precision
+	uint32_t VDOP;                // Vertical dilution of precision
 	uint8_t  sats_used;           // Satellites used for fix
 	uint8_t  sats_view;           // Satellites in view
 	int32_t  altitude;            // Mean-sea-level altitude (meters)
@@ -73,6 +73,8 @@ typedef struct {
 	uint32_t date;                // Date (DDMMYYYY)
 	uint8_t  mode;                // Mode indicator (A=Autonomous, D=Differential(DGPS), E=Estimated(DR),
 	                              // R=Coarse pos., S=Simulator, N=Data not valid)
+	uint32_t dgps_age;            // Time since last DGPS update (seconds)
+	uint32_t dgps_id;             // DGPS station ID number
 	bool     time_valid;          // Have valid time
 	bool     datetime_valid;      // Have valid date and time
 	bool     valid;               // GPS status: TRUE if data valid
