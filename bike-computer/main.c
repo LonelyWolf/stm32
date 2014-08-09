@@ -47,6 +47,11 @@
 #define SCREENSAVER_UPDATE              60  // Screensaver update interval (seconds)
 #define ALT_MEASURE_DUTY_CYCLE          30  // Temperature/pressure measurement duty cycle (seconds)
 #define NO_SIGNAL_TIME                  10  // Sensor signal timeout (seconds)
+#define GPS_TIME_SYNC_DUTY_CYCLE       120  // Duty cycle to sync system time tiwh GPS time (seconds)
+
+
+/////////////////////////////////////////////////////////////////////////
+
 
 uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD];     // nRF24L01 payload buffer
 
@@ -63,9 +68,10 @@ uint16_t _prev_tim_SPD;                     // Last received tim_SPD value
 uint16_t _tim_excess;                       // Timer excess from 1 second ratio
 uint32_t _cntr_cadence;                     // Cadence counter (for AVG calculation)
 uint32_t _cadence_accum;                    // Cadence accumulator (for AVG calculation)
+uint32_t _GPS_time_duty_cycle;              // Duty cycle to sync system time with GPS time
+uint32_t _altitude_duty_cycle;              // Altitude measurement duty cycle
 
 int16_t altitude_history[128];              // Last 128 altitude values
-uint8_t _altitude_duty_cycle;               // Altitude measurement duty cycle
 
 uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter (to track RX timeout)
 
@@ -247,9 +253,18 @@ void InitPeripherals(void) {
 // Turn on transceiver and configure it for RX mode
 void nRF24_SetRXMode(void) {
 	nRF24_Wake();
-	nRF24_RXMode(nRF24_RX_PIPE0,nRF24_RF_CHANNEL,nRF24_DataRate_250kbps,nRF24_CRC_on,
-			     nRF24_CRC_1byte,(uint8_t *)nRF24_RX_Addr,nRF24_RX_Addr_Size,nRF24_RX_PAYLOAD,
-			     nRF24_TXPower_0dBm);
+	nRF24_RXMode(
+			nRF24_RX_PIPE0,           // RX on PIPE#0
+			nRF24_ENAA_OFF,           // Auto acknowledgment
+			nRF24_RF_CHANNEL,         // RF Channel
+			nRF24_DataRate_250kbps,   // Data rate
+			nRF24_CRC_on,             // CRC
+			nRF24_CRC_1byte,          // CRC scheme
+			(uint8_t *)nRF24_RX_Addr, // RX address
+			nRF24_RX_Addr_Size,       // RX address size
+			nRF24_RX_PAYLOAD,         // Payload length
+			nRF24_TXPower_0dBm        // TX power for auto acknowledgment
+			);
     nRF24_ClearIRQFlags();
     nRF24_FlushRX();
 }
@@ -333,12 +348,16 @@ void RTC_WKUP_IRQHandler(void) {
 		RTC_GetDateTime(&RTC_Time,&RTC_Date);
 
 		_no_signal_time++;
+		_GPS_time_duty_cycle++;
 		_altitude_duty_cycle++;
 		_idle_time++;
 		_new_time = TRUE;
 
-		if (_no_signal_time > 3600) _no_signal_time = 3600; // Counter overflow protection (1hour)
-		if (_idle_time > 3600) _idle_time = 3600; // Counter overflow protection (1hour)
+		// Counters overflow protection  FIXME: is it really necessary?
+		if (_no_signal_time > 36000) _no_signal_time = 36000;
+		if (_idle_time > 36000) _idle_time = 36000;
+		if (_GPS_time_duty_cycle > 36000) _GPS_time_duty_cycle = 36000;
+		if (_altitude_duty_cycle > 36000) _altitude_duty_cycle = 36000;
 
 		if (_no_signal_time > NO_SIGNAL_TIME) {
 			CurData.Speed   = 0;
@@ -351,7 +370,7 @@ void RTC_WKUP_IRQHandler(void) {
 			if (_idle_time > Settings.LCD_timeout && Settings.LCD_timeout) UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
 			// ATTENTION! BMP180 polling pretty slow!
 			// Execute it from this place is really a bad idea!
-			if (_altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
 		}
 
 		PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
@@ -368,15 +387,16 @@ void TIM7_IRQHandler(void) {
 		// DMA pointer unchanged from last IRQ -> UART timeout
 		TIM7->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); // Disable TIM7
 		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA
-		UART_PORT->CR1 |= USART_CR1_RXNEIE; // Enable USART2 RX complete interrupt
-		// Copy rest of data from the FIFO buffer to GPS buffer
-		_DMA_cntr = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR; // Last piece of data size
+		// Copy rest of data from the FIFO buffer to the GPS buffer
+		_DMA_cntr = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
 		// Cut data buffer to prevent overflow
-		if (GPS_buf_cntr + _DMA_cntr > GPS_BUFFER_SIZE)	_DMA_cntr -= GPS_BUFFER_SIZE - GPS_buf_cntr;
+		if (GPS_buf_cntr + _DMA_cntr >= GPS_BUFFER_SIZE) _DMA_cntr = GPS_BUFFER_SIZE - GPS_buf_cntr;
 		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,_DMA_cntr);
 		GPS_buf_cntr += _DMA_cntr;
 		_DMA_cntr = 0;
 		ParseGPS(); // About 3ms with full buffer
+		// Enable USART2 RX complete interrupt when GPS data is parsed (ready to get new)
+		UART_PORT->CR1 |= USART_CR1_RXNEIE;
 	} else {
 		// Data still coming from USART
 		_DMA_cntr = (uint16_t)DMA1_Channel6->CNDTR;
@@ -406,13 +426,14 @@ void DMA1_Channel6_IRQHandler() {
 		DMA1->IFCR |= DMA_IFCR_CTCIF6; // Clear DMA1 channel6 transfer complete flag
 		// Amount of received data (in fact should be equal to FIFO_BUFFER_SIZE)
 		b_rcvd = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
-		// Cut data buffer to prevent overflow
-		if (GPS_buf_cntr + _DMA_cntr > GPS_BUFFER_SIZE)	_DMA_cntr -= GPS_BUFFER_SIZE - GPS_buf_cntr;
+		// Prevent data buffer overflow
+		if (GPS_buf_cntr + b_rcvd >= GPS_BUFFER_SIZE) b_rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
 		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,b_rcvd); // Copy data to the GPS buffer
 		GPS_buf_cntr += b_rcvd;
-		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (for reload it counter value)
-		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE;
-		DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
+		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (for reload counter value)
+		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE; // Reload DMA counter
+		// If the data buffer is full the DMA should remain disabled until the buffer is processed.
+		if (GPS_buf_cntr <= GPS_BUFFER_SIZE) DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
 	};
 }
 
@@ -442,18 +463,14 @@ void callback_Delay(void) {
 
 // Parse received nRF24L01 data packet
 void ParsePacket(void) {
-	float tmp;
-	int32_t diff_SPD;
+	uint32_t diff_SPD;
 
 	// memcpy doesn't work here due to struct alignments
 	nRF24_Packet.cntr_SPD     = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
 	nRF24_Packet.tim_SPD      = (nRF24_RX_Buf[2] << 8) + nRF24_RX_Buf[3];
 	nRF24_Packet.tim_CDC      = (nRF24_RX_Buf[4] << 8) + nRF24_RX_Buf[5];
 	nRF24_Packet.vrefint      = ((nRF24_RX_Buf[6] & 0x03) << 8) + nRF24_RX_Buf[7];
-	nRF24_Packet.observe_TX   =  nRF24_RX_Buf[8];
-	nRF24_Packet.cntr_wake    = (nRF24_RX_Buf[9] << 8) + nRF24_RX_Buf[10];
-	nRF24_Packet.packets_lost = (nRF24_RX_Buf[11] << 8) + nRF24_RX_Buf[12];
-	nRF24_Packet.ride_time    = (nRF24_RX_Buf[13] << 8) + nRF24_RX_Buf[14];
+	nRF24_Packet.cntr_wake    = (nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9];
 
 	// Convert SPD impulses period into speed
 	if (nRF24_Packet.tim_SPD > 0) {
@@ -478,8 +495,10 @@ void ParsePacket(void) {
 	if (CurData.Cadence > CurData.MaxCadence) CurData.MaxCadence = CurData.Cadence;
 
 	// Update current trip time
+	// Transceiver send packet every second, so don't fuss and simply add one second to trip time
+	CurData.TripTime++;
 /*
- 	if (nRF24_Packet.tim_SPD != _prev_tim_SPD) {
+ 		if (nRF24_Packet.tim_SPD != _prev_tim_SPD) {
 		if (nRF24_Packet.tim_SPD < 1007) {
 			// Pulse interval was shorter than one second therefore just
 			// add one second to the trip counter
@@ -488,23 +507,27 @@ void ParsePacket(void) {
 			// Pulse interval was longer than one second, therefore convert it
 			// to seconds and remember fractional part for further usage
 			tmp = (nRF24_Packet.tim_SPD / 1007.08) + (_tim_excess / 1000.0);
-			tmp_f = modff(tmp,&tmp_i);
-			CurData.TripTime += tmp_i;
-			_tim_excess = tmp_f * 1000;
+			CurData.TripTime += (uint32_t)tmp;
+			_tim_excess = (uint32_t)(tmp * 1000) - ((uint32_t)tmp * 1000);
 		}
 	}
 	_prev_tim_SPD  = nRF24_Packet.tim_SPD;
 */
+/*
 	if (nRF24_Packet.ride_time) {
 		tmp = (nRF24_Packet.ride_time / 1007.08) + (_tim_excess / 1000.0);
 		CurData.TripTime += (uint32_t)tmp;
 		_tim_excess = (uint32_t)(tmp * 1000) - ((uint32_t)tmp * 1000);
 	}
+*/
 
 	// Update odometer and current trip distance
 	if (nRF24_Packet.cntr_SPD != 0 && nRF24_Packet.cntr_SPD != _prev_cntr_SPD) {
-		diff_SPD = nRF24_Packet.cntr_SPD - _prev_cntr_SPD;
-		if (diff_SPD < 0) diff_SPD *= -1;
+		if (nRF24_Packet.cntr_SPD >= _prev_cntr_SPD) {
+			diff_SPD = nRF24_Packet.cntr_SPD - _prev_cntr_SPD;
+		} else {
+			diff_SPD = 65535 - _prev_cntr_SPD + nRF24_Packet.cntr_SPD;
+		}
 		CurData.Odometer += Settings.WheelCircumference * diff_SPD;
 		CurData.TripDist += Settings.WheelCircumference * diff_SPD;
 	}
@@ -630,6 +653,7 @@ int main(void) {
 	_no_signal_time = 32768;
 	_idle_time      = 0;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
+	_GPS_time_duty_cycle = GPS_TIME_SYNC_DUTY_CYCLE + 1;
 	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
 
 	// Buttons initialization
@@ -787,9 +811,8 @@ int main(void) {
 
 		if (GPS_new_data) {
 			// GPS data parsed
-			if (GPSData.datetime_valid) {
+			if (GPSData.datetime_valid && _GPS_time_duty_cycle > GPS_TIME_SYNC_DUTY_CYCLE) {
 				// Date and time obtained from GPS
-				// TODO: don't do this every time, better involve some duty cycle
 				_time.RTC_Hours   =  GPSData.time / 3600;
 				_time.RTC_Minutes = (GPSData.time / 60) % 60;
 				_time.RTC_Seconds =  GPSData.time % 60;
@@ -798,10 +821,8 @@ int main(void) {
 				_date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
 				_date.RTC_Year  = (GPSData.date % 10000) - 2000;
 				RTC_AdjustTimeZone(&_time,&_date,Settings.GMT_offset);
-				__disable_irq(); // TODO: this should be atomic procedure (it's better disable WKUP IRQ for that time)
 				RTC_SetDateTime(&_time,&_date);
-				__enable_irq();
-				_new_time = TRUE;
+				_GPS_time_duty_cycle = 0;
 			}
 			GPS_new_data = FALSE;
 		}

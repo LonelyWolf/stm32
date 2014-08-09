@@ -288,33 +288,23 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		InvertRect(4,0,scr_width - 8,9);
 		// Cadence data
 		X = 5; Y = 10;
-		X += PutStr(X,Y,"CDC c:",fnt5x7) - 1;
+		X += PutStr(X,Y,"CDC cntr:",fnt5x7) - 1;
 		PutInt(X,Y,nRF24_Packet.tim_CDC,fnt5x7);
 		// Speed data
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"SPD c:",fnt5x7) - 1;
-		X += PutInt(X,Y,nRF24_Packet.cntr_SPD,fnt5x7) + 8;
-		X += PutStr(X,Y,"t:",fnt5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.tim_SPD,fnt5x7);
-		// Packets lost
+		X += PutStr(X,Y,"SPD cntr:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.cntr_SPD,fnt5x7);
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"P.Lost:",fnt5x7) - 1;
-		X += PutInt(X,Y,nRF24_Packet.packets_lost,fnt5x7) + 5;
-		// OBSERVER_TX
-		X += PutStr(X,Y,"OTX:",fnt5x7) - 1;
-		X += PutHex(X,Y,nRF24_Packet.observe_TX,fnt5x7);
+		X += PutStr(X,Y,"SPD tim:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.tim_SPD,fnt5x7);
 		// Wake-ups
 		X = 5; Y += 9;
 		X += PutStr(X,Y,"Wake:",fnt5x7) - 1;
 		PutInt(X,Y,nRF24_Packet.cntr_wake,fnt5x7);
-		X = 76;
-		X += PutStr(X,Y,"RT:",fnt5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.ride_time,fnt5x7);
 		// Battery
 		X = 5; Y += 9;
 		X += PutStr(X,Y,"Battery:",fnt5x7) - 1;
 		PutChar(X + PutIntF(X,Y,nRF24_Packet.vrefint,2,fnt5x7),Y,'V',fnt5x7);
-
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,0); else return;

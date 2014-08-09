@@ -90,6 +90,18 @@ typedef enum {
 	nRF24_RX_PIPE5 = (uint8_t)0x05
 } nRF24_RX_PIPE_TypeDef;
 
+// nRF24L01 enable auto acknowledgment
+typedef enum {
+	nRF24_ENAA_OFF = (uint8_t)0x00, // Disable auto acknowledgment
+	nRF24_ENAA_P0  = (uint8_t)0x01, // Enable auto acknowledgment for PIPE#0
+	nRF24_ENAA_P1  = (uint8_t)0x02, // Enable auto acknowledgment for PIPE#1
+	nRF24_ENAA_P2  = (uint8_t)0x04, // Enable auto acknowledgment for PIPE#2
+	nRF24_ENAA_P3  = (uint8_t)0x08, // Enable auto acknowledgment for PIPE#3
+	nRF24_ENAA_P4  = (uint8_t)0x10, // Enable auto acknowledgment for PIPE#4
+	nRF24_ENAA_P5  = (uint8_t)0x20, // Enable auto acknowledgment for PIPE#5
+} nRF24_ENAA_TypeDef;
+
+// RX packet pipe
 typedef enum {
 	nRF24_RX_PCKT_PIPE0 = (uint8_t)0x00,
 	nRF24_RX_PCKT_PIPE1 = (uint8_t)0x01,
@@ -167,11 +179,12 @@ void nRF24_SetRFChannel(uint8_t RFChannel);
 void nRF24_FlushTX(void);
 void nRF24_FlushRX(void);
 void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_DataRate_TypeDef DataRate,
-                  nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO,
-                  nRF24_PWR_TypeDef Power, uint8_t *TX_Addr, uint8_t TX_Addr_Width);
-void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, uint8_t RFChan, nRF24_DataRate_TypeDef DataRate,
-		          nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO, uint8_t *RX_Addr,
-		          uint8_t RX_Addr_Width, uint8_t RX_PAYLOAD, nRF24_TXPower_TypeDef TXPower);
+		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO,
+		nRF24_PWR_TypeDef Power, uint8_t *TX_Addr, uint8_t TX_Addr_Width);
+void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_t RFChan,
+		nRF24_DataRate_TypeDef DataRate, nRF24_CRC_TypeDef CRCS,
+		nRF24_CRCO_TypeDef CRCO, uint8_t *RX_Addr, uint8_t RX_Addr_Width, uint8_t RX_PAYLOAD,
+		nRF24_TXPower_TypeDef TXPower);
 void nRF24_SetPipeAddr(nRF24_RX_PIPE_TypeDef PIPE, uint8_t *Addr, uint8_t Addr_Width);
 
 uint8_t nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD);

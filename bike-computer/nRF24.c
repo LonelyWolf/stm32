@@ -158,8 +158,8 @@ void nRF24_FlushRX(void) {
 //   TX_Addr - buffer with TX address
 //   TX_Addr_Width - size of the TX address (3..5 bytes)
 void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_DataRate_TypeDef DataRate,
-                  nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO,
-                  nRF24_PWR_TypeDef Power, uint8_t *TX_Addr, uint8_t TX_Addr_Width) {
+		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO,
+		nRF24_PWR_TypeDef Power, uint8_t *TX_Addr, uint8_t TX_Addr_Width) {
     nRF24_CE_L();
     nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_SETUP_RETR,((RetrDelay << 4) & 0xf0) | (RetrCnt & 0x0f)); // Auto retransmit settings
     nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // Setup register
@@ -174,6 +174,7 @@ void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_Data
 // Put nRF24L01 in RX mode
 // input:
 //   PIPE - RX data pipe (nRF24_RX_PIPE[0..5])
+//   PIPE_AA - auto acknowledgment for data pipe (nRF24_ENAA_P[0..5] or nRF24_ENAA_OFF)
 //   RFChan - Frequency channel (0..127) (frequency = 2400 + RFChan [MHz])
 //   DataRate - Set data rate (nRF24_DataRate_[250kbps,1Mbps,2Mbps])
 //   CRCS - CRC state (nRF24_CRC_on or nRF24_CRC_off)
@@ -182,17 +183,25 @@ void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_Data
 //   RX_Addr_Width - size of TX address (3..5 byte)
 //   RX_PAYLOAD - receive buffer length
 //   TXPower - RF output power for ACK packets (-18dBm, -12dBm, -6dBm, 0dBm)
-void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, uint8_t RFChan, nRF24_DataRate_TypeDef DataRate,
-		          nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO, uint8_t *RX_Addr,
-		          uint8_t RX_Addr_Width, uint8_t RX_PAYLOAD, nRF24_TXPower_TypeDef TXPower) {
+void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_t RFChan,
+		nRF24_DataRate_TypeDef DataRate, nRF24_CRC_TypeDef CRCS,
+		nRF24_CRCO_TypeDef CRCO, uint8_t *RX_Addr, uint8_t RX_Addr_Width, uint8_t RX_PAYLOAD,
+		nRF24_TXPower_TypeDef TXPower) {
 	uint8_t rreg;
 
 	nRF24_CE_L();
 	nRF24_ReadReg(0x00); // Dummy read
 	rreg = nRF24_ReadReg(nRF24_REG_EN_AA);
-	nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_EN_AA,rreg | (1<<(uint8_t)PIPE)); // Enable ShockBurst for given data pipe
+	if (PIPE_AA != nRF24_ENAA_OFF) {
+		// Enable auto acknowledgment for given data pipe
+		rreg |= (uint8_t)PIPE_AA;
+	} else {
+		// Disable auto acknowledgment for given data pipe
+		rreg &= ~(1 << (uint8_t)PIPE);
+	}
+	nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_EN_AA,rreg);
 	rreg = nRF24_ReadReg(nRF24_REG_EN_RXADDR);
-	nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_EN_RXADDR,rreg | (1<<(uint8_t)PIPE)); // Enable given data pipe
+	nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_EN_RXADDR,rreg | (1 << (uint8_t)PIPE)); // Enable given data pipe
 	nRF24_RWReg(nRF24_CMD_WREG | RX_PW_PIPES[(uint8_t)PIPE],RX_PAYLOAD); // Set RX payload length
     nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // SETUP register
     nRF24_RWReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | (uint8_t)CRCO | nRF24_PWR_Up | nRF24_PRIM_RX); // Config register
