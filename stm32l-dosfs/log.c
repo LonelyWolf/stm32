@@ -6,14 +6,19 @@
 #include <log.h>
 
 
+#define LOG_DATA_BUF_SIZE    SECTOR_SIZE // Size of data buffer
+
+
 VOLINFO vol_info; // Volume information
 DIRINFO dir_info; // Directory information
 uint8_t sector[SECTOR_SIZE]; // Buffer to store sector from SD card
 uint32_t pstart; // Partition start sector
 FILEINFO log_file; // Current log file handler
+uint8_t log_data[LOG_DATA_BUF_SIZE]; // Buffer for data to write
+uint32_t log_data_pos; // Position in data buffer
 
 
-uint32_t fn_atoi(uint8_t *filename) {
+uint32_t fn_atoi(char *filename) {
 	uint8_t ch;
 	uint32_t result = 0;
 
@@ -28,7 +33,7 @@ uint32_t fn_atoi(uint8_t *filename) {
 	return result;
 }
 
-void fn_itoa(uint32_t num, uint8_t *filename) {
+void fn_itoa(uint32_t num, char *filename) {
 	uint8_t i = 7;
 
 	memcpy(filename,LOG_FILENAME_TEMPLATE,sizeof(LOG_FILENAME_TEMPLATE));
@@ -42,41 +47,21 @@ void fn_itoa(uint32_t num, uint8_t *filename) {
 // return: LOG_Result (0 if everything went good)
 // note: LOG_Init() must be called before calling any other routines
 LOG_Result LOG_Init(void) {
-	uint32_t i;
+	uint32_t result;
 
-	if (SD_ReadBlock(0,sector,SECTOR_SIZE) == SDR_Success) {
-		if ((sector[0x1FE] == 0x55) && (sector[0x1FF] == 0xAA)) {
-			// Sector 0 contains FAT or MBR delimiter
-			if (((sector[0x36] << 16) | (sector[0x37] << 8) | sector[0x38]) == 0x464154) {
-				// This is FAT12 or FAT16 header
-				pstart = 0;
-			} else if (((sector[0x52] << 16) | (sector[0x53] << 8) | sector[0x54]) == 0x464154) {
-				// This is FAT32 header
-				pstart = 0;
-			} else {
-				// Sector 0 is MBR, find partition start
-				pstart = DFS_GetPtnStart(0,sector,0,NULL,NULL,NULL);
-			}
+	pstart = DFS_GetPtnStart(0,sector,0,NULL,NULL,NULL);
+	if (pstart == DFS_ERRMISC) return LOG_NOPARTITION; // Partition not found
 
-			if (pstart == 0xffffffff) {
-				// Partition not found
-				return LOG_NOPARTITION;
-			}
+	// Get volume information
+	if (DFS_GetVolInfo(0,sector,pstart,&vol_info)) return LOG_VIERROR;
 
-			if (DFS_GetVolInfo(0,sector,pstart,&vol_info)) {
-				// Error getting volume information
-				return LOG_VIERROR;
-			}
-
-			dir_info.scratch = sector;
-			i = DFS_OpenDir(&vol_info,(uint8_t *)LOG_DIR_LOGS,&dir_info);
-			if (i == DFS_NOTFOUND) {
-				// LOGS directory not found, try to create it
-				i = DFS_OpenFile(&vol_info,(uint8_t *)LOG_DIR_LOGS,DFS_CREATEDIR,sector,&log_file);
-			};
-			if (i != DFS_OK) return LOG_ROOTERROR;
-		}
-	} else return LOG_S0ERROR;
+	dir_info.scratch = sector;
+	result = DFS_OpenDir(&vol_info,(uint8_t *)LOG_DIR_LOGS,&dir_info);
+	if (result == DFS_NOTFOUND) {
+		// LOGS directory not found, try to create it
+		result = DFS_OpenFile(&vol_info,(uint8_t *)LOG_DIR_LOGS,DFS_CREATEDIR,sector,&log_file);
+	};
+	if (result != DFS_OK) return LOG_ROOTERROR;
 
 	// Looks like everything went good
 	return LOG_OK;
@@ -86,12 +71,11 @@ LOG_Result LOG_Init(void) {
 // return: new log file number or LOG_ERROR in case of error
 uint32_t LOG_NewFile(void) {
 	DIRENT dir_entry; // Directory entry
-	uint8_t filename[12]; // Buffer for directory entry
+	char filename[12]; // Buffer for directory entry
 	uint8_t path[64]; // Full file path
 	uint32_t log_num = 0;
 	uint32_t i;
 
-//	i = DFS_OpenDir(&vol_info,(uint8_t *)"",&dir_info);
 	i = DFS_OpenDir(&vol_info,(uint8_t *)LOG_DIR_LOGS,&dir_info);
 	if (i == DFS_NOTFOUND) {
 		// Unable to open logs directory, try to create it
@@ -107,7 +91,7 @@ uint32_t LOG_NewFile(void) {
 	// Enumerate *.LOG files and determine highest number
 	while (!DFS_GetNext(&vol_info,&dir_info,&dir_entry)) {
 		if (dir_entry.name[0] && !(dir_entry.attr & ATTR_DIRECTORY)) {
-			DFS_DirToCanonical(filename,dir_entry.name);
+			DFS_DirToCanonical((uint8_t *)filename,dir_entry.name);
 			if (!memcmp(&filename[0],&LOG_FILENAME_TEMPLATE[0],3) &&
 					!memcmp(&filename[8],&LOG_FILENAME_TEMPLATE[8],4)) {
 				i = fn_atoi(&filename[3]);
@@ -120,49 +104,91 @@ uint32_t LOG_NewFile(void) {
 	log_num++;
 	fn_itoa(log_num,filename);
 	strcpy((char *)path,"LOGS/");
-	strcat((char *)path,(char *)filename);
+	strcat((char *)path,filename);
 	i = DFS_OpenFile(&vol_info,(uint8_t *)path,DFS_WRITE,sector,&log_file);
-//	i = DFS_OpenFile(&vol_info,(uint8_t *)filename,DFS_WRITE,sector,&log_file);
 	if (i != DFS_OK) return LOG_CREATEERROR;
 
-	// Write header to log file
-	i = LOG_WriteStr("Wolk Bike Computer log file\r\n");
+	// Clear data buffer
+	memset(log_data,0,sizeof(log_data));
+	log_data_pos = 0;
 
 	return log_num;
 }
 
-// Write string to log file
-// input:
-//   str - pointer to the null-terminated string
-// return: number of written bytes
-// note: string length must not exceed SECTOR_SIZE
-uint32_t LOG_WriteStr(char *str) {
-	uint32_t cache;
+// Write data buffer to SD card
+// return: number of bytes written
+uint32_t LOG_FileSync(void) {
+	uint32_t cache = 0;
 
-	DFS_WriteFile(&log_file,sector,(uint8_t *)str,&cache,strlen(str));
+	// TODO: check for DFS_WriteFile() error
+	DFS_WriteFile(&log_file,sector,log_data,&cache,log_data_pos);
+	log_data_pos = 0;
 
 	return cache;
 }
 
-// Write signed 32-bit integer value to log file
+// Write binary data to data buffer
+// input:
+//   buf - pointer to the buffer with binary data
+//   len - length of the buffer
+// return: number of bytes copied into data buffer
+uint32_t LOG_WriteBin(uint8_t *buf, uint32_t len) {
+	uint32_t part_len;
+
+    if (log_data_pos + len >= LOG_DATA_BUF_SIZE) {
+    	// Copy part of data into data buffer and write it to SD card
+		part_len = LOG_DATA_BUF_SIZE - log_data_pos;
+		memcpy(&log_data[log_data_pos],buf,part_len);
+		log_data_pos += part_len;
+		LOG_FileSync(); // FIXME: check for error here
+		// Copy rest of data into data buffer
+		len -= part_len;
+		memcpy(&log_data[log_data_pos],&buf[part_len],len);
+		log_data_pos += len;
+	} else {
+		// Copy data into data buffer
+		memcpy(&log_data[log_data_pos],buf,len);
+		log_data_pos += len;
+	}
+
+	return len;
+}
+
+// Write string to data buffer
+// input:
+//   str - pointer to the null-terminated string
+// return: number of bytes copied into data buffer
+// note: string length must not exceed LOG_DATA_BUF_SIZE
+uint32_t LOG_WriteStr(char *str) {
+	uint32_t len;
+
+	len = strlen(str);
+	len = LOG_WriteBin((uint8_t *)str,len);
+
+	return len;
+}
+
+// Write signed 32-bit integer value to data buffer
 // input:
 //   num - integer value to write
-// return: number of written bytes
+// return: number of bytes copied into data buffer
 uint32_t LOG_WriteInt(int32_t num) {
-	uint32_t cache;
+	uint32_t len;
 	uint8_t txt[10];
 	uint8_t neg;
 	uint8_t i;
 
 	memset(&txt,0,10);
-	i = numlen(num) - 1;
+	len = numlen(num);
+	i = len - 1;
 	if (num < 0) {
 		neg = 1;
 		num *= -1;
 	} else neg = 0;
 	do txt[i--] = num % 10 + '0'; while ((num /= 10) > 0);
 	if (neg) txt[i--] = '-';
-	DFS_WriteFile(&log_file,sector,txt,&cache,strlen((char *)txt));
 
-	return cache;
+	len = LOG_WriteBin(txt,len);
+
+	return len;
 }

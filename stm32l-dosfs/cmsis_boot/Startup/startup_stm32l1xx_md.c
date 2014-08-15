@@ -284,6 +284,7 @@ void Default_Reset_Handler(void)
 static void Default_Handler(void) 
 {
   /* Go into an infinite loop. */
+  UART_SendStr("-------> DEFAULT_HANDLER() <------\r\n");
   while (1) 
   {
   }

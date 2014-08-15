@@ -25,7 +25,7 @@
 #include <dosfs/dosfs.h>
 
 
-uint32_t i,j;
+uint32_t i,j,k;
 
 uint8_t sector[SECTOR_SIZE];
 uint8_t transferbuffer[SECTOR_SIZE];
@@ -38,12 +38,19 @@ uint32_t cache;
 FILEINFO fi;
 uint8_t *p;
 
+typedef struct {
+	uint32_t v1;
+	uint16_t v2;
+	uint8_t  v3;
+} theStruct;
+
+theStruct ts;
 
 
 int main(void) {
 	SystemCoreClockUpdate();
 
-	UART2_Init(921600);
+	UART2_Init(1382400); // Hell yeah, it works!
 
 	Delay_Init(NULL);
 
@@ -91,158 +98,128 @@ int main(void) {
 			UART_SendChar('\n');
 			while(1);
 		}
-//		while(1);
 
-		uint32_t k = 0;
-
-		for (; k < 500; k++) {
+		// Create files for test
+		for (k = 0; k < 1; k++) {
+			// ------ Text file
 			j = LOG_NewFile();
+
 			UART_SendStr("Log number: ");
 			UART_SendInt(j);
 			UART_SendChar('\n');
 
-			j = 10;
+			// Write header to the log file
+			LOG_WriteStr("Wolk Bike Computer log file\r\n");
+			LOG_WriteStr("--- BEGIN ---\r\n");
+
+			j = 500;
 			for (i = 0; i < j; i++) {
-				if (!(i % 25)) {
-					UART_SendStr("write... ");
+				if (!(i % 50)) {
+					UART_SendStr("write ... ");
 					UART_SendInt(i);
 					UART_SendChar('\\');
 					UART_SendInt(j);
 					UART_SendChar('\n');
 				}
-				LOG_WriteInt(-100 * (i + 1));
+				LOG_WriteStr("Checkpoint #");
+				LOG_WriteInt(i + 1);
 				LOG_WriteStr(" of ");
-				LOG_WriteInt(-100 * j);
-				LOG_WriteStr(" checkpoint!\r\n");
-	//			Delay_ms(50);
+				LOG_WriteInt(j);
+				LOG_WriteStr("\r\n");
 			}
+
+			// Write file ending
+			LOG_WriteStr("---- EOF ----\r\n");
+
+			// Save data buffer to SD card
+			LOG_FileSync();
+
+			// ------ Binary file
+			j = LOG_NewFile();
+
+			UART_SendStr("Log number: ");
+			UART_SendInt(j);
+			UART_SendChar('\n');
+
+			// Write header to the log file
+			LOG_WriteStr("WBC!");
+
+			j = 500;
+			for (i = 0; i < j; i++) {
+				if (!(i % 50)) {
+					UART_SendStr("write ... ");
+					UART_SendInt(i);
+					UART_SendChar('\\');
+					UART_SendInt(j);
+					UART_SendChar('\n');
+				}
+				ts.v1 = i + j;
+				ts.v2 = i;
+				ts.v3 = j;
+				LOG_WriteBin((uint8_t *)&i,sizeof(i));
+				LOG_WriteBin((uint8_t *)&j,sizeof(j));
+				LOG_WriteBin((uint8_t *)&ts,sizeof(ts));
+			}
+
+			// Write file ending
+			LOG_WriteStr("!WBC");
+
+			// Save data buffer to SD card
+			LOG_FileSync();
 		}
 
-		UART_SendStr("---------------------------\n");
-		UART_SendStr("---  LOG PROCEDURES END ---\n");
-		UART_SendStr("---------------------------\n");
-		Delay_ms(100);
+		UART_SendStr("--- File write end ---\n");
+	}
 
-		if (SD_ReadBlock(0,sector,SECTOR_SIZE) != SDR_Success) {
-			UART_SendStr("Error reading sector 0\n");
+	// Find partition start
+	pstart = DFS_GetPtnStart(0,sector,0,&pactive,&ptype,&psize);
+	if (pstart == DFS_ERRMISC) {
+		UART_SendStr("Cannot find first partition\n");
+	} else {
+		UART_SendStr("Partition start: ");
+		UART_SendHex32(pstart);
+		UART_SendChar('\n');
+		UART_SendStr("Active: ");
+		UART_SendHex8(pactive);
+		UART_SendChar('\n');
+		UART_SendStr("Type: ");
+		UART_SendHex8(ptype);
+		UART_SendChar('\n');
+		UART_SendStr("Size: ");
+		UART_SendHex32(psize);
+		UART_SendChar('\n');
+	}
+
+	if (DFS_GetVolInfo(0,sector,pstart,&vi)) {
+		UART_SendStr("Error getting volume information\n");
+	} else {
+		UART_SendStr("Volume label: ");
+		UART_SendStr((char *)vi.label);
+		UART_SendChar('\n');
+		UART_SendStr("File system: ");
+		if (vi.filesystem == FAT12)
+			UART_SendStr("FAT12\n");
+		else if (vi.filesystem == FAT16)
+			UART_SendStr("FAT16\n");
+		else if (vi.filesystem == FAT32)
+			UART_SendStr("FAT32\n");
+		else
+			UART_SendStr("[unknown]\n");
+
+		di.scratch = sector;
+		if (DFS_OpenDir(&vi,(uint8_t *)LOG_DIR_LOGS,&di)) {
+			UART_SendStr("Error opening root directory\n");
 		} else {
-			if ((sector[0x1FE] == 0x55) && (sector[0x1FF] == 0xAA)) {
-				UART_SendStr("Sector 0 contains FAT or MBR delimiter\n");
-				if (((sector[0x36] << 16) | (sector[0x37] << 8) | sector[0x38]) == 0x464154) {
-					UART_SendStr("FAT12/16 header\n");
-					pstart = 0;
-					pactive = 0x80; // Assume what partition active
-					ptype = 0x06; // Assume what partition type is FAT16
-					psize = 0xFFFFFFFF;
-				} else if (((sector[0x52] << 16) | (sector[0x53] << 8) | sector[0x54]) == 0x464154) {
-					UART_SendStr("FAT32 header\n");
-					pstart = 0;
-					pactive = 0x80; // Assume what partition active
-					ptype = 0x0b; // Assume what partition type is FAT32 with CHS
-					psize = 0xFFFFFFFF;
-				} else {
-					// Sector 0 is MBR, find partition start
-					pstart = DFS_GetPtnStart(0,sector,0,&pactive,&ptype,&psize);
-				}
-
-				if (pstart == 0xffffffff) {
-					UART_SendStr("Cannot find first partition\n");
-				} else {
-					UART_SendStr("Partition start sector: ");
-					UART_SendHex32(pstart);
-					UART_SendChar('\n');
-					UART_SendStr("Active: ");
-					UART_SendHex32(pactive);
-					UART_SendChar('\n');
-					UART_SendStr("Type: ");
-					UART_SendHex32(ptype);
-					UART_SendChar('\n');
-					UART_SendStr("Size: ");
-					UART_SendHex32(psize);
+			while (!DFS_GetNext(&vi, &di, &de)) {
+				if (de.name[0]) {
+					UART_SendStr("file: ");
+					UART_SendBuf((char *)de.name,11); // There is no zero terminator in name
+					UART_SendChar('\t');
+					UART_SendHex8(de.attr);
+					UART_SendChar('\t');
+					UART_SendInt((de.filesize_3 << 24) | (de.filesize_2 << 16) | (de.filesize_1 << 8) | de.filesize_0);
 					UART_SendChar('\n');
 				}
-
-				if (DFS_GetVolInfo(0,sector,pstart,&vi)) {
-					UART_SendStr("Error getting volume information\n");
-				} else {
-					UART_SendStr("Volume label: ");
-					UART_SendStr((char *)vi.label);
-					UART_SendChar('\n');
-					UART_SendStr("File system: ");
-					if (vi.filesystem == FAT12)
-						UART_SendStr("FAT12\n");
-					else if (vi.filesystem == FAT16)
-						UART_SendStr("FAT16\n");
-					else if (vi.filesystem == FAT32)
-						UART_SendStr("FAT32\n");
-					else
-						UART_SendStr("[unknown]\n");
-
-					di.scratch = sector;
-					if (DFS_OpenDir(&vi,(uint8_t *)LOG_DIR_LOGS,&di)) {
-//					if (DFS_OpenDir(&vi,(uint8_t *)"",&di)) {
-						UART_SendStr("Error opening root directory\n");
-					} else {
-						UART_SendStr("Directory enumeration:\n");
-						while (!DFS_GetNext(&vi, &di, &de)) {
-							if (de.name[0]) {
-								UART_SendStr("file: ");
-								UART_SendBuf((char *)de.name,11); // There is no zero terminator in name
-								UART_SendChar('\t');
-								UART_SendHex8(de.attr);
-								UART_SendChar('\t');
-								UART_SendInt((de.filesize_3 << 24) | (de.filesize_2 << 16) | (de.filesize_1 << 8) | de.filesize_0);
-								UART_SendChar('\n');
-							}
-						}
-						UART_SendStr("End of enumeration\n");
-					}
-
-/*
-// FILE WRITE
-					if (DFS_OpenFile(&vi,(uint8_t *)"LOGS/TEST.TXT",DFS_WRITE,sector,&fi)) {
-						UART_SendStr("Error opening file TEST.TXT\n");
-					} else {
-						for (j = 0; j < SECTOR_SIZE; j++) transferbuffer[j] = j >> 1;
-						for (j = 0; j < 100; j++) {
-							DFS_WriteFile(&fi,sector,transferbuffer,&cache,SECTOR_SIZE);
-							if (j % 5 == 0) {
-								FillRect(0,24,scr_width - 1,scr_height - 1,PReset);
-								PutInt(0,24,j,fnt7x10);
-								UC1701_Flush();
-							}
-						}
-					}
-*/
-
-/*
-// FILE READ
-					UART_SendStr("=====Read file\n");
-					if (DFS_OpenFile(&vi,(uint8_t *)"BLUE.MP3",DFS_READ,sector,&fi)) {
-						UART_SendStr("Error opening file\n");
-					} else {
-						i = 0;
-						do {
-							j = DFS_ReadFile(&fi,sector,transferbuffer,&i,512);
-//							UART_SendStr("DFS_ReadFile()=");
-//							UART_SendInt(j);
-//							UART_SendStr(", read: ");
-//							UART_SendInt(i);
-//							UART_SendStr("bytes (expected ");
-//							UART_SendInt(fi.filelen);
-//							UART_SendStr("), pointer ");
-//							UART_SendInt(fi.pointer);
-//							UART_SendChar('\n');
-//							for (j = 0; j < i; j++) UART_SendChar(transferbuffer[j]);
-//							j = DFS_OK;
-//							UART_SendBufHexFancy((char *)&transferbuffer[0],i,32,'.');
-//							UART_SendChar('\n');
-						} while (j == DFS_OK && fi.pointer != fi.filelen);
-						UART_SendStr("=====EOF");
-						UART_SendChar('\n');
-					}
-*/
-		}
 			}
 		}
 	}

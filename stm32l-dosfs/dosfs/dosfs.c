@@ -34,27 +34,50 @@ uint32_t DFS_GetPtnStart(uint8_t unit, uint8_t *scratchsector, uint8_t pnum, uin
 	if (pnum > 3)
 		return DFS_ERRMISC;
 
-	// Read MBR from target media
+	// Read sector 0 from target media
 	if (DFS_ReadSector(unit,scratchsector,0,1)) {
 		return DFS_ERRMISC;
 	}
 
-	result = (uint32_t) mbr->ptable[pnum].start_0 |
-	  (((uint32_t) mbr->ptable[pnum].start_1) << 8) |
-	  (((uint32_t) mbr->ptable[pnum].start_2) << 16) |
-	  (((uint32_t) mbr->ptable[pnum].start_3) << 24);
+	// SDA: check if sector #0 contains FAT header
+	if (((scratchsector[0x36] << 16) | (scratchsector[0x37] << 8) | scratchsector[0x38]) == 0x464154) {
+		// This is FAT12 or FAT16 header
+		if (pptype) *pptype = 0x06; // Assume what partition type is FAT16
+		result = 0;
+	} else if (((scratchsector[0x52] << 16) | (scratchsector[0x53] << 8) | scratchsector[0x54]) == 0x464154) {
+		// This is FAT32 header
+		if (pptype) *pptype = 0x0B; // Assume what partition type is FAT32
+		result = 0;
+	} else {
+		// Sector 0 is MBR, get start of the partition
+		result = (uint32_t) mbr->ptable[pnum].start_0 |
+		  (((uint32_t) mbr->ptable[pnum].start_1) << 8) |
+		  (((uint32_t) mbr->ptable[pnum].start_2) << 16) |
+		  (((uint32_t) mbr->ptable[pnum].start_3) << 24);
 
-	if (pactive)
-		*pactive = mbr->ptable[pnum].active;
+		if (pactive)
+			*pactive = mbr->ptable[pnum].active;
 
-	if (pptype)
-		*pptype = mbr->ptable[pnum].type;
+		if (pptype)
+			*pptype = mbr->ptable[pnum].type;
 
-	if (psize)
-		*psize = (uint32_t) mbr->ptable[pnum].size_0 |
-		  (((uint32_t) mbr->ptable[pnum].size_1) << 8) |
-		  (((uint32_t) mbr->ptable[pnum].size_2) << 16) |
-		  (((uint32_t) mbr->ptable[pnum].size_3) << 24);
+		if (psize)
+			*psize = (uint32_t) mbr->ptable[pnum].size_0 |
+			  (((uint32_t) mbr->ptable[pnum].size_1) << 8) |
+			  (((uint32_t) mbr->ptable[pnum].size_2) << 16) |
+			  (((uint32_t) mbr->ptable[pnum].size_3) << 24);
+	}
+
+	// SDA: get partition size if sector #0 contains FAT header
+	if (result == 0) {
+		// This is FAT12/16/32 header
+		if (pactive) *pactive = 0x00; // Assume what partition is not active
+		// Number of sectors in the partition
+		if (psize) *psize =  scratchsector[0x20] |
+				            (scratchsector[0x21] << 8)  |
+				            (scratchsector[0x22] << 16) |
+				            (scratchsector[0x23] << 24);
+	}
 
 	return result;
 }
@@ -867,7 +890,8 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
 		de.attr         = ATTR_ARCHIVE; // SDA: set ARCHIVE attribute to file
 
 		//NTRF: create directory
-        if (mode == DFS_CREATEDIR) de.attr |= ATTR_DIRECTORY;
+		// SDA: if we are creating directory then no need to set archive attribute to it
+        if (mode == DFS_CREATEDIR) de.attr = ATTR_DIRECTORY;
 
 		// allocate a starting cluster for the directory entry
 		cluster = DFS_GetFreeFAT(volinfo, scratch);
@@ -1295,9 +1319,9 @@ uint32_t DFS_WriteFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, ui
 			fileinfo->cluster = DFS_GetFAT(fileinfo->volinfo, scratch, &byteswritten, fileinfo->cluster);
 			
 			// Allocate a new cluster?
-			if (((fileinfo->volinfo->filesystem == FAT12) && (fileinfo->cluster >= 0xff8)) ||
-			  ((fileinfo->volinfo->filesystem == FAT16) && (fileinfo->cluster >= 0xfff8)) ||
-			  ((fileinfo->volinfo->filesystem == FAT32) && (fileinfo->cluster >= 0x0ffffff8))) {
+			if (((fileinfo->volinfo->filesystem == FAT12) && (fileinfo->cluster >= 0x00000ff8)) ||
+			    ((fileinfo->volinfo->filesystem == FAT16) && (fileinfo->cluster >= 0x0000fff8)) ||
+			    ((fileinfo->volinfo->filesystem == FAT32) && (fileinfo->cluster >= 0x0ffffff8))) {
 			  	uint32_t tempclus;
 
 				tempclus = DFS_GetFreeFAT(fileinfo->volinfo, scratch);
@@ -1311,10 +1335,10 @@ uint32_t DFS_WriteFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, ui
 
 				// Mark newly allocated cluster as end of chain			
 				switch(fileinfo->volinfo->filesystem) {
-					case FAT12:		tempclus = 0xff8;	break;
-					case FAT16:		tempclus = 0xfff8;	break;
-					case FAT32:		tempclus = 0x0ffffff8;	break;
-					default:		return DFS_ERRMISC;
+					case FAT12: tempclus = 0x00000ff8; break;
+					case FAT16: tempclus = 0x0000fff8; break;
+					case FAT32: tempclus = 0x0ffffff8; break;
+					default:    return DFS_ERRMISC;
 				}
 				DFS_SetFAT(fileinfo->volinfo, scratch, &byteswritten, fileinfo->cluster, tempclus);
 
@@ -1325,13 +1349,11 @@ uint32_t DFS_WriteFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, ui
 	}
 	
 	// Update directory entry
-		if (DFS_ReadSector(fileinfo->volinfo->unit, scratch, fileinfo->dirsector, 1))
-			return DFS_ERRMISC;
-		((PDIRENT) scratch)[fileinfo->diroffset].filesize_0 = fileinfo->filelen & 0xff;
-		((PDIRENT) scratch)[fileinfo->diroffset].filesize_1 = (fileinfo->filelen & 0xff00) >> 8;
-		((PDIRENT) scratch)[fileinfo->diroffset].filesize_2 = (fileinfo->filelen & 0xff0000) >> 16;
-		((PDIRENT) scratch)[fileinfo->diroffset].filesize_3 = (fileinfo->filelen & 0xff000000) >> 24;
-		if (DFS_WriteSector(fileinfo->volinfo->unit, scratch, fileinfo->dirsector, 1))
-			return DFS_ERRMISC;
+	if (DFS_ReadSector(fileinfo->volinfo->unit, scratch, fileinfo->dirsector, 1)) return DFS_ERRMISC;
+	((PDIRENT) scratch)[fileinfo->diroffset].filesize_0 =  fileinfo->filelen & 0x000000ff;
+	((PDIRENT) scratch)[fileinfo->diroffset].filesize_1 = (fileinfo->filelen & 0x0000ff00) >> 8;
+	((PDIRENT) scratch)[fileinfo->diroffset].filesize_2 = (fileinfo->filelen & 0x00ff0000) >> 16;
+	((PDIRENT) scratch)[fileinfo->diroffset].filesize_3 = (fileinfo->filelen & 0xff000000) >> 24;
+	if (DFS_WriteSector(fileinfo->volinfo->unit, scratch, fileinfo->dirsector, 1)) return DFS_ERRMISC;
 	return result;
 }

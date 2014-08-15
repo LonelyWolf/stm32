@@ -7,7 +7,6 @@
 
 
 SDCard_TypeDef SDCard;                 // SD card parameters
-//uint8_t  SD_sector[512];               // Buffer for SD card sector
 
 
 // Calculate CRC7
@@ -107,13 +106,6 @@ uint8_t SD_Cmd(uint8_t cmd, uint32_t arg) {
 
 	// Dummy read is necessary for some cards
 	SPI1_SendRecv(0xff);
-
-//	SPI1_SendRecv(buf[0]);
-//	SPI1_SendRecv(buf[1]);
-//	SPI1_SendRecv(buf[2]);
-//	SPI1_SendRecv(buf[3]);
-//	SPI1_SendRecv(buf[4]);
-//	SPI1_SendRecv(buf[5]);
 
 	// Send: '01' start bits -> [6b]command -> [32b]argument -> [7b]CRC -> '1' end bit
 	SD_WriteBuf(&buf[0],6);
@@ -302,7 +294,7 @@ SDResult_TypeDef SD_ReadCSD(void) {
 		return SDR_BadResponse;
 	} else {
 		// Wait start block token
-		wait = 0xfff; // Recommended timeout is 100ms
+		wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
 		do response = SPI1_SendRecv(0xff); while (response == 0xff && --wait);
 		if (!wait) {
 			// Timeout occurred
@@ -391,7 +383,7 @@ SDResult_TypeDef SD_ReadCID(void) {
 		return SDR_BadResponse;
 	} else {
 		// Wait start block token
-		wait = 0xfff; // Recommended timeout is 100ms
+		wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
 		do response = SPI1_SendRecv(0xff); while (response == 0xff && --wait);
 		if (!wait) {
 			// Timeout occurred
@@ -448,7 +440,7 @@ SDResult_TypeDef SD_ReadBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 	response = SD_Cmd(SD_CMD_READ_SINGLE_BLOCK,addr); // CMD17
 	if (response == 0x00) {
 		// Wait for start block token
-		wait = 0xfff; // recommended timeout is 100ms
+		wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
 		do response = SPI1_SendRecv(0xff); while (response == 0xff && --wait);
 		if (!wait) {
 			// Timeout occurred
@@ -527,7 +519,7 @@ SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 			}
 		}
 		// Wait while the SD card is busy by data programming
-		wait = 0x2fff; // Recommended timeout is 250ms
+		wait = 0x7fff; // Recommended timeout is 250ms (500ms for SDXC) FIXME: 0x7fff is set by sight, need calculate more adequate value
 		do {
 			response = SPI1_SendRecv(0xff);
 		} while (!response && --wait);

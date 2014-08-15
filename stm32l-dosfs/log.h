@@ -10,18 +10,19 @@
 
 typedef enum {
 	LOG_OK          = 0,                 // The operation is completed successfully
-	LOG_S0ERROR     = 1,                 // Error reading sector 0
-	LOG_NOPARTITION = 2,                 // Partition not found
-	LOG_VIERROR     = 3,                 // Error getting volume information
-	LOG_ROOTERROR   = 4,                 // Error opening root directory
-	LOG_CREATEERROR = 5,                 // File create error
+	LOG_NOPARTITION = 1,                 // Partition not found
+	LOG_VIERROR     = 2,                 // Error getting volume information
+	LOG_ROOTERROR   = 3,                 // Error opening root directory
+	LOG_CREATEERROR = 4,                 // File create error
 	LOG_ERROR       = 0xffffffff         // Unknown log error
 } LOG_Result;
 
 
 LOG_Result LOG_Init(void);
 uint32_t LOG_NewFile(void);
+uint32_t LOG_FileSync(void);
 
+uint32_t LOG_WriteBin(uint8_t *buf, uint32_t len);
 uint32_t LOG_WriteStr(char *str);
 uint32_t LOG_WriteInt(int32_t num);
 
