@@ -3,6 +3,9 @@
 #define __WOLK_H
 
 
+#include <stm32l1xx_rcc.h>
+
+
 // Defines to font pointer for a bit compact code
 #define fnt5x7              &Font5x7
 #define fnt7x10             &Font7x10
@@ -18,8 +21,8 @@
 // Buttons
 #define      BTN0_PORT   GPIOA
 #define      BTN0_PIN    GPIO_Pin_5
-#define      BTN1_PORT   GPIOA
-#define      BTN1_PIN    GPIO_Pin_7
+#define      BTN1_PORT   GPIOC
+#define      BTN1_PIN    GPIO_Pin_12
 #define      BTN2_PORT   GPIOC
 #define      BTN2_PIN    GPIO_Pin_10
 #define      BTN3_PORT   GPIOC
@@ -83,6 +86,9 @@ typedef struct {
 	int32_t  MinGPSAlt;        // Minimum GPS altitude (m)
 	uint32_t GPSSpeed;         // Current GPS speed (km/h * 100)
 	uint32_t MaxGPSSpeed;      // Maximum GPS speed (km/h * 100)
+	uint32_t dbg_spd_cntr;     // Debug: total SPD counter
+	uint32_t dbg_cntr_diff;    // Debug: last diff_SPD value
+	uint32_t dbg_prev_cntr;    // Debug: last _prev_cntr_SPD value
 } Cur_Data_TypeDef;
 
 // Button structure
@@ -126,6 +132,7 @@ uint32_t atos_len(uint8_t *buf, uint8_t len);
 int32_t atos_char(uint8_t *buf, uint16_t *pos);
 uint32_t stringlen(const char *str);
 uint8_t numlen(int32_t num);
+uint8_t numlenu(uint32_t num);
 
 void ReadSettings_EEPROM(void);
 void SaveSettings_EEPROM(void);

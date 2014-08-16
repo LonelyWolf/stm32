@@ -63,7 +63,7 @@ void UART2_Init(uint32_t baudrate) {
 	DMAInit.DMA_PeripheralInc = DMA_PeripheralInc_Disable; // Do not increment peripheral pointer
 	DMAInit.DMA_Priority = DMA_Priority_VeryHigh; // Highest priority
 	DMA_Init(DMA1_Channel6,&DMAInit); // USART2_RX connected to DMA1_Channel6 (from datasheet table 54)
-	DMA_ITConfig(DMA1_Channel6,DMA_IT_TC,ENABLE); // Enable DMA transfer complete interrupt
+	DMA1_Channel6->CCR |= DMA_CCR6_TCIE; // Enable DMA channel6 transfer complete interrupt
 
 	// USART2 DMA interrupt
 	NVICInit.NVIC_IRQChannel = DMA1_Channel6_IRQn;

@@ -13,11 +13,16 @@ void RTC_Config(void) {
 
 	RCC->APB1ENR |= RCC_APB1Periph_PWR; // Enable the PWR peripheral
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-	RCC_RTCResetCmd(ENABLE); // Reset RTC time
+
+	// Reset the RTC time
+	RCC_RTCResetCmd(ENABLE);
 	RCC_RTCResetCmd(DISABLE);
-	RCC_LSEConfig(RCC_LSE_ON); // Turn on LSE and wait until it's become stable
-	while(!(RCC->CSR & RCC_CSR_LSERDY)); // RCC_GetFlagStatus(RCC_FLAG_LSERDY)
-	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE); // Select RTC clock source
+
+	// Turn on LSE and wait until it become stable
+	RCC_LSEConfig(RCC_LSE_ON);
+	while(!(RCC->CSR & RCC_CSR_LSERDY));
+
+	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE); // Select LSE as RTC clock source
 	RCC_RTCCLKCmd(ENABLE); // Enable RTC clock
 	RTC_WaitForSynchro(); // Wait for RTC APB registers synchronization
 
@@ -84,7 +89,7 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	uint8_t  m;
 	uint32_t JDN;
 
-	// These hardcore math taken from http://en.wikipedia.org/wiki/Julian_day
+	// These hardcore math's are taken from http://en.wikipedia.org/wiki/Julian_day
 
 	// Calculate some coefficients
 	a = (14 - date->RTC_Month) / 12;
@@ -128,7 +133,7 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	uint64_t JD    = 0;
 	uint64_t JDN   = 0;
 
-	// These hardcore math's taken from http://en.wikipedia.org/wiki/Julian_day
+	// These hardcore math's are taken from http://en.wikipedia.org/wiki/Julian_day
 
 	JD  = ((epoch + 43200) / (86400 >>1 )) + (2440587 << 1) + 1;
 	JDN = JD >> 1;

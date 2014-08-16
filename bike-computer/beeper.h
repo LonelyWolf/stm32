@@ -108,11 +108,11 @@ static const Tone_TypeDef tones_SMB[] = {
 
 
 // Buzzer on PB5 -> TIM3_CH2
-#define BEEPER_PIN               GPIO_Pin_5
-#define BEEPER_GPIO              GPIOB
-#define BEEPER_PERIPH            RCC_AHBPeriph_GPIOB
+#define BEEPER_PIN               GPIO_Pin_7
+#define BEEPER_GPIO              GPIOA
+#define BEEPER_PERIPH            RCC_AHBPeriph_GPIOA
 #define BEEPER_GPIO_AF           GPIO_AF_TIM3
-#define BEEPER_GPIO_PIN_SRC      GPIO_PinSource5
+#define BEEPER_GPIO_PIN_SRC      GPIO_PinSource7
 
 #define BEEPER_TIM               TIM3
 #define BEEPER_TIM_PERIPH        RCC_APB1Periph_TIM3

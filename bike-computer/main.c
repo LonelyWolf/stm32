@@ -10,16 +10,13 @@
 /////////////////////////////////////////////////////////////////////////
 
 
-#include <misc.h>
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rtc.h>
 #include <stm32l1xx_exti.h>
-#include <stm32l1xx_tim.h>
-#include <stm32l1xx_usart.h>
 #include <stm32l1xx_syscfg.h>
-#include <stm32l1xx_dma.h>
 #include <string.h> // For memset, memmove
+#include <misc.h>
 
 #include <wolk.h>
 #include <delay.h>
@@ -34,6 +31,9 @@
 #include <GPS.h>
 #include <USB.h>
 #include <beeper.h>
+#include <spi1.h>
+#include <sdcard.h>
+#include <log.h>
 
 #include <font5x7.h>
 #include <font7x10.h>
@@ -75,7 +75,7 @@ int16_t altitude_history[128];              // Last 128 altitude values
 
 uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter (to track RX timeout)
 
-uint32_t i;                                 // THIS IS UNIVERSAL VARIABLE
+uint32_t i,j;                               // THIS IS UNIVERSAL VARIABLES
 uint32_t ccc;                               // Wake-ups count, for debug purposes
 
 
@@ -178,11 +178,6 @@ void NVIC_Configuration(void) {
 	EXTIInit.EXTI_LineCmd = ENABLE;
 	EXTI_Init(&EXTIInit);
 
-	// PA7 -> EXTI line 7  (Button#1)
-	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,EXTI_PinSource7);
-	EXTIInit.EXTI_Line = EXTI_Line7;
-	EXTI_Init(&EXTIInit);
-
 	// PC10 -> EXTI line 10  (Button#2)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource10);
 	EXTIInit.EXTI_Line = EXTI_Line10;
@@ -191,6 +186,11 @@ void NVIC_Configuration(void) {
 	// PC10 -> EXTI line 11  (Button#3)
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource11);
 	EXTIInit.EXTI_Line = EXTI_Line11;
+	EXTI_Init(&EXTIInit);
+
+	// PC12 -> EXTI line 12  (Button#1)
+	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource12);
+	EXTIInit.EXTI_Line = EXTI_Line12;
 	EXTI_Init(&EXTIInit);
 
 	// RTC wake-up -> EXTI line 20
@@ -243,8 +243,11 @@ void InitPeripherals(void) {
 	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
 	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
 
-	// SPI2 port initialization
+	// SPI2 port initialization (display and nRF24)
 	SPI2_Init();
+
+	// SPI1 port initialization (SD card)
+	SPI1_Init();
 
 	// Initialize and configure LCD
 	Display_Init();
@@ -306,17 +309,13 @@ void EXTI9_5_IRQHandler(void) {
 		RX_status = nRF24_RXPacket(nRF24_RX_Buf,nRF24_RX_PAYLOAD);
 		nRF24_ClearIRQFlags();
 		UC1701_ResumeSPI();
-		_no_signal_time = 0;
-		if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout;
-		if (RX_status == nRF24_RX_PCKT_PIPE0) ParsePacket();
-		BEEPER_Enable(4000,1);
+		if (RX_status == nRF24_RX_PCKT_PIPE0) {
+			ParsePacket();
+			_no_signal_time = 0;
+			if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout; // FIXME: with this enabled no menu/GUI timeout will happen
+			BEEPER_Enable(4000,1);
+		} else BEEPER_Enable(300,1);
 		EXTI_ClearITPendingBit(EXTI_Line6);
-	}
-
-	if (EXTI_GetITStatus(EXTI_Line7) != RESET) {
-		// EXTI7 (Button#2 -> "Down")
-		Button_Inquiry(&BTN[BTN_DOWN]);
-		EXTI_ClearITPendingBit(EXTI_Line7);
 	}
 
 	if (EXTI_GetITStatus(EXTI_Line5) != RESET) {
@@ -338,6 +337,12 @@ void EXTI15_10_IRQHandler(void) {
 		// EXTI11 (Button#4 -> "Escape")
 		Button_Inquiry(&BTN[BTN_ESCAPE]);
 		EXTI_ClearITPendingBit(EXTI_Line11);
+	}
+
+	if (EXTI_GetITStatus(EXTI_Line12) != RESET) {
+		// EXTI12 (Button#2 -> "Down")
+		Button_Inquiry(&BTN[BTN_DOWN]);
+		EXTI_ClearITPendingBit(EXTI_Line12);
 	}
 }
 
@@ -382,7 +387,8 @@ void RTC_WKUP_IRQHandler(void) {
 
 // TIM7 IRQ handler
 void TIM7_IRQHandler(void) {
-	TIM7->SR = (uint16_t)~TIM_IT_Update; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
+	TIM7->SR &= ~TIM_SR_UIF; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
+//	TIM7->SR = (uint16_t)~TIM_IT_Update; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
 	if (_DMA_cntr == (uint16_t)DMA1_Channel6->CNDTR) {
 		// DMA pointer unchanged from last IRQ -> UART timeout
 		TIM7->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); // Disable TIM7
@@ -405,7 +411,8 @@ void TIM7_IRQHandler(void) {
 
 // USART2 IRQ handler
 void USART2_IRQHandler(void) {
-	if (UART_PORT->SR & USART_IT_RXNE) {
+	if (UART_PORT->SR & USART_SR_RXNE) {
+//	if (UART_PORT->SR & USART_IT_RXNE) {
 		// Received data ready to be read
 		UART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART2 RX complete interrupt
 		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
@@ -487,7 +494,9 @@ void ParsePacket(void) {
 //		CurData.Cadence = (uint32_t)(59578.181814 / nRF24_Packet.tim_CDC);
 //		CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 1007.08);
 		CurData.Cadence = (uint32_t)(60424.8 / nRF24_Packet.tim_CDC);
-		if (CurData.Cadence > 250) CurData.Cadence = 250; // pedaling 250RPM, really?
+//		if (CurData.Cadence > 250) CurData.Cadence = 250; // pedaling 250RPM, really?
+		// FIXME: filter some crazy high values
+		if (CurData.Cadence > 999) CurData.Cadence = 999; // pedaling more than 999RPM, really?
 	} else CurData.Cadence = 0;
 
 	// Update maximum values
@@ -528,18 +537,24 @@ void ParsePacket(void) {
 		} else {
 			diff_SPD = 65535 - _prev_cntr_SPD + nRF24_Packet.cntr_SPD;
 		}
+//		if (diff_SPD > 50) diff_SPD = 1; // FIXME: this lame workaround for crazy values
+		CurData.dbg_spd_cntr += diff_SPD;
+		CurData.dbg_cntr_diff = diff_SPD;
 		CurData.Odometer += Settings.WheelCircumference * diff_SPD;
 		CurData.TripDist += Settings.WheelCircumference * diff_SPD;
+	} else {
+		CurData.dbg_cntr_diff = 0;
 	}
 	_prev_cntr_SPD = nRF24_Packet.cntr_SPD;
+	CurData.dbg_prev_cntr = _prev_cntr_SPD;
 
 	// Update average values
 	CurData.AvgSpeed = (uint32_t)((CurData.TripDist * 0.36) / CurData.TripTime);
 	if (CurData.Cadence > 0) {
 		// A simple calculation of the average cadence.
-		// At a constant value in a fantastic 300RPM accumulator will overflow
-		// after about 4000 hours of ride
 		_cntr_cadence++;
+		// At constant value of cadence 300RPM this accumulator will overflow
+		// after about 4000 hours of ride
 		_cadence_accum += CurData.Cadence;
 		CurData.AvgCadence = _cadence_accum / _cntr_cadence;
 	}
@@ -584,6 +599,7 @@ bool UpdateBMP180(void) {
 	int32_t _raw_press;
 
 	if (_bmp180_present) {
+		// TODO: it is worth trying to use the I2C IRQ instead of polling the I2C flags
 		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_UHIRES)) {  // <--- UHIRES mode takes about 28ms
 //		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {  // <--- ADVRES mode takes about 80ms
 			CurData.Temperature = _raw_temp;
@@ -641,6 +657,7 @@ int main(void) {
 	_new_time       = FALSE;
 	_screensaver    = FALSE;
 	_bmp180_present = FALSE;
+	_SD_present     = FALSE;
 	_RF_icon        = TRUE;
 	GPS_new_data    = FALSE;
 	GPS_buf_cntr    = 0;
@@ -650,7 +667,7 @@ int main(void) {
 	_tim_excess     = 0;
 	_cntr_cadence   = 0;
 	_cadence_accum  = 0;
-	_no_signal_time = 32768;
+	_no_signal_time = 65535;
 	_idle_time      = 0;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
 	_GPS_time_duty_cycle = GPS_TIME_SYNC_DUTY_CYCLE + 1;
@@ -684,38 +701,40 @@ int main(void) {
 	// Boot screen
 	UC1701_Fill(0x00);
 	GUI_DrawBitmap(98,39,30,25,&bmp_bike_man[0]);
-	PutStr(0,0,"Wolk bike computer:",fnt5x7);
-	PutStr(0,42,"CPU:",fnt5x7);
-	i = 24 + PutIntF(24,42,SystemCoreClock / 1000,3,fnt5x7);
-	PutStr(i,42,"MHz",fnt5x7);
+	PutStr(104,0,"WBC",fnt7x10);
+
+	i  = PutStr(0,scr_height - 15,"CPU:",fnt5x7) - 1;
+	i += PutIntF(i,scr_height - 15,SystemCoreClock / 1000,3,fnt5x7);
+	PutStr(i,scr_height - 15,"MHz",fnt5x7);
 	UC1701_Flush();
 
-	PutStr(0,56,"STAT:",fnt5x7);
-	PutStr(30,56,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",fnt5x7);
+	i = PutStr(0,scr_height - 7,"STAT:",fnt5x7) - 1;
+	PutStr(i,scr_height - 7,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",fnt5x7);
 
 	// Init the RTC and configure it clock to LSE
-	PutStr(0,8,"LSE:",fnt5x7);
+	i = PutStr(0,0,"LSE:",fnt5x7) - 1;
 	UC1701_Flush();
 	RTC_Config();
-	PutStr(24,8,"Ok",fnt5x7);
+	PutStr(i,0,"OK",fnt5x7);
 	UC1701_Flush();
 
 	// Configure nRF24L01+
-	PutStr(0,16,"nRF24L01:",fnt5x7);
+	i = PutStr(0,8,"nRF24L01:",fnt5x7) - 1;
 	UC1701_Flush();
     nRF24_init();
     if (nRF24_Check()) {
     	nRF24_SetRXMode();
-    	PutStr(54,16,"Ok",fnt5x7);
+    	PutStr(i,8,"OK",fnt5x7);
     	UC1701_Flush();
     } else {
-    	PutStr(54,16,"Fail",fnt5x7);
+    	PutStr(i,8,"Fail",fnt5x7);
         UC1701_Flush();
-    	while(1);
+        _screensaver = TRUE;
+    	while(1) SleepStop(); // Infinite deep sleep
     }
 
     // I2C2 port initialization
-    PutStr(0,24,"BMP180:",fnt5x7);
+    PutStr(0,16,"BMP180:",fnt5x7);
     UC1701_Flush();
     // I2C fast mode (400kHz)
     if (I2C2_Init(400000) == I2C_SUCCESS) {
@@ -723,27 +742,56 @@ int main(void) {
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
     		_bmp180_present = TRUE;
-    		PutChar(42,24,'v',fnt5x7);
+    		PutChar(42,16,'v',fnt5x7);
     		i = BMP180_GetVersion();
-    		PutInt(48,24,i,fnt5x7);
+    		PutInt(48,16,i,fnt5x7);
     		BMP180_ReadCalibration();
 			CurData.MinTemperature =  32767;
 			CurData.MaxTemperature = -32767;
 			CurData.MinPressure = 2147483647; // LONG_MAX - it becomes normal when the pressure will be acquired normally first time
     		if (UpdateBMP180()) {
-        		GUI_PutTemperature(60,24,CurData.Temperature,fnt5x7);
-        		GUI_PutPressure(60,32,CurData.Pressure,PT_mmHg,fnt5x7);
+        		GUI_PutTemperature(60,16,CurData.Temperature,fnt5x7);
+        		GUI_PutPressure(60,24,CurData.Pressure,PT_mmHg,fnt5x7);
         		altitude_history[0] = BMP180_hPa_to_Altitude(CurData.Pressure);
     		} else {
-    			PutStr(60,24,"Readings",fnt5x7);
-    			PutStr(60,32,"failed",fnt5x7);
+    			PutStr(60,16,"Readings",fnt5x7);
+    			PutStr(60,24,"failed",fnt5x7);
     		}
     	} else {
-    		PutStr(42,24,"Not present",fnt5x7);
+    		PutStr(42,16,"Not present",fnt5x7);
     	}
     } else {
-    	PutStr(42,24,"I2C timeout",fnt5x7);
+    	PutStr(42,16,"I2C timeout",fnt5x7);
     }
+	UC1701_Flush();
+
+	// Initialization of SD card
+	i = PutStr(0,32,"SD:",fnt5x7) - 1;
+	UC1701_Flush();
+	j = (uint32_t)SD_Init();
+	if (j == SDR_Success) {
+		_SD_present = TRUE;
+		i += PutChar(i,32,'v',fnt5x7);
+		i += PutInt(i,32,SDCard.CardType,fnt5x7) + 5;
+		if (SDCard.CardType == SDCT_SDHC) {
+			i += PutInt(i,32,SDCard.CardCapacity / 1024,fnt5x7);
+		} else {
+			i += PutInt(i,32,SDCard.CardCapacity / 1048576,fnt5x7);
+		}
+		PutStr(i,32,"Mb",fnt5x7);
+
+		// Logging initialization (check for the file system)
+		i = PutStr(0,40,"LOG:",fnt5x7) - 1;
+		UC1701_Flush();
+		j = LOG_Init();
+		if (j == LOG_OK) {
+			PutStr(i,40,"OK",fnt5x7);
+		} else {
+			PutHex(i,40,j,fnt5x7);
+		}
+	} else {
+		PutHex(i,32,j,fnt5x7);
+	}
 	UC1701_Flush();
 
 	BEEPER_PlayTones(tones_startup);
@@ -807,6 +855,42 @@ int main(void) {
 			// New packet received and parsed
 			_new_packet = FALSE;
 			_RF_icon = !_RF_icon; // Blink RF icon
+
+			// Write debug information to log file
+			if (_logging) {
+				LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
+				LOG_WriteStr(";");
+				LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(nRF24_Packet.cntr_wake);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(nRF24_Packet.cntr_SPD);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_prev_cntr_SPD);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(nRF24_Packet.tim_SPD);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(nRF24_Packet.tim_CDC);
+				LOG_WriteStr(";");
+				LOG_WriteIntF(CurData.Speed,1);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(CurData.Cadence);
+				LOG_WriteStr(";");
+				LOG_WriteIntF(CurData.Odometer,5);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(CurData.dbg_cntr_diff);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(CurData.dbg_prev_cntr);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(CurData.dbg_spd_cntr);
+				LOG_WriteStr(";");
+				LOG_WriteIntF(nRF24_Packet.vrefint,2);
+				LOG_WriteStr(";");
+				LOG_WriteIntF(CurData.Temperature,1);
+				LOG_WriteStr(";");
+				LOG_WriteIntF(BMP180_hPa_to_mmHg(CurData.Pressure),1);
+				LOG_WriteStr("\r\n");
+			}
 		}
 
 		if (GPS_new_data) {
@@ -858,7 +942,17 @@ int main(void) {
 			else if (GPSData.fix == 2) GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[0]);
 			else GUI_DrawBitmap(16,0,13,7,&bmp_icon_13x7[13]);
 
-			// Hardcoded "cadence" value
+			// SD card icon
+			if (_SD_present)
+				GUI_DrawBitmap(32,0,13,7,&bmp_icon_13x7[78]);
+			else GUI_DrawBitmap(32,0,13,7,&bmp_icon_13x7[65]);
+
+			// LOG icon
+			if (_logging)
+				GUI_DrawBitmap(48,0,13,7,&bmp_icon_13x7[91]);
+			else GUI_DrawBitmap(48,0,13,7,&bmp_icon_13x7[65]);
+
+			// FIXME: Hardcoded "cadence" value
 			PutStr(scr_width - 30,scr_height - 27,"CDC",fnt5x7);
 			if (_no_signal_time > NO_SIGNAL_TIME) {
 				for (i = 0; i < 3; i++)	FillRect(scr_width - (i * 10) - 15,scr_height - 3,scr_width - (i * 10) - 7,scr_height - 1,PSet);
@@ -867,7 +961,7 @@ int main(void) {
 			}
 			GUI_DrawBitmap(scr_width - 5,scr_height - 19,5,19,&small_signs[15]);
 
-			// Hardcoded "ride time"
+			// FIXME: Hardcoded "ride time"
 			PutStr(3,scr_height - 27,"Ride Time",fnt5x7);
 			GUI_DrawRideTime(0,scr_height - 19,CurData.TripTime);
 

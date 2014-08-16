@@ -60,7 +60,7 @@ void BEEPER_Init(void) {
 	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
 	PORT.GPIO_Pin   = BEEPER_PIN;
 	GPIO_Init(BEEPER_GPIO,&PORT);
-	GPIO_PinAFConfig(GPIOB,BEEPER_GPIO_PIN_SRC,BEEPER_GPIO_AF); // Alternative function of PB5 -> TIM3_CH2
+	GPIO_PinAFConfig(BEEPER_GPIO,BEEPER_GPIO_PIN_SRC,BEEPER_GPIO_AF); // Alternative function of PA7 -> TIM3_CH2
 
 	// Configure timer BEEPER_TIM
 	RCC->APB1ENR |= BEEPER_TIM_PERIPH; // Enable TIMx peripheral

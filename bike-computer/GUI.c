@@ -6,7 +6,8 @@
 #include <GUI.h>
 #include <GPS.h>
 #include <RTC.h>
-#include <beeper.h> // <----- just for debug, remove it later
+#include <log.h>
+#include <beeper.h> // FIXME: just for debug, remove it later
 
 #include <font5x7.h>
 #include <font7x10.h>
@@ -275,6 +276,46 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 	}
 }
 
+// Screen with current values (trip data)
+void GUI_Screen_DbgVal(funcPtrKeyPress_TypeDef WaitForKey) {
+	uint8_t X,Y;
+
+	do {
+		// Frame
+		UC1701_Fill(0x00);
+		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
+		HLine(4,scr_width - 5,4,PReset);
+		PutStr(27,1,"Debug values",fnt5x7);
+		InvertRect(4,0,scr_width - 8,9);
+
+		X = 4; Y = 10;
+		X += PutStr(X,Y,"Odo:",fnt5x7) - 1;
+		PutIntU(X,Y,CurData.Odometer,fnt5x7);
+
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"SPD cntr:",fnt5x7) - 1;
+		PutIntU(X,Y,CurData.dbg_spd_cntr,fnt5x7);
+
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"Diff:",fnt5x7) - 1;
+		PutIntU(X,Y,CurData.dbg_cntr_diff,fnt5x7);
+
+		X = 4; Y += 9;
+		X += PutStr(X,Y,"Prev:",fnt5x7) - 1;
+		PutIntU(X,Y,CurData.dbg_prev_cntr,fnt5x7);
+
+		UC1701_Flush();
+
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		GUI_refresh = FALSE;
+		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
+	} while (!BTN[BTN_ESCAPE].cntr);
+
+	BTN[BTN_ESCAPE].cntr = 0;
+	UC1701_Fill(0x00);
+}
+
 // Screen with RAW data packet
 void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 	uint8_t X,Y;
@@ -288,15 +329,15 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		InvertRect(4,0,scr_width - 8,9);
 		// Cadence data
 		X = 5; Y = 10;
-		X += PutStr(X,Y,"CDC cntr:",fnt5x7) - 1;
+		X += PutStr(X,Y,"CDC tim:",fnt5x7) - 1;
 		PutInt(X,Y,nRF24_Packet.tim_CDC,fnt5x7);
 		// Speed data
 		X = 5; Y += 9;
-		X += PutStr(X,Y,"SPD cntr:",fnt5x7) - 1;
-		PutInt(X,Y,nRF24_Packet.cntr_SPD,fnt5x7);
-		X = 5; Y += 9;
 		X += PutStr(X,Y,"SPD tim:",fnt5x7) - 1;
 		PutInt(X,Y,nRF24_Packet.tim_SPD,fnt5x7);
+		X = 5; Y += 9;
+		X += PutStr(X,Y,"SPD cntr:",fnt5x7) - 1;
+		PutInt(X,Y,nRF24_Packet.cntr_SPD,fnt5x7);
 		// Wake-ups
 		X = 5; Y += 9;
 		X += PutStr(X,Y,"Wake:",fnt5x7) - 1;
@@ -307,7 +348,8 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		PutChar(X + PutIntF(X,Y,nRF24_Packet.vrefint,2,fnt5x7),Y,'V',fnt5x7);
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,0); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GUI_refresh = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -360,7 +402,8 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		GUI_PutTimeSec(X,Y,CurData.TripTime,fnt5x7);
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,0); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GUI_refresh = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -405,7 +448,8 @@ void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GUI_new_BMP180,0); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GUI_new_BMP180,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GUI_new_BMP180 = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -452,7 +496,8 @@ void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,0); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -516,7 +561,8 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,0); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -595,7 +641,8 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		UC1701_Flush();
 
-		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,0); else return;
+		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,GUI_TIMEOUT); else return;
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -637,7 +684,8 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		UC1701_Flush();
 
 		// Wait for key press
-		if (WaitForKey) WaitForKey(TRUE,UpdateFlag,0);
+		if (WaitForKey) WaitForKey(TRUE,UpdateFlag,GUI_TIMEOUT);
+		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		*UpdateFlag = FALSE;
 
 		// "Down" key
@@ -1011,9 +1059,7 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef 
 
 		// Wait for key press
 		if (WaitForKey) WaitForKey(FALSE,NULL,GUI_MENU_TIMEOUT);
-		if (_idle_time >= GUI_MENU_TIMEOUT) {
-			return 0xff;
-		}
+		if (_idle_time >= GUI_MENU_TIMEOUT) return 0xff;
 		_idle_time = 0;
 
 		// Up button
@@ -1219,6 +1265,8 @@ void GUI_MainMenu(void) {
 	uint8_t mnu_sel;
 	uint8_t mnu_sub_sel;
 	int32_t mnu_val;
+	uint32_t i;
+	uint32_t log_num;
 
 	ClearKeys();
 	mnu_sel = 0;
@@ -1255,6 +1303,7 @@ void GUI_MainMenu(void) {
 					default:
 						break;
 				}
+				if (_idle_time >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 1:
@@ -1278,6 +1327,7 @@ void GUI_MainMenu(void) {
 					default:
 						break;
 				}
+				if (_idle_time >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 2:
@@ -1337,35 +1387,94 @@ void GUI_MainMenu(void) {
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 3:
+			// Logging
+			if (_SD_present) {
+				// Show this menu only if SD card present
+				do {
+					UC1701_Fill(0x00);
+					PutStr(23,1,"Logging...",fnt7x10);
+					InvertRect(0,0,scr_width,12);
+					mnu_sub_sel = GUI_Menu(10,11,scr_width - 20,scr_height - 18,fnt7x10,MF_rect,
+							&mnuLogging,mnu_sub_sel,WaitForKeyPress);
+					if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
+						case 0:
+							log_num = 0;
+							i = LOG_NewFile(&log_num);
+							if (i == LOG_OK) {
+								_logging = TRUE;
+								// Write header
+								LOG_WriteStr("WBC log #");
+								LOG_WriteInt(log_num);
+								LOG_WriteStr("\r\n");
+							}
+							UC1701_Fill(0x00);
+							PutStr(0,0,"RES:",fnt7x10);
+							PutIntU(32,0,i,fnt7x10);
+							PutStr(0,12,"NUM:",fnt7x10);
+							PutIntU(32,12,log_num,fnt7x10);
+							PutStr(0,40,_logging ? "TRUE" : "FALSE",fnt7x10);
+							UC1701_Flush();
+							Delay_ms(2000);
+							mnu_sub_sel = 0xff;
+							break;
+						case 1:
+							if (_logging) {
+								LOG_FileSync();
+							}
+							mnu_sub_sel = 0xff;
+							break;
+						case 2:
+							if (_logging) {
+								// Write file ending
+								LOG_WriteStr("WBC log end\r\n");
+								LOG_FileSync();
+							}
+							_logging = FALSE;
+							mnu_sub_sel = 0xff;
+							break;
+						default:
+							break;
+					}
+					if (_idle_time >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
+				} while (mnu_sub_sel != 0xff);
+			} else {
+				BEEPER_Enable(4321,10);
+				mnu_sub_sel = 0xff;
+			}
+			break;
+		case 4:
 			// Debug
 			do {
 				UC1701_Fill(0x00);
 				PutStr(31,1,"Debug...",fnt7x10);
 				InvertRect(0,0,scr_width,12);
 				mnu_sub_sel = GUI_Menu(0,12,scr_width,scr_height - 13,fnt7x10,MF_none,
-						&mnuTest,mnu_sub_sel,WaitForKeyPress);
+						&mnuDebug,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
+						GUI_Screen_DbgVal(WaitForKeyPress);
+						break;
+					case 1:
 						UC1701_Init();
 						UC1701_Contrast(4,24);
 						UC1701_Orientation(scr_normal);
 						UC1701_SetBacklight(Settings.LCD_brightness);
 						break;
-					case 1:
+					case 2:
 						RTC_SetWakeUp(10);
 						GUI_ScreenSaver();
 			 			RTC_SetWakeUp(1);
 						break;
-					case 2:
+					case 3:
 						BEEPER_PlayTones(tones_SMB);
 						break;
-					case 3:
+					case 4:
 						GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
 						break;
-					case 4:
+					case 5:
 						GPS_SendCommand(PMTK_EASY_ENABLE); // GPS EASY enable
 						break;
-					case 5:
+					case 6:
 						GPS_SendCommand(PMTK_EASY_DISABLE); // GPS EASY disable
 						break;
 					default:
@@ -1375,6 +1484,7 @@ void GUI_MainMenu(void) {
 		default:
 			break;
 		}
+		if (_idle_time >= GUI_MENU_TIMEOUT) mnu_sel = 0xff;
 	} while (mnu_sel != 0xff);
 
 	ClearKeys();

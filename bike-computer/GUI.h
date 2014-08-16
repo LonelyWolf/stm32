@@ -3,6 +3,7 @@
 #define __GUI_H
 
 
+#define GUI_TIMEOUT                    300  // Timeout for GUI screens (seconds)
 #define GUI_MENU_TIMEOUT               120  // Timeout for menu (seconds)
 
 
@@ -72,13 +73,14 @@ typedef struct {
 
 // Menus
 static const Menu_TypeDef mnuMain = {
-		4,
+		5,
 		MA_center,
 		MS_over,
 		{
 				{"Statistics"},
 				{"GPS"},
 				{"Settings"},
+				{"Logging"},
 				{"Debug"}
 		}
 };
@@ -129,11 +131,23 @@ static const Menu_TypeDef mnuStatistics = {
 		}
 };
 
-static const Menu_TypeDef mnuTest = {
-		8,
+static const Menu_TypeDef mnuLogging = {
+		3,
+		MA_center,
+		MS_over,
+		{
+				{"New log"},
+				{"Sync log"},
+				{"Stop log"}
+		}
+};
+
+static const Menu_TypeDef mnuDebug = {
+		9,
 		MA_left,
 		MS_over,
 		{
+				{"Debug values"},
 				{"Reinit LCD"},
 				{"Screensaver"},
 				{"Play SMB"},
@@ -145,6 +159,7 @@ static const Menu_TypeDef mnuTest = {
 		}
 };
 
+// Display brightness substitute value
 static const Subst_TypeDef substDisplayBrightness = {
 		6,
 		{
@@ -157,6 +172,7 @@ static const Subst_TypeDef substDisplayBrightness = {
 		}
 };
 
+// Display timeout substitute values
 static const Subst_TypeDef substDisplayTimeout = {
 		5,
 		{
@@ -181,6 +197,7 @@ void GUI_DrawNumber(int8_t X, int8_t Y, int32_t Number, uint8_t Decimals,
 void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_TypeDef TimeType,
 		DigitSize_TypeDef DigitSize);
 
+void GUI_Screen_DbgVal(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey);
