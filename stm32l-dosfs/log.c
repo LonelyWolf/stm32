@@ -1,21 +1,25 @@
 #include <string.h>
 
+#include <wolk.h>
 #include <dosfs/dosfs.h>
 #include <uart.h>
-#include <wolk.h>
 #include <log.h>
 
 
-#define LOG_DATA_BUF_SIZE    SECTOR_SIZE // Size of data buffer
+#define LOG_DATA_BUF_SIZE    SECTOR_SIZE    // Size of data buffer
+                                            // for optimal performance must be equal to sector size
 
 
-VOLINFO vol_info; // Volume information
-DIRINFO dir_info; // Directory information
-uint8_t sector[SECTOR_SIZE]; // Buffer to store sector from SD card
-uint32_t pstart; // Partition start sector
-FILEINFO log_file; // Current log file handler
-uint8_t log_data[LOG_DATA_BUF_SIZE]; // Buffer for data to write
-uint32_t log_data_pos; // Position in data buffer
+bool _SD_present;                           // TRUE if SD card present
+bool _logging;                              // TRUE if log file was created
+
+VOLINFO vol_info;                           // Volume information
+DIRINFO dir_info;                           // Directory information
+uint8_t sector[SECTOR_SIZE];                // Buffer to store one sector
+uint32_t pstart;                            // Partition start sector
+FILEINFO log_file;                          // Current log file handler
+uint8_t log_data[LOG_DATA_BUF_SIZE];        // Buffer for data to write
+uint32_t log_data_pos;                      // Position in data buffer
 
 
 uint32_t fn_atoi(char *filename) {
@@ -68,8 +72,11 @@ LOG_Result LOG_Init(void) {
 }
 
 // Create new log file
-// return: new log file number or LOG_ERROR in case of error
-uint32_t LOG_NewFile(void) {
+// input:
+//   pNum - pointer to variable to store log number
+// return: LOG_XXX value (LOG_OK if file created)
+// note: pNum changed only if new log file created
+uint32_t LOG_NewFile(uint32_t *pNum) {
 	DIRENT dir_entry; // Directory entry
 	char filename[12]; // Buffer for directory entry
 	uint8_t path[64]; // Full file path
@@ -112,7 +119,10 @@ uint32_t LOG_NewFile(void) {
 	memset(log_data,0,sizeof(log_data));
 	log_data_pos = 0;
 
-	return log_num;
+	// Return log number
+	*pNum = log_num;
+
+	return LOG_OK;
 }
 
 // Write data buffer to SD card
@@ -174,11 +184,10 @@ uint32_t LOG_WriteStr(char *str) {
 // return: number of bytes copied into data buffer
 uint32_t LOG_WriteInt(int32_t num) {
 	uint32_t len;
-	uint8_t txt[10];
+	uint8_t txt[11]; // Maximum length of signed int32
 	uint8_t neg;
 	uint8_t i;
 
-	memset(&txt,0,10);
 	len = numlen(num);
 	i = len - 1;
 	if (num < 0) {
@@ -191,4 +200,150 @@ uint32_t LOG_WriteInt(int32_t num) {
 	len = LOG_WriteBin(txt,len);
 
 	return len;
+}
+
+// Write unsigned 32-bit integer value to data buffer
+// input:
+//   num - integer value to write
+// return: number of bytes copied into data buffer
+uint32_t LOG_WriteIntU(uint32_t num) {
+	uint32_t len;
+	uint8_t txt[10]; // Maximum length of unsigned int32
+	uint8_t i;
+
+	len = numlen(num);
+	i = len - 1;
+	do txt[i--] = num % 10 + '0'; while ((num /= 10) > 0);
+
+	len = LOG_WriteBin(txt,len);
+
+	return len;
+}
+
+// Write unsigned 32-bit integer value as float to data buffer
+// input:
+//   num - integer value to write
+//   decimals - number of digits in fractional part [1..9]
+// return: number of bytes copied into data buffer
+uint32_t LOG_WriteIntF(uint32_t num, uint8_t decimals) {
+	uint32_t len;
+	uint8_t txt[11]; // Maximum length of unsigned int32 with decimal point
+	int8_t i;
+
+	memset(txt,'#',11);
+	if (num == 0) {
+		// Special case for '0.0'
+		txt[10] = '0';
+		txt[9]  = '.';
+		txt[8]  = '0';
+		len = 3;
+		i = 7;
+	} else {
+		i = 10;
+		len = numlenu(num) + 1;
+		do {
+			if (10 - i == decimals) {
+				txt[i--] = '.';
+			} else {
+				txt[i--] = num % 10 + '0';
+				num /= 10;
+			}
+		} while (num > 0);
+	}
+	if (10 - i <= decimals) {
+		while (10 - i < decimals) {
+			txt[i--] = '0';
+			len++;
+		}
+		txt[i--] = '.';
+		txt[i--] = '0';
+		len++;
+	}
+	i++;
+
+	len = LOG_WriteBin(&txt[i],len);
+
+	return len;
+}
+
+// Write date to data buffer (format DDMMYY)
+// input:
+//   day - date day [1..31]
+//   month - date month [1..12]
+//   year - date year [0..99]
+// return: number of bytes copied into data buffer
+uint32_t LOG_WriteDate(uint8_t day, uint8_t month, uint8_t year) {
+	uint8_t txt[8];
+
+	// Day
+	if (day < 10) {
+		txt[0] = '0';
+		txt[1] = day + '0';
+	} else {
+		txt[0] = (day / 10) + '0';
+		txt[1] = (day % 10) + '0';
+	}
+	txt[2] = '.';
+
+	// Month
+	if (month < 10) {
+		txt[3] = '0';
+		txt[4] = month + '0';
+	} else {
+		txt[3] = (month / 10) + '0';
+		txt[4] = (month % 10) + '0';
+	}
+	txt[5] = '.';
+
+	// Year
+	if (year < 10) {
+		txt[6] = '0';
+		txt[7] = year + '0';
+	} else {
+		txt[6] = (year / 10) + '0';
+		txt[7] = (year % 10) + '0';
+	}
+
+	return LOG_WriteBin(txt,6);
+}
+
+// Write time to data buffer (format HHMMSS)
+// input:
+//   hours - time hours [0..23]
+//   minutes - date month [0..59]
+//   seconds - date year [0..59]
+// return: number of bytes copied into data buffer
+uint32_t LOG_WriteTime(uint8_t hours, uint8_t minutes, uint8_t seconds) {
+	uint8_t txt[8];
+
+	// Hours
+	if (hours < 10) {
+		txt[0] = '0';
+		txt[1] = hours + '0';
+	} else {
+		txt[0] = (hours / 10) + '0';
+		txt[1] = (hours % 10) + '0';
+	}
+	txt[2] = ':';
+
+	// Minutes
+	if (minutes < 10) {
+		txt[3] = '0';
+		txt[4] = minutes + '0';
+	} else {
+		txt[3] = (minutes / 10) + '0';
+		txt[4] = (minutes % 10) + '0';
+	}
+	txt[5] = ':';
+
+	// Seconds
+	if (seconds < 10) {
+		txt[6] = '0';
+		txt[7] = seconds + '0';
+	} else {
+		txt[6] = (seconds / 10) + '0';
+		txt[7] = (seconds % 10) + '0';
+	}
+
+	return LOG_WriteBin(txt,6);
 }

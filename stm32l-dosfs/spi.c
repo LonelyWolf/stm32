@@ -45,9 +45,9 @@ void SPI2_Init(void) {
 // input:
 //   data - byte to send
 void SPI2_Send(uint8_t data) {
-	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_TXE) == RESET);
-	SPI_I2S_SendData(SPI_PORT,data);
-	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_BSY) == SET);
+	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_TXE) == RESET); // Wait while DR register is not empty
+	SPI_PORT->DR = data; // Send byte to SPI
+	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_BSY) == SET); // Wait while SPI is busy
 }
 
 // Send/Receive data via SPI
@@ -56,7 +56,7 @@ void SPI2_Send(uint8_t data) {
 // output: received byte from nRF24L01
 uint8_t SPI2_SendRecv(uint8_t data) {
 	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_TXE) == RESET); // Wait while DR register is not empty
-	SPI_I2S_SendData(SPI_PORT,data); // Send byte to SPI
+	SPI_PORT->DR = data; // Send byte to SPI
 	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_RXNE) == RESET); // Wait to receive byte
-	return SPI_I2S_ReceiveData(SPI_PORT); // Read byte from SPI bus
+	return SPI_PORT->DR; // Read byte from SPI bus
 }

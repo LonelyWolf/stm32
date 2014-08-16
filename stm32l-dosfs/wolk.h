@@ -2,7 +2,8 @@
 #ifndef __WOLK_H
 #define __WOLK_H
 
-#include <stm32l1xx_gpio.h>
+
+#include <stm32l1xx_rcc.h>
 
 
 // Defines to font pointer for a bit compact code
@@ -14,14 +15,14 @@
 #define nRF24_RX_Addr                 "WBC" // RX address for nRF24L01
 #define nRF24_RX_Addr_Size                3 // RX address size
 #define nRF24_RF_CHANNEL                 90 // nRF24L01 channel (90CH = 2490MHz)
-#define nRF24_RX_PAYLOAD                 17 // nRF24L01 payload length
+#define nRF24_RX_PAYLOAD                 10 // nRF24L01 payload length
 
 
 // Buttons
 #define      BTN0_PORT   GPIOA
 #define      BTN0_PIN    GPIO_Pin_5
-#define      BTN1_PORT   GPIOA
-#define      BTN1_PIN    GPIO_Pin_7
+#define      BTN1_PORT   GPIOC
+#define      BTN1_PIN    GPIO_Pin_12
 #define      BTN2_PORT   GPIOC
 #define      BTN2_PIN    GPIO_Pin_10
 #define      BTN3_PORT   GPIOC
@@ -57,10 +58,7 @@ typedef struct {
 	uint16_t tim_CDC;          // CDC interval
 	uint16_t tim_SPD;          // SPD interval
 	uint16_t vrefint;          // VrefInt of sensor MCU
-	uint8_t  observe_TX;       // Previous value of the OBSERVE_TX register
-	uint16_t cntr_wake;        // Wakeups counter
-	uint16_t packets_lost;     // Lost packets counter
-	uint16_t ride_time;        // SPD interval from last delivered packet
+	uint16_t cntr_wake;        // Wake-ups counter
 } nRF24_Packet_TypeDef;
 
 // Structure for current data
@@ -88,6 +86,9 @@ typedef struct {
 	int32_t  MinGPSAlt;        // Minimum GPS altitude (m)
 	uint32_t GPSSpeed;         // Current GPS speed (km/h * 100)
 	uint32_t MaxGPSSpeed;      // Maximum GPS speed (km/h * 100)
+	uint32_t dbg_spd_cntr;     // Debug: total SPD counter
+	uint32_t dbg_cntr_diff;    // Debug: last diff_SPD value
+	uint32_t dbg_prev_cntr;    // Debug: last _prev_cntr_SPD value
 } Cur_Data_TypeDef;
 
 // Button structure
@@ -131,6 +132,7 @@ uint32_t atos_len(uint8_t *buf, uint8_t len);
 int32_t atos_char(uint8_t *buf, uint16_t *pos);
 uint32_t stringlen(const char *str);
 uint8_t numlen(int32_t num);
+uint8_t numlenu(uint32_t num);
 
 void ReadSettings_EEPROM(void);
 void SaveSettings_EEPROM(void);

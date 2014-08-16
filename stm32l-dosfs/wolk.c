@@ -1,5 +1,3 @@
-#include <stm32l1xx_rcc.h>
-
 #include <wolk.h>
 
 
@@ -122,7 +120,7 @@ uint32_t stringlen(const char *str) {
 	return (s - str);
 }
 
-// Compute character length of numeric value
+// Compute character length of signed integer numeric value
 // input:
 //   num - numeric value
 // return: length in characters (3456 -> 4)
@@ -133,6 +131,18 @@ uint8_t numlen(int32_t num) {
 		num *= -1;
 		len++;
 	}
+	while ((num /= 10) > 0) len++;
+
+	return len;
+}
+
+// Compute character length of unsigned integer numeric value
+// input:
+//   num - numeric value
+// return: length in characters (3456 -> 4)
+uint8_t numlenu(uint32_t num) {
+	uint8_t len = 1;
+
 	while ((num /= 10) > 0) len++;
 
 	return len;

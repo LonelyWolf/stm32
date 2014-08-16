@@ -10,6 +10,7 @@
 #include <stm32l1xx_syscfg.h>
 #include <string.h> // For memset, memmove
 
+#include <wolk.h>
 #include <delay.h>
 #include <spi.h>
 #include <spi1.h>
@@ -17,7 +18,6 @@
 #include <uc1701.h>
 #include <sdcard.h>
 #include <log.h>
-#include <wolk.h>
 
 #include <font5x7.h>
 #include <font7x10.h>
@@ -99,18 +99,25 @@ int main(void) {
 			while(1);
 		}
 
+		uint32_t cntr = 0;
+
 		// Create files for test
 		for (k = 0; k < 1; k++) {
 			// ------ Text file
-			j = LOG_NewFile();
+			j = LOG_NewFile(&cntr);
 
-			UART_SendStr("Log number: ");
+			UART_SendStr("LOG_NewFile(): ");
 			UART_SendInt(j);
+			UART_SendChar('\n');
+			UART_SendStr("Log number: ");
+			UART_SendInt(cntr);
 			UART_SendChar('\n');
 
 			// Write header to the log file
 			LOG_WriteStr("Wolk Bike Computer log file\r\n");
 			LOG_WriteStr("--- BEGIN ---\r\n");
+
+			cntr = 0;
 
 			j = 500;
 			for (i = 0; i < j; i++) {
@@ -126,6 +133,29 @@ int main(void) {
 				LOG_WriteStr(" of ");
 				LOG_WriteInt(j);
 				LOG_WriteStr("\r\n");
+
+				cntr++;
+//				cntr = 4294967295;
+				LOG_WriteIntU(cntr);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,1);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,2);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,3);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,4);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,5);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,6);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,7);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,8);
+				LOG_WriteStr(" ");
+				LOG_WriteIntF(cntr,9);
+				LOG_WriteStr("\r\n");
 			}
 
 			// Write file ending
@@ -135,10 +165,14 @@ int main(void) {
 			LOG_FileSync();
 
 			// ------ Binary file
-			j = LOG_NewFile();
+			cntr = 0;
+			j = LOG_NewFile(&cntr);
 
-			UART_SendStr("Log number: ");
+			UART_SendStr("LOG_NewFile(): ");
 			UART_SendInt(j);
+			UART_SendChar('\n');
+			UART_SendStr("Log number: ");
+			UART_SendInt(cntr);
 			UART_SendChar('\n');
 
 			// Write header to the log file
@@ -225,5 +259,11 @@ int main(void) {
 	}
 
 	UART_SendStr("--------- It's done! ---------\n");
-	while(1);
+
+	while(1) {
+		UC1701_SetBacklight(25);
+		Delay_ms(1000);
+		UC1701_SetBacklight(0);
+		Delay_ms(1000);
+	}
 }
