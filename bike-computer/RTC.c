@@ -86,10 +86,10 @@ void RTC_SetWakeUp(uint32_t interval) {
 // input:
 //   Time - pointer to RTC time structure
 //   Date - pointer to RTC date structure
-void RTC_SetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date) {
+void RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-	RTC_SetTime(RTC_Format_BIN,Time);
-	RTC_SetDate(RTC_Format_BIN,Date);
+	RTC_SetTime(RTC_Format_BIN,time);
+	RTC_SetDate(RTC_Format_BIN,date);
 	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 }
 
@@ -98,9 +98,9 @@ void RTC_SetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date) {
 //   Time - pointer to RTC time structure
 //   Date - pointer to RTC date structure
 // return: date and time in Time and Date structures
-void RTC_GetDateTime(RTC_TimeTypeDef *Time, RTC_DateTypeDef *Date) {
-	RTC_GetTime(RTC_Format_BIN,&RTC_Time);
-	RTC_GetDate(RTC_Format_BIN,&RTC_Date);
+void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
+	RTC_GetTime(RTC_Format_BIN,time);
+	RTC_GetDate(RTC_Format_BIN,date);
 }
 
 // Convert Date/Time structures to epoch time
