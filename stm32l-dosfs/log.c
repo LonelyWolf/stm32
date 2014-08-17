@@ -53,6 +53,8 @@ void fn_itoa(uint32_t num, char *filename) {
 LOG_Result LOG_Init(void) {
 	uint32_t result;
 
+	_logging = FALSE;
+
 	pstart = DFS_GetPtnStart(0,sector,0,NULL,NULL,NULL);
 	if (pstart == DFS_ERRMISC) return LOG_NOPARTITION; // Partition not found
 
@@ -304,7 +306,7 @@ uint32_t LOG_WriteDate(uint8_t day, uint8_t month, uint8_t year) {
 		txt[7] = (year % 10) + '0';
 	}
 
-	return LOG_WriteBin(txt,6);
+	return LOG_WriteBin(txt,8);
 }
 
 // Write time to data buffer (format HHMMSS)
@@ -345,5 +347,5 @@ uint32_t LOG_WriteTime(uint8_t hours, uint8_t minutes, uint8_t seconds) {
 		txt[7] = (seconds % 10) + '0';
 	}
 
-	return LOG_WriteBin(txt,6);
+	return LOG_WriteBin(txt,8);
 }

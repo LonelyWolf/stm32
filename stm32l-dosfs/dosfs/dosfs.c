@@ -13,6 +13,10 @@
 
 #include "dosfs.h"
 
+#ifdef DFS_RTC
+#include "RTC.h"
+#endif
+
 #define div(a,b) ldiv(a,b)
 
 
@@ -448,6 +452,7 @@ uint8_t *DFS_CanonicalToDir(uint8_t *dest, uint8_t *src)
 }
 
 /*
+	SDA:
 	Convert a directory entry (11) to canonical filename (8.3)
 	src must point to a 12-byte buffer.
 	dest must point to a 11-byte buffer.
@@ -877,17 +882,40 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
 		// put sane values in the directory entry
 		memset(&de, 0, sizeof(de));
 		memcpy(de.name, filename, 11);
-		de.crttime_l    = 0x00;	// 00:00:00, 25/07/2014
-		de.crttime_h    = 0x00;
-		de.crtdate_l    = 0xf9;
-		de.crtdate_h    = 0x44;
-		de.lstaccdate_l = 0xf9;
-		de.lstaccdate_h = 0x44;
-		de.wrttime_l    = 0x00;
-		de.wrttime_h    = 0x00;
-		de.wrtdate_l    = 0xf9;
-		de.wrtdate_h    = 0x44;
-		de.attr         = ATTR_ARCHIVE; // SDA: set ARCHIVE attribute to file
+#ifdef DFS_RTC
+		// SDA: use current RTC date/time for file time stamp
+		RTC_TimeTypeDef _time;
+		RTC_DateTypeDef _date;
+
+		RTC_GetDateTime(&_time,&_date);
+
+		// Creation time
+		de.crttime  = _time.RTC_Hours   << 11;
+		de.crttime |= _time.RTC_Minutes << 5;
+		de.crttime |= _time.RTC_Seconds >> 1;
+		if (_time.RTC_Seconds % 2) de.crttimetenth = 0x64;
+
+		// Creation date
+		de.crtdate  = (_date.RTC_Year + 20) << 9;
+		de.crtdate |=  _date.RTC_Month << 5;
+		de.crtdate |=  _date.RTC_Date & 0x1f;
+
+		// Last write time same as creation time
+		de.wrttime = de.crttime;
+
+		// Last write and access date same as creation date
+		de.wrtdate    = de.crtdate;
+		de.lstaccdate = de.crtdate;
+
+#else
+		// 00:00:00, 25/07/2014
+		de.crttime = 0x0000;
+		de.crtdate = 0x44f9;
+		de.wrttime = de.crttime;
+		de.wrtdate = de.crtdate;
+		de.lstaccdate = de.crtdate;
+#endif
+		de.attr = ATTR_ARCHIVE; // SDA: set ARCHIVE attribute to file
 
 		//NTRF: create directory
 		// SDA: if we are creating directory then no need to set archive attribute to it
@@ -1354,6 +1382,7 @@ uint32_t DFS_WriteFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, ui
 	((PDIRENT) scratch)[fileinfo->diroffset].filesize_1 = (fileinfo->filelen & 0x0000ff00) >> 8;
 	((PDIRENT) scratch)[fileinfo->diroffset].filesize_2 = (fileinfo->filelen & 0x00ff0000) >> 16;
 	((PDIRENT) scratch)[fileinfo->diroffset].filesize_3 = (fileinfo->filelen & 0xff000000) >> 24;
+	// TODO: update last file access time stamp ?
 	if (DFS_WriteSector(fileinfo->volinfo->unit, scratch, fileinfo->dirsector, 1)) return DFS_ERRMISC;
 	return result;
 }

@@ -86,7 +86,6 @@ typedef struct {
 	int32_t  MinGPSAlt;        // Minimum GPS altitude (m)
 	uint32_t GPSSpeed;         // Current GPS speed (km/h * 100)
 	uint32_t MaxGPSSpeed;      // Maximum GPS speed (km/h * 100)
-	uint32_t dbg_spd_cntr;     // Debug: total SPD counter
 	uint32_t dbg_cntr_diff;    // Debug: last diff_SPD value
 	uint32_t dbg_prev_cntr;    // Debug: last _prev_cntr_SPD value
 } Cur_Data_TypeDef;

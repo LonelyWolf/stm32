@@ -21,6 +21,9 @@ uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_
 								// GREATLY increase stack requirements!)
 #define DIR_SEPARATOR	'/'		// character separating directory components
 
+#define DFS_RTC                 // SDA: If defined use the RTC
+
+
 // End of configurable items
 //===================================================================
 
@@ -38,7 +41,7 @@ uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_
 // File access modes
 #define DFS_READ		1			// read-only
 #define DFS_WRITE		2			// write-only
-#define DFS_CREATEDIR   (2+4)       // NTRF: create dir
+#define DFS_CREATEDIR   (2+4)       // NTRF: create directory
 
 //===================================================================
 // Miscellaneous constants
@@ -75,28 +78,23 @@ uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_
 				 bit 11-15= hours (0-23)
 */
 typedef struct _tagDIRENT {
-	uint8_t name[11];			// filename
-	uint8_t attr;				// attributes (see ATTR_* constant definitions)
-	uint8_t reserved;			// reserved, must be 0
-	uint8_t crttimetenth;		// create time, 10ths of a second (0-199 are valid)
-	uint8_t crttime_l;			// creation time low byte
-	uint8_t crttime_h;			// creation time high byte
-	uint8_t crtdate_l;			// creation date low byte
-	uint8_t crtdate_h;			// creation date high byte
-	uint8_t lstaccdate_l;		// last access date low byte
-	uint8_t lstaccdate_h;		// last access date high byte
-	uint8_t startclus_h_l;		// high word of first cluster, low byte (FAT32)
-	uint8_t startclus_h_h;		// high word of first cluster, high byte (FAT32)
-	uint8_t wrttime_l;			// last write time low byte
-	uint8_t wrttime_h;			// last write time high byte
-	uint8_t wrtdate_l;			// last write date low byte
-	uint8_t wrtdate_h;			// last write date high byte
-	uint8_t startclus_l_l;		// low word of first cluster, low byte
-	uint8_t startclus_l_h;		// low word of first cluster, high byte
-	uint8_t filesize_0;			// file size, low byte
-	uint8_t filesize_1;			//
-	uint8_t filesize_2;			//
-	uint8_t filesize_3;			// file size, high byte
+	uint8_t  name[11];			// filename
+	uint8_t  attr;				// attributes (see ATTR_* constant definitions)
+	uint8_t  reserved;			// reserved, must be 0
+	uint8_t  crttimetenth;		// create time, 10ths of a second (0-199 are valid)
+	uint16_t crttime;           // creation time
+	uint16_t crtdate;           // creation date
+	uint16_t lstaccdate;        // last access date
+	uint8_t  startclus_h_l;		// high word of first cluster, low byte (FAT32)
+	uint8_t  startclus_h_h;		// high word of first cluster, high byte (FAT32)
+	uint16_t wrttime;           // last write time
+	uint16_t wrtdate;           // last write date
+	uint8_t  startclus_l_l;		// low word of first cluster, low byte
+	uint8_t  startclus_l_h;		// low word of first cluster, high byte
+	uint8_t  filesize_0;		// file size, low byte
+	uint8_t  filesize_1;		//
+	uint8_t  filesize_2;		//
+	uint8_t  filesize_3;		// file size, high byte
 } DIRENT, *PDIRENT;
 
 /*

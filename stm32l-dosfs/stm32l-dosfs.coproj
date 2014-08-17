@@ -70,6 +70,8 @@
     <Component id="1279" name="cmsis_boot" path="" type="2"/>
     <Component id="1282" name="RCC" path="" type="2"/>
     <Component id="1283" name="GPIO" path="" type="2"/>
+    <Component id="1292" name="EXTI" path="" type="2"/>
+    <Component id="1305" name="RTC" path="" type="2"/>
     <Component id="1337" name="SPI" path="" type="2"/>
     <Component id="1338" name="TIM" path="" type="2"/>
     <Component id="1339" name="USART" path="" type="2"/>
@@ -91,10 +93,12 @@
     <File name="uart.c" path="uart.c" type="1"/>
     <File name="cmsis_lib/Include/stm32l1xx_usart.h" path="cmsis_lib/Include/stm32l1xx_usart.h" type="1"/>
     <File name="cmsis_lib/Source" path="" type="2"/>
+    <File name="RTC.c" path="RTC.c" type="1"/>
     <File name="spi1.c" path="spi1.c" type="1"/>
     <File name="sdcard.h" path="sdcard.h" type="1"/>
-    <File name="cmsis_lib/Source/stm32l1xx_syscfg.c" path="cmsis_lib/Source/stm32l1xx_syscfg.c" type="1"/>
     <File name="cmsis_lib/Include/stm32l1xx_gpio.h" path="cmsis_lib/Include/stm32l1xx_gpio.h" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_syscfg.c" path="cmsis_lib/Source/stm32l1xx_syscfg.c" type="1"/>
+    <File name="cmsis_lib/Include/stm32l1xx_rtc.h" path="cmsis_lib/Include/stm32l1xx_rtc.h" type="1"/>
     <File name="log.h" path="log.h" type="1"/>
     <File name="cmsis_lib/Source/stm32l1xx_spi.c" path="cmsis_lib/Source/stm32l1xx_spi.c" type="1"/>
     <File name="uart.h" path="uart.h" type="1"/>
@@ -108,6 +112,7 @@
     <File name="cmsis_lib/Include" path="" type="2"/>
     <File name="cmsis/core_cmInstr.h" path="cmsis/core_cmInstr.h" type="1"/>
     <File name="font5x7.h" path="font5x7.h" type="1"/>
+    <File name="RTC.h" path="RTC.h" type="1"/>
     <File name="cmsis/core_cm3.h" path="cmsis/core_cm3.h" type="1"/>
     <File name="spi1.h" path="spi1.h" type="1"/>
     <File name="cmsis_boot/system_stm32l1xx.c" path="cmsis_boot/system_stm32l1xx.c" type="1"/>
@@ -118,12 +123,15 @@
     <File name="dosfs" path="" type="2"/>
     <File name="cmsis" path="" type="2"/>
     <File name="cmsis_lib" path="" type="2"/>
+    <File name="cmsis_lib/Source/stm32l1xx_exti.c" path="cmsis_lib/Source/stm32l1xx_exti.c" type="1"/>
+    <File name="cmsis_lib/Source/stm32l1xx_rtc.c" path="cmsis_lib/Source/stm32l1xx_rtc.c" type="1"/>
     <File name="sdcard.c" path="sdcard.c" type="1"/>
     <File name="delay.c" path="delay.c" type="1"/>
     <File name="cmsis_lib/Include/stm32l1xx_tim.h" path="cmsis_lib/Include/stm32l1xx_tim.h" type="1"/>
-    <File name="cmsis_lib/Include/misc.h" path="cmsis_lib/Include/misc.h" type="1"/>
     <File name="uc1701.h" path="uc1701.h" type="1"/>
+    <File name="cmsis_lib/Include/misc.h" path="cmsis_lib/Include/misc.h" type="1"/>
     <File name="cmsis_boot/Startup" path="" type="2"/>
+    <File name="cmsis_lib/Include/stm32l1xx_exti.h" path="cmsis_lib/Include/stm32l1xx_exti.h" type="1"/>
     <File name="main.c" path="main.c" type="1"/>
     <File name="cmsis_lib/Source/misc.c" path="cmsis_lib/Source/misc.c" type="1"/>
   </Files>

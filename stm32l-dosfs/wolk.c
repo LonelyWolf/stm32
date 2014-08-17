@@ -120,7 +120,7 @@ uint32_t stringlen(const char *str) {
 	return (s - str);
 }
 
-// Compute character length of signed integer numeric value
+// Compute character length of numeric value
 // input:
 //   num - numeric value
 // return: length in characters (3456 -> 4)

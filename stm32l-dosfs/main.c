@@ -6,7 +6,6 @@
 #include <misc.h>
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_gpio.h>
-#include <stm32l1xx_tim.h>
 #include <stm32l1xx_syscfg.h>
 #include <string.h> // For memset, memmove
 
@@ -18,6 +17,7 @@
 #include <uc1701.h>
 #include <sdcard.h>
 #include <log.h>
+#include <RTC.h>
 
 #include <font5x7.h>
 #include <font7x10.h>
@@ -55,6 +55,8 @@ int main(void) {
 	Delay_Init(NULL);
 
 	SPI2_Init();
+
+	RTC_Config();
 
 	UC1701_Init();
 	UC1701_Contrast(4,24);
