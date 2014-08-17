@@ -1,5 +1,8 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_rtc.h>
+#include <stm32l1xx_exti.h>
+#include <misc.h>
+
 #include <RTC.h>
 
 
@@ -10,13 +13,11 @@ RTC_DateTypeDef RTC_Date;                   // Current RTC date
 // Initialize and configure the RTC peripheral
 void RTC_Config(void) {
 	RTC_InitTypeDef RTCInit;
+	NVIC_InitTypeDef NVICInit;
+	EXTI_InitTypeDef EXTIInit;
 
 	RCC->APB1ENR |= RCC_APB1Periph_PWR; // Enable the PWR peripheral
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-
-	// Reset the RTC time
-	RCC_RTCResetCmd(ENABLE);
-	RCC_RTCResetCmd(DISABLE);
 
 	// Turn on LSE and wait until it become stable
 	RCC_LSEConfig(RCC_LSE_ON);
@@ -28,24 +29,44 @@ void RTC_Config(void) {
 
 	// ck_spre = 1Hz
 	RTCInit.RTC_AsynchPrediv = 0x7f; // div128
-//	RTCInit.RTC_AsynchPrediv = 0x0f; // ----------------------- HARDER, FASTER!
 	RTCInit.RTC_SynchPrediv  = 0xff; // div256
 	RTCInit.RTC_HourFormat   = RTC_HourFormat_24;
 	RTC_Init(&RTCInit);
 
+	// RTC wake-up -> EXTI line 20
+	EXTI_ClearITPendingBit(EXTI_Line20);
+	EXTIInit.EXTI_Line = EXTI_Line20;
+	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising; // Must be rising edge
+	EXTIInit.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTIInit);
+
+	// Enable the RTC wake-up interrupt
+	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
+	NVIC_Init(&NVICInit);
+
+	// Configure the wake-up clock source
 	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);
-	// Wake-up counter can be set only when wake-up disabled
+
+	// Disable the wake-up counter and configure it default value
 	RTC_WakeUpCmd(DISABLE);
-	RTC_SetWakeUpCounter(0); // 1s wake-up (1s - 1)
-	RTC_ITConfig(RTC_IT_WUT,ENABLE); // Enable wake-up interrupt
-	RTC_WaitForSynchro(); // Wait until the RTC Time and Date registers are synchronized with RTC APB clock
+	RTC_SetWakeUpCounter(0); // wake-up every second (value = 1s - 1)
+
+	// Enable the wake-up interrupt
+	RTC_ClearITPendingBit(RTC_IT_WUT);
+	RTC_ITConfig(RTC_IT_WUT,ENABLE);
+
 	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 }
 
 // Configure wake-up interrupt
 // input:
-//   interval - wake-up timer counter interval (preconfigured to 1 second)
+//   interval - wake-up timer counter interval
 // note: interval can be a value from 0x0000 to 0xFFFF
+//       if interval is zero then wake-up is disabled
 void RTC_SetWakeUp(uint32_t interval) {
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
 	// Wake-up counter can be set only when wake-up disabled
