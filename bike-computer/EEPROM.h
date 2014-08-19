@@ -28,4 +28,7 @@ EEPROM_Status EEPROM_WaitForLastOperation(uint32_t Timeout);
 EEPROM_Status EEPROM_Write(uint32_t Address, uint32_t Data);
 uint32_t EEPROM_Read(uint32_t address);
 
+void ReadBuffer_EEPROM(uint32_t addr, volatile uint32_t *buffer, uint32_t len);
+void SaveBuffer_EEPROM(uint32_t addr, volatile uint32_t *buffer, uint32_t len);
+
 #endif // __EEPROM_H
