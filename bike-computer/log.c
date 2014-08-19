@@ -53,6 +53,8 @@ void fn_itoa(uint32_t num, char *filename) {
 LOG_Result LOG_Init(void) {
 	uint32_t result;
 
+	_logging = FALSE;
+
 	pstart = DFS_GetPtnStart(0,sector,0,NULL,NULL,NULL);
 	if (pstart == DFS_ERRMISC) return LOG_NOPARTITION; // Partition not found
 
