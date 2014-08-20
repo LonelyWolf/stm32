@@ -1,6 +1,7 @@
 #include <stm32l1xx_rcc.h>
 #include <string.h> // For memset
 
+#include <delay.h>
 #include <uart.h>
 #include <wolk.h>
 #include <GPS.h>
@@ -16,6 +17,7 @@ uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 uint8_t GPS_sats[12];                       // IDs of satellites used in position fix
 // Information about satellites in view (can be increased if receiver able handle more)
 GPS_Satellite_TypeDef GPS_sats_view[MAX_SATELLITES_VIEW];
+GPS_PMTK_TypeDef GPS_PMTK;                  // PMTK messages result
 
 
 // Calculates ten raised to the given power
@@ -59,56 +61,21 @@ void GPS_SendCommand(char *cmd) {
 	UART_SendChar('\n');
 }
 
-// Find NMEA sentence in buffer
+// Find end of the GPS sentence
 // input:
-//   buf - pointer to buffer with NMEA packet
-//   start - position in buffer to start search
-//   buf_size - size of buffer
-// return: position of sentence beginning or 0 if no sentence found
-NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size) {
-	uint16_t pos = start;
-	uint32_t hdr;
-	NMEASentence_TypeDef result;
-
-	result.start = start;
-	result.end   = buf_size;
-	result.type  = NMEA_BAD;
+//   buf - pointer to the data buffer
+//   buf_size - size of the data buffer
+// return: buffer offset
+uint16_t GPS_FindSentenceEnd(uint8_t *buf, uint16_t buf_size) {
+	uint16_t pos = 0;
+	uint16_t crlf;
 
 	do {
-		if (buf[pos] == '$' && buf[pos + 1] == 'G' && buf[pos + 2] == 'P') {
-			result.start = pos + 3;
-
-			// Find end of sentence
-			if (pos + 6 > buf_size) return result; // sentence doesn't have ending
-
-			pos += 4;
-			do {
-				if (buf[pos] == '\r' && buf[pos + 1] == '\n') {
-					result.end = pos + 1;
-
-					// sentence have ending, now determine type of sentence
-					hdr = (buf[result.start] << 16) |
-							(buf[result.start + 1] << 8) |
-							(buf[result.start + 2]);
-					if (hdr == 0x00474c4c) result.type = NMEA_GLL;
-					if (hdr == 0x00524d43) result.type = NMEA_RMC;
- 					if (hdr == 0x00565447) result.type = NMEA_VTG;
-					if (hdr == 0x00474741) result.type = NMEA_GGA;
-					if (hdr == 0x00475341) result.type = NMEA_GSA;
-					if (hdr == 0x00475356) result.type = NMEA_GSV;
-					if (hdr == 0x005a4441) result.type = NMEA_ZDA;
-
-					return result;
-				}
-				pos++;
-			} while (pos < buf_size - 2);
-
-			return result;
-		}
+		crlf = (buf[pos] << 8) | buf[pos + 1];
 		pos++;
-	} while (pos < buf_size - 3);
+	} while (crlf != 0x0d0a && (pos + 1) < buf_size);
 
-	return result;
+	return pos;
 }
 
 // Find next field in GPS sentence
@@ -121,6 +88,78 @@ uint16_t GPS_NextField(uint8_t *buf) {
 	while (*buf != ',' && *buf++ != '*') pos++;
 
 	return pos;
+}
+
+// Find NMEA sentence in buffer
+// input:
+//   msg - pointer to NMEASentence variable
+//   buf - pointer to buffer with NMEA packet
+//   start - position in buffer to start search
+//   buf_size - size of the data buffer
+// note: function modifies msg variable
+void GPS_FindSentence(NMEASentence_TypeDef *Sentence, uint8_t *buf, uint16_t start, uint16_t buf_size) {
+	uint16_t pos = start;
+	uint32_t hdr;
+
+	Sentence->start = start;
+	Sentence->end   = buf_size;
+	Sentence->type  = NMEA_BAD;
+
+	if (start + 10 > buf_size) return;
+
+	do {
+		hdr = (buf[pos] << 16) | (buf[pos + 1] << 8) | buf[pos + 2];
+		if (hdr == 0x00244750) {
+			// $GPxxx sentence - GPS
+			Sentence->start = pos + 7;
+			hdr = (buf[pos + 3] << 16) |
+				  (buf[pos + 4] << 8)  |
+				   buf[pos + 5];
+			pos += GPS_FindSentenceEnd(&buf[pos],buf_size);
+			if (pos >= buf_size) return;
+			Sentence->end = pos + 1;
+			if (hdr == 0x00474c4c) { Sentence->type = NMEA_GLL; return; }
+			if (hdr == 0x00524d43) { Sentence->type = NMEA_RMC; return; }
+			if (hdr == 0x00565447) { Sentence->type = NMEA_VTG; return; }
+			if (hdr == 0x00474741) { Sentence->type = NMEA_GGA; return; }
+			if (hdr == 0x00475341) { Sentence->type = NMEA_GSA; return; }
+			if (hdr == 0x00475356) { Sentence->type = NMEA_GSV; return; }
+			if (hdr == 0x005a4441) { Sentence->type = NMEA_ZDA; return; }
+
+			return;
+/*
+		} else if (hdr == 0x0024474e) {
+			// $GNxxx sentence - GLONASS
+			Sentence->start = pos + 7;
+			hdr = (buf[pos + 3] << 16) |
+				  (buf[pos + 4] << 8)  |
+				   buf[pos + 5];
+			pos += GPS_FindSentenceEnd(&buf[pos],buf_size);
+			if (pos >= buf_size) return;
+			Sentence->end = pos + 1;
+
+			return;
+*/
+		} else if (hdr == 0x0024504d) {
+			// $PMTK sentence
+			Sentence->start = pos + 9;
+			hdr = (buf[pos + 4] << 24) |
+				  (buf[pos + 5] << 16) |
+				  (buf[pos + 6] << 8)  |
+				   buf[pos + 7];
+			pos += GPS_FindSentenceEnd(&buf[pos],buf_size);
+			if (pos >= buf_size) return;
+			Sentence->end = pos + 1;
+			if (hdr == 0x4b303031) { Sentence->type = NMEA_PMTK001; return; }
+			if (hdr == 0x4b303130) { Sentence->type = NMEA_PMTK010; return; }
+			if (hdr == 0x4b303131) { Sentence->type = NMEA_PMTK011; return; }
+
+			return;
+		}
+		pos++;
+	} while (pos < buf_size - 3);
+
+	return;
 }
 
 // Parse float value from a GPS sentence
@@ -189,6 +228,8 @@ uint16_t GPS_ParseCoordinate(uint8_t *buf, uint8_t len, uint32_t *value, uint8_t
 		*char_value = 'X';
 		pos++;
 	}
+
+	// FIXME: coordinate must be negative in case when char_value is 'W' or 'S'
 
 	return pos;
 }
@@ -269,10 +310,12 @@ uint16_t GPS_ParseTime(uint8_t *buf, uint32_t *time) {
 //   buf - pointer to the data buffer
 //   Sentence - pointer to the structure with NMEA sentence parameters
 void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
-	uint16_t pos = Sentence->start + 4;
+	uint16_t pos = Sentence->start;
 	uint8_t i;
 	uint8_t GSV_msg;   // GSV sentence number
 	uint8_t GSV_sats;  // Total number of satellites in view
+	uint32_t ui_32 = 0;
+	uint16_t ui_16 = 0;
 
 	switch (Sentence->type) {
 	case NMEA_RMC:
@@ -547,6 +590,36 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		}
 
 		break; // NMEA_GSV
+	case NMEA_PMTK001:
+		// $PMTK001 - PMTK_ACK
+
+		if (buf[pos] != ',') {
+			GPS_PMTK.PMTK001_CMD  = atos_char(&buf[pos],&pos);
+			GPS_PMTK.PMTK001_FLAG = atos_len(&buf[pos],1);
+		} else {
+			GPS_PMTK.PMTK001_CMD  = 0;
+			GPS_PMTK.PMTK001_FLAG = 0;
+		}
+
+		break; // NMEA_PMTK001
+	case NMEA_PMTK010:
+		// $PMTK010 - PMTK_SYS_MSG
+
+		if (buf[pos] != ',') {
+			GPS_PMTK.PMTK010 = atos_char(&buf[pos],&pos);
+		} else GPS_PMTK.PMTK010 = 0;
+
+		break; // NMEA_PMTK010
+	case NMEA_PMTK011:
+		// $PMTK011 - PMTK_BOOT
+
+		if (buf[pos] != ',') {
+			memcpy(&ui_32,&buf[pos],4);
+			memcpy(&ui_16,&buf[pos + 4],2);
+		}
+		GPS_PMTK.PMTK_BOOT = (ui_32 == 0x474b544d && ui_16 == 0x5350);
+
+		break; // NMEA_PMTK011
 	default:
 		// Unknown NMEA sentence
 		break;
@@ -573,7 +646,7 @@ void GPS_InitData(void) {
 	memset(&GPS_msg,0,sizeof(GPS_msg));
 }
 
-// Check which satellites in view used in location fix
+// Check which satellites in view is used in location fix
 void GPS_CheckUsedSats(void) {
 	uint32_t i,j;
 
@@ -585,5 +658,35 @@ void GPS_CheckUsedSats(void) {
 				break;
 			}
 		}
+	}
+}
+
+// Initialize the GPS module
+void GPS_Init(void) {
+	uint32_t wait;
+
+	// Clear PMTK response results
+	memset(&GPS_PMTK,0,sizeof(GPS_PMTK));
+
+	// Assume what UART speed of GPS module is 9600bps after power-up
+	UART_SetSpeed(9600);
+	Delay_ms(500); // Give time for GPS to boot up
+	GPS_SendCommand(PMTK_SET_NMEA_BAUDRATE_115200); // Ask GPS chip to set 115200 baudrate
+	UART_SetSpeed(115200); // GPS must now working at higher speed
+	Delay_ms(50); // Wait some time
+
+	GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
+
+	// Wait for $PMTK010 sentence
+	wait = 0xffffff;
+	while (GPS_PMTK.PMTK010 != 2 && --wait);
+
+	// Configure MTK chip if it responded correctly
+	if (GPS_PMTK.PMTK010 == 2) {
+		GPS_SendCommand(PMTK_SET_NMEA_OUTPUT_ALLDATA); // All supported sentences
+		GPS_SendCommand(PMTK_SET_AIC_ENABLED); // Enable AIC (enabled by default)
+		GPS_SendCommand(PMTK_API_SET_STATIC_NAV_THD_OFF); // Disable speed threshold
+		GPS_SendCommand(PMTK_EASY_ENABLE); // Enable EASY (for MT3339)
+		GPS_SendCommand(PMTK_SET_PERIODIC_MODE_NORMAL); // Disable periodic mode
 	}
 }

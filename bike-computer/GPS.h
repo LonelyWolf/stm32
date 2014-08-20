@@ -6,7 +6,6 @@
 #define GPS_BUFFER_SIZE     1024  // Size of GPS buffer
 #define MAX_SATELLITES_VIEW   12  // Maximum number of satellites in view to handle
 
-
 #define PMTK_TEST                       "$PMTK000*" // MTK test packet (MTK should respond with "$PMTK001,0,3*30")
 #define PMTK_SET_NMEA_OUTPUT_ALLDATA    "$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*" // All supported NMEA sentences
 #define PMTK_SET_NMEA_BAUDRATE_115200   "$PMTK251,115200*" // Set NMEA baudrate to 115200bps
@@ -22,14 +21,17 @@
 
 
 typedef enum {
-	NMEA_BAD = 0,
-	NMEA_GLL = 1,
-	NMEA_RMC = 2,
-	NMEA_VTG = 3,
-	NMEA_GGA = 4,
-	NMEA_GSA = 5,
-	NMEA_GSV = 6,
-	NMEA_ZDA = 7
+	NMEA_BAD     = 0x00,
+	NMEA_GLL     = 0x01,
+	NMEA_RMC     = 0x02,
+	NMEA_VTG     = 0x03,
+	NMEA_GGA     = 0x04,
+	NMEA_GSA     = 0x05,
+	NMEA_GSV     = 0x06,
+	NMEA_ZDA     = 0x07,
+	NMEA_PMTK001 = 0x08,
+	NMEA_PMTK010 = 0x09,
+	NMEA_PMTK011 = 0x0a
 } NMEASentenceType_TypeDef;
 
 
@@ -86,6 +88,21 @@ typedef struct {
 	bool     used;                // TRUE if satellite used in location fix
 } GPS_Satellite_TypeDef;
 
+typedef struct {
+	bool     PMTK_BOOT;           // TRUE when "$PMTK011,MTKGPS*08" sentence parsed
+	uint8_t  PMTK010;             // Last parsed $PMTK010 sentence:
+	                              //   0 = unknown
+	                              //   1 = startup
+	                              //   2 = notification for the host aiding EPO
+	                              //   3 = notification for the transition to normal mode is successfully done
+	uint16_t PMTK001_CMD;         // Cmd field from last parsed $PMTK001 sentence
+	uint8_t  PMTK001_FLAG;        // Flag field from last parsed $PMTK001 sentence:
+	                              //   0 = invalid packet
+	                              //   1 = unsupported packet type
+	                              //   2 = valid packet, but action failed
+	                              //   3 = valid packet, action succeeded
+} GPS_PMTK_TypeDef;
+
 
 // Public variables
 extern GPS_Data_TypeDef GPSData;                   // Parsed GPS information
@@ -93,19 +110,21 @@ extern bool GPS_new_data;                          // TRUE if received new GPS p
 extern uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
 extern NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
 extern uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter
-extern uint8_t GPS_sentences_unknown;               // Found unknown NMEA sentences counter
+extern uint8_t GPS_sentences_unknown;              // Found unknown NMEA sentences counter
 extern uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 extern GPS_Data_TypeDef GPSData;                   // Parsed GPS data
 extern uint8_t GPS_sats[];                         // IDs of satellites used in position fix
 extern GPS_Satellite_TypeDef GPS_sats_view[];      // Information about satellites in view
+extern GPS_PMTK_TypeDef GPS_PMTK;                  // PMTK messages result
 
 
 // Function prototypes
 uint8_t GPS_CRC(char *str);
 void GPS_SendCommand(char *cmd);
-NMEASentence_TypeDef GPS_FindSentence(uint8_t *buf, uint16_t start, uint16_t buf_size);
+void GPS_FindSentence(NMEASentence_TypeDef *msg, uint8_t *buf, uint16_t start, uint16_t buf_size);
 void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence);
 void GPS_InitData(void);
 void GPS_CheckUsedSats(void);
+void GPS_Init(void);
 
 #endif // __GPS_H
