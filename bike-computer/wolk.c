@@ -13,7 +13,17 @@ uint32_t _idle_time;                        // Time from last user event (button
 
 // Execute WFI instruction
 void SleepWait(void) {
-	PWR->CR |= PWR_CR_CWUF; // Clear the WUF wake-up flag
+	// Enable sleep-on-exit
+	// After IRQ the MCU will fall asleep without returning to main loop
+	SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+
+	// Clear the WUF wake-up flag
+	PWR->CR |= PWR_CR_CWUF;
+
+	// Ensure effect of last store takes effect
+	__DSB();
+
+	// Enter sleep mode
 	__WFI();
 }
 
@@ -27,14 +37,20 @@ void SleepStop(void) {
 	// Voltage regulator on during sleep mode
 	PWR->CR &= (uint32_t)~((uint32_t)~PWR_CR_LPSDSR);
 
-	// Set SLEEPDEEP bit of Cortex System Control Register
-	SCB->SCR |= SCB_SCR_SLEEPDEEP;
+	// Disable sleep-on-exit
+	SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 
-	// STOP mode
+	// Set SLEEPDEEP bit of Cortex-M System Control Register
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+
+	// Ensure effect of last store takes effect
+	__DSB();
+
+	// Enter STOP mode
 	__WFI();
 
-	// Clear SLEEPDEEP bit of Cortex System Control Register
-	SCB->SCR &= (uint32_t)~((uint32_t)SCB_SCR_SLEEPDEEP);
+	// Clear SLEEPDEEP bit of Cortex-M System Control Register
+	SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
 
 	// Restore system clocks only when screensaver deactivated
 	if (!_screensaver) {
@@ -147,28 +163,6 @@ uint8_t numlenu(uint32_t num) {
 	while ((num /= 10) > 0) len++;
 
 	return len;
-}
-
-// Load settings from EEPROM
-void ReadSettings_EEPROM(void) {
-	uint32_t *ptr = (uint32_t *)&Settings;
-	uint8_t i;
-
-	for (i = 0; i < sizeof(Settings); i += 4) *ptr++ = EEPROM_Read(DATA_EEPROM_START_ADDR + i);
-}
-
-// Save settings to EEPROM
-void SaveSettings_EEPROM(void) {
-	uint32_t *ptr = (uint32_t *)&Settings;
-	uint8_t i;
-	uint32_t data;
-
-	EEPROM_Unlock();
-	for (i = 0; i < sizeof(Settings); i += 4) {
-		data = *ptr++;
-		if (data != EEPROM_Read(DATA_EEPROM_START_ADDR + i)) EEPROM_Write(DATA_EEPROM_START_ADDR + i,data);
-	}
-	EEPROM_Lock();
 }
 
 // Wait for key press
