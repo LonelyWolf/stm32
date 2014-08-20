@@ -3,6 +3,8 @@
 #define __GUI_H
 
 
+#define GUI_SCREENSAVER_TIMEOUT       1800  // Timeout for screensaver activation (seconds)
+#define GUI_SCREENSAVER_UPDATE          60  // Screensaver update interval (seconds)
 #define GUI_TIMEOUT                    300  // Timeout for GUI screens (seconds)
 #define GUI_MENU_TIMEOUT               120  // Timeout for menu (seconds)
 
@@ -143,11 +145,10 @@ static const Menu_TypeDef mnuLogging = {
 };
 
 static const Menu_TypeDef mnuDebug = {
-		9,
+		10,
 		MA_left,
 		MS_over,
 		{
-				{"Debug values"},
 				{"Reinit LCD"},
 				{"Screensaver"},
 				{"Play SMB"},
@@ -155,7 +156,9 @@ static const Menu_TypeDef mnuDebug = {
 				{"GPS EASY on"},
 				{"GPS EASY off"},
 				{"- debug -"},
-				{"- debug -"}
+				{"- debug -"},
+				{"- debug -"},
+				{"Reboot"}
 		}
 };
 
@@ -197,7 +200,6 @@ void GUI_DrawNumber(int8_t X, int8_t Y, int32_t Number, uint8_t Decimals,
 void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_TypeDef TimeType,
 		DigitSize_TypeDef DigitSize);
 
-void GUI_Screen_DbgVal(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey);
 void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey);

@@ -7,6 +7,7 @@
 #include <GPS.h>
 #include <RTC.h>
 #include <log.h>
+#include <EEPROM.h>
 #include <beeper.h> // FIXME: just for debug, remove it later
 
 #include <font5x7.h>
@@ -274,46 +275,6 @@ void GUI_DrawTime(uint8_t X, uint8_t Y, RTC_TimeTypeDef *RTC_Time, TimeType_Type
 		X += dig_w * 2;
 		break;
 	}
-}
-
-// Screen with current values (trip data)
-void GUI_Screen_DbgVal(funcPtrKeyPress_TypeDef WaitForKey) {
-	uint8_t X,Y;
-
-	do {
-		// Frame
-		UC1701_Fill(0x00);
-		Rect(0,4,scr_width - 1,scr_height - 1,PSet);
-		HLine(4,scr_width - 5,4,PReset);
-		PutStr(27,1,"Debug values",fnt5x7);
-		InvertRect(4,0,scr_width - 8,9);
-
-		X = 4; Y = 10;
-		X += PutStr(X,Y,"Odo:",fnt5x7) - 1;
-		PutIntU(X,Y,CurData.Odometer,fnt5x7);
-
-		X = 4; Y += 9;
-		X += PutStr(X,Y,"SPD cntr:",fnt5x7) - 1;
-		PutIntU(X,Y,CurData.dbg_spd_cntr,fnt5x7);
-
-		X = 4; Y += 9;
-		X += PutStr(X,Y,"Diff:",fnt5x7) - 1;
-		PutIntU(X,Y,CurData.dbg_cntr_diff,fnt5x7);
-
-		X = 4; Y += 9;
-		X += PutStr(X,Y,"Prev:",fnt5x7) - 1;
-		PutIntU(X,Y,CurData.dbg_prev_cntr,fnt5x7);
-
-		UC1701_Flush();
-
-		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
-		GUI_refresh = FALSE;
-		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
-	} while (!BTN[BTN_ESCAPE].cntr);
-
-	BTN[BTN_ESCAPE].cntr = 0;
-	UC1701_Fill(0x00);
 }
 
 // Screen with RAW data packet
@@ -1367,7 +1328,7 @@ void GUI_MainMenu(void) {
 						break;
 					case 1:
 						mnu_val = Settings.WheelCircumference;
-						GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,150,300,1,"cm",NULL,NULL,WaitForKeyPress);
+						GUI_NumericScroll(-100,10,0,0,fnt7x10,&mnu_val,100,300,1,"cm",NULL,NULL,WaitForKeyPress);
 						Settings.WheelCircumference = (uint16_t)mnu_val;
 						break;
 					case 2:
@@ -1383,7 +1344,7 @@ void GUI_MainMenu(void) {
 					default:
 						break;
 				}
-				SaveSettings_EEPROM();
+				SaveBuffer_EEPROM(DATA_EEPROM_START_ADDR,(uint32_t *)&Settings,sizeof(Settings));
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 3:
@@ -1405,7 +1366,12 @@ void GUI_MainMenu(void) {
 								// Write header
 								LOG_WriteStr("WBC log #");
 								LOG_WriteInt(log_num);
-								LOG_WriteStr("\r\n");
+								LOG_WriteStr(" (start ");
+								LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
+								LOG_WriteStr(" ");
+								LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
+//								LOG_WriteStr(")\r\n");
+								LOG_WriteStr(")\r\nDate;Time;Wake;SPD.c;_prev_cntr_SPD;SPD.t;CDC.t;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;dbg_cntr_diff;dbg_prev_cntr;Vref;Temperature;Pressure\r\n");
 							}
 							UC1701_Fill(0x00);
 							PutStr(0,0,"RES:",fnt7x10);
@@ -1416,6 +1382,7 @@ void GUI_MainMenu(void) {
 							UC1701_Flush();
 							Delay_ms(2000);
 							mnu_sub_sel = 0xff;
+							mnu_sel = 0xff;
 							break;
 						case 1:
 							if (_logging) {
@@ -1426,7 +1393,11 @@ void GUI_MainMenu(void) {
 						case 2:
 							if (_logging) {
 								// Write file ending
-								LOG_WriteStr("WBC log end\r\n");
+								LOG_WriteStr("WBC log end (");
+								LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
+								LOG_WriteStr(" ");
+								LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
+								LOG_WriteStr(")\r\n");
 								LOG_FileSync();
 							}
 							_logging = FALSE;
@@ -1452,30 +1423,31 @@ void GUI_MainMenu(void) {
 						&mnuDebug,mnu_sub_sel,WaitForKeyPress);
 				if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 					case 0:
-						GUI_Screen_DbgVal(WaitForKeyPress);
-						break;
-					case 1:
 						UC1701_Init();
 						UC1701_Contrast(4,24);
 						UC1701_Orientation(scr_normal);
 						UC1701_SetBacklight(Settings.LCD_brightness);
 						break;
-					case 2:
+					case 1:
 						RTC_SetWakeUp(10);
 						GUI_ScreenSaver();
 			 			RTC_SetWakeUp(1);
 						break;
-					case 3:
+					case 2:
 						BEEPER_PlayTones(tones_SMB);
 						break;
-					case 4:
+					case 3:
 						GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
 						break;
-					case 5:
+					case 4:
 						GPS_SendCommand(PMTK_EASY_ENABLE); // GPS EASY enable
 						break;
-					case 6:
+					case 5:
 						GPS_SendCommand(PMTK_EASY_DISABLE); // GPS EASY disable
+						break;
+					case 9:
+						// Initiate SYSRESETREQ signal to reboot the system
+						NVIC_SystemReset();
 						break;
 					default:
 						break;
