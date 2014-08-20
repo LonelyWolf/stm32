@@ -34,6 +34,7 @@
 #include <spi1.h>
 #include <sdcard.h>
 #include <log.h>
+#include <EEPROM.h>
 
 #include <font5x7.h>
 #include <font7x10.h>
@@ -43,11 +44,9 @@
 /////////////////////////////////////////////////////////////////////////
 
 
-#define SCREENSAVER_TIMEOUT           1800  // Timeout for screensaver activation (seconds)
-#define SCREENSAVER_UPDATE              60  // Screensaver update interval (seconds)
 #define ALT_MEASURE_DUTY_CYCLE          30  // Temperature/pressure measurement duty cycle (seconds)
 #define NO_SIGNAL_TIME                  10  // Sensor signal timeout (seconds)
-#define GPS_TIME_SYNC_DUTY_CYCLE       120  // Duty cycle to sync system time tiwh GPS time (seconds)
+#define GPS_TIME_SYNC_DUTY_CYCLE       120  // Duty cycle to sync system time with GPS time (seconds)
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -72,6 +71,9 @@ uint32_t _GPS_time_duty_cycle;              // Duty cycle to sync system time wi
 uint32_t _altitude_duty_cycle;              // Altitude measurement duty cycle
 
 int16_t altitude_history[128];              // Last 128 altitude values
+
+uint16_t _cdc[5];
+uint32_t _cdc_avg;
 
 uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter (to track RX timeout)
 
@@ -192,18 +194,6 @@ void NVIC_Configuration(void) {
 	SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOC,EXTI_PinSource12);
 	EXTIInit.EXTI_Line = EXTI_Line12;
 	EXTI_Init(&EXTIInit);
-
-	// RTC wake-up -> EXTI line 20
-	EXTIInit.EXTI_Line = EXTI_Line20;
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising; // Must be rising edge
-	EXTIInit.EXTI_LineCmd = ENABLE;
-	EXTI_Init(&EXTIInit);
-	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
-	NVIC_Init(&NVICInit);
 }
 
 // Initialize display:
@@ -284,6 +274,9 @@ void Button_Inquiry(BTN_TypeDef *button) {
 		button->hold_cntr = 0;
 		if (button->state != BTN_Hold) button->cntr++;
 		button->state = BTN_Released;
+
+		// Disable sleep-on-exit (return to main loop from IRQ)
+		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 	} else {
 		// Button pressed
 		button->hold_cntr = 0;
@@ -312,9 +305,10 @@ void EXTI9_5_IRQHandler(void) {
 		if (RX_status == nRF24_RX_PCKT_PIPE0) {
 			ParsePacket();
 			_no_signal_time = 0;
-			if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout; // FIXME: with this enabled no menu/GUI timeout will happen
-			BEEPER_Enable(4000,1);
-		} else BEEPER_Enable(300,1);
+			// FIXME: with this enabled no menu/GUI timeout will happen in case of constant packets receiving
+			if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout;
+//			BEEPER_Enable(4000,1);
+		}
 		EXTI_ClearITPendingBit(EXTI_Line6);
 	}
 
@@ -369,7 +363,7 @@ void RTC_WKUP_IRQHandler(void) {
 			CurData.Cadence = 0;
 			_prev_cntr_SPD  = 0;
 		}
-		if (_idle_time > SCREENSAVER_TIMEOUT) _screensaver = TRUE; else _screensaver = FALSE;
+		if (_idle_time > GUI_SCREENSAVER_TIMEOUT) _screensaver = TRUE; else _screensaver = FALSE;
 		if (!_screensaver) {
 			// The following procedures must be executed only when no screensaver active
 			if (_idle_time > Settings.LCD_timeout && Settings.LCD_timeout) UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
@@ -388,7 +382,6 @@ void RTC_WKUP_IRQHandler(void) {
 // TIM7 IRQ handler
 void TIM7_IRQHandler(void) {
 	TIM7->SR &= ~TIM_SR_UIF; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
-//	TIM7->SR = (uint16_t)~TIM_IT_Update; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
 	if (_DMA_cntr == (uint16_t)DMA1_Channel6->CNDTR) {
 		// DMA pointer unchanged from last IRQ -> UART timeout
 		TIM7->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); // Disable TIM7
@@ -412,7 +405,6 @@ void TIM7_IRQHandler(void) {
 // USART2 IRQ handler
 void USART2_IRQHandler(void) {
 	if (UART_PORT->SR & USART_SR_RXNE) {
-//	if (UART_PORT->SR & USART_IT_RXNE) {
 		// Received data ready to be read
 		UART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART2 RX complete interrupt
 		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
@@ -440,7 +432,7 @@ void DMA1_Channel6_IRQHandler() {
 		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (for reload counter value)
 		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE; // Reload DMA counter
 		// If the data buffer is full the DMA should remain disabled until the buffer is processed.
-		if (GPS_buf_cntr <= GPS_BUFFER_SIZE) DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
+		if (GPS_buf_cntr <= GPS_BUFFER_SIZE) DMA1_Channel6->CCR |= DMA_CCR6_EN; // Enable DMA
 	};
 }
 
@@ -460,6 +452,9 @@ void callback_Delay(void) {
 		}
 	}
 
+	// Disable sleep-on-exit for return to main loop
+	SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+
 	// Set GUI refresh flag (twice per second)
 	GUI_refresh = TRUE;
 }
@@ -471,6 +466,7 @@ void callback_Delay(void) {
 // Parse received nRF24L01 data packet
 void ParsePacket(void) {
 	uint32_t diff_SPD;
+	uint32_t i;
 
 	// memcpy doesn't work here due to struct alignments
 	nRF24_Packet.cntr_SPD     = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
@@ -494,10 +490,15 @@ void ParsePacket(void) {
 //		CurData.Cadence = (uint32_t)(59578.181814 / nRF24_Packet.tim_CDC);
 //		CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 1007.08);
 		CurData.Cadence = (uint32_t)(60424.8 / nRF24_Packet.tim_CDC);
-//		if (CurData.Cadence > 250) CurData.Cadence = 250; // pedaling 250RPM, really?
-		// FIXME: filter some crazy high values
-		if (CurData.Cadence > 999) CurData.Cadence = 999; // pedaling more than 999RPM, really?
+		// TODO: filter some crazy high values
 	} else CurData.Cadence = 0;
+
+	// Average cadence from last five values
+	memmove(&_cdc[1],&_cdc[0],sizeof(_cdc) - sizeof(*_cdc));
+	_cdc[0] = CurData.Cadence;
+	_cdc_avg = 0;
+	for (i = 0; i < 5; i++) _cdc_avg += _cdc[i];
+	_cdc_avg /= 5;
 
 	// Update maximum values
 	if (CurData.Speed > CurData.MaxSpeed) CurData.MaxSpeed = CurData.Speed;
@@ -507,27 +508,19 @@ void ParsePacket(void) {
 	// Transceiver send packet every second, so don't fuss and simply add one second to trip time
 	CurData.TripTime++;
 /*
- 		if (nRF24_Packet.tim_SPD != _prev_tim_SPD) {
-		if (nRF24_Packet.tim_SPD < 1007) {
-			// Pulse interval was shorter than one second therefore just
-			// add one second to the trip counter
-			CurData.TripTime++;
-		} else {
-			// Pulse interval was longer than one second, therefore convert it
-			// to seconds and remember fractional part for further usage
-			tmp = (nRF24_Packet.tim_SPD / 1007.08) + (_tim_excess / 1000.0);
-			CurData.TripTime += (uint32_t)tmp;
-			_tim_excess = (uint32_t)(tmp * 1000) - ((uint32_t)tmp * 1000);
-		}
-	}
-	_prev_tim_SPD  = nRF24_Packet.tim_SPD;
-*/
-/*
-	if (nRF24_Packet.ride_time) {
-		tmp = (nRF24_Packet.ride_time / 1007.08) + (_tim_excess / 1000.0);
+	if (nRF24_Packet.tim_SPD != _prev_tim_SPD) {
+	if (nRF24_Packet.tim_SPD < 1007) {
+		// Pulse interval was shorter than one second therefore just
+		// add one second to the trip counter
+		CurData.TripTime++;
+	} else {
+		// Pulse interval was longer than one second, therefore convert it
+		// to seconds and remember fractional part for further usage
+		tmp = (nRF24_Packet.tim_SPD / 1007.08) + (_tim_excess / 1000.0);
 		CurData.TripTime += (uint32_t)tmp;
 		_tim_excess = (uint32_t)(tmp * 1000) - ((uint32_t)tmp * 1000);
 	}
+	_prev_tim_SPD  = nRF24_Packet.tim_SPD;
 */
 
 	// Update odometer and current trip distance
@@ -537,9 +530,8 @@ void ParsePacket(void) {
 		} else {
 			diff_SPD = 65535 - _prev_cntr_SPD + nRF24_Packet.cntr_SPD;
 		}
-//		if (diff_SPD > 50) diff_SPD = 1; // FIXME: this lame workaround for crazy values
-		CurData.dbg_spd_cntr += diff_SPD;
 		CurData.dbg_cntr_diff = diff_SPD;
+		if (diff_SPD > 1000) diff_SPD = 1; // FIXME: this is lame workaround for crazy values
 		CurData.Odometer += Settings.WheelCircumference * diff_SPD;
 		CurData.TripDist += Settings.WheelCircumference * diff_SPD;
 	} else {
@@ -566,7 +558,7 @@ void ParsePacket(void) {
 void ParseGPS(void) {
 	GPS_InitData(); // Clear previously parsed GPS data
 	while (GPS_msg.end < GPS_buf_cntr) {
-		GPS_msg = GPS_FindSentence(GPS_buf,GPS_msg.end,GPS_buf_cntr);
+		GPS_FindSentence(&GPS_msg,GPS_buf,GPS_msg.end,GPS_buf_cntr);
 		if (GPS_msg.type != NMEA_BAD) {
 			GPS_sentences_parsed++;
 			GPS_ParseSentence(GPS_buf,&GPS_msg);
@@ -599,7 +591,7 @@ bool UpdateBMP180(void) {
 	int32_t _raw_press;
 
 	if (_bmp180_present) {
-		// TODO: it is worth trying to use the I2C IRQ instead of polling the I2C flags
+		// TODO: it is worth trying to use the I2C IRQ instead of polling the I2C flags?
 		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_UHIRES)) {  // <--- UHIRES mode takes about 28ms
 //		if (BMP180_GetReadings(&_raw_temp,&_raw_press,BMP180_ADVRES)) {  // <--- ADVRES mode takes about 80ms
 			CurData.Temperature = _raw_temp;
@@ -651,6 +643,7 @@ int main(void) {
 	memset(&altitude_history,0,sizeof(altitude_history));
 	memset(&GPS_buf,0,sizeof(GPS_buf));
 	memset(&USART_FIFO,0,FIFO_BUFFER_SIZE);
+	memset(&_cdc,0,sizeof(_cdc));
 	GPS_InitData();
 
 	_new_packet     = FALSE;
@@ -658,6 +651,7 @@ int main(void) {
 	_screensaver    = FALSE;
 	_bmp180_present = FALSE;
 	_SD_present     = FALSE;
+	_logging        = FALSE;
 	_RF_icon        = TRUE;
 	GPS_new_data    = FALSE;
 	GPS_buf_cntr    = 0;
@@ -669,6 +663,7 @@ int main(void) {
 	_cadence_accum  = 0;
 	_no_signal_time = 65535;
 	_idle_time      = 0;
+	_cdc_avg        = 0;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
 	_GPS_time_duty_cycle = GPS_TIME_SYNC_DUTY_CYCLE + 1;
 	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
@@ -692,7 +687,7 @@ int main(void) {
 	Settings.LCD_timeout = 30;
 
 	// Read settings from EEPROM
-	ReadSettings_EEPROM();
+	ReadBuffer_EEPROM(DATA_EEPROM_START_ADDR,(uint32_t *)&Settings,sizeof(Settings));
 
 	// -------------------- end of variables initialization
 
@@ -794,29 +789,19 @@ int main(void) {
 	}
 	UC1701_Flush();
 
-	BEEPER_PlayTones(tones_startup);
-
-	// Set time
-	_time.RTC_Hours   = 0;
-	_time.RTC_Minutes = 0;
-	_time.RTC_Seconds = 0;
-	_date.RTC_Date    = 16;
-	_date.RTC_Month   = 04;
-	_date.RTC_Year    = 14;
-	_date.RTC_WeekDay = 3;
-	RTC_SetDateTime(&_time,&_date);
-
-	// L80 GPS module UART is set at 9600bps after power-up
-	Delay_ms(500); // Give time for GPS to boot up
-	GPS_SendCommand(PMTK_SET_NMEA_BAUDRATE_115200); // Ask GPS chip to set 115200 baudrate
-	Delay_ms(50); // Wait a little
-	UART_SetSpeed(115200); // GPS now must working at higher speed
-	GPS_SendCommand(PMTK_SET_NMEA_OUTPUT_ALLDATA); // All supported sentences
-	GPS_SendCommand(PMTK_SET_AIC_ENABLED); // Enable AIC (enabled by default)
-	GPS_SendCommand(PMTK_API_SET_STATIC_NAV_THD_OFF); // Disable speed threshold
-	GPS_SendCommand(PMTK_EASY_ENABLE); // Enable EASY (for MT3339)
-	GPS_SendCommand(PMTK_SET_PERIODIC_MODE_NORMAL); // Disable periodic mode
-//	GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
+	// Set time only in case of POR (power on reset)
+	if (RCC->CSR & RCC_CSR_PORRSTF) {
+		_time.RTC_Hours   = 0;
+		_time.RTC_Minutes = 0;
+		_time.RTC_Seconds = 0;
+		_date.RTC_Date    = 16;
+		_date.RTC_Month   = 04;
+		_date.RTC_Year    = 14;
+		_date.RTC_WeekDay = 3;
+		RTC_SetDateTime(&_time,&_date);
+	}
+	RTC_GetDateTime(&RTC_Time,&RTC_Date);
+	RCC->CSR |= RCC_CSR_RMVF; // Clear the reset flags
 
 	ccc = 0;
 
@@ -826,6 +811,12 @@ int main(void) {
 	// Configure wake-up timer to wake every second and enable it
 	RTC_SetWakeUp(1);
 
+	// Initialize GPS module
+	GPS_Init();
+
+	// Boot complete, do some noise
+	BEEPER_PlayTones(tones_startup);
+
 
 /////////////////////////////////////////////////////////////////////////
 //	Main loop
@@ -833,7 +824,7 @@ int main(void) {
 
 	while(1) {
 		if (_screensaver) {
-			RTC_SetWakeUp(SCREENSAVER_UPDATE);
+			RTC_SetWakeUp(GUI_SCREENSAVER_UPDATE);
 			nRF24_Sleep(); // Turn off the receiver
 			GPS_SendCommand(PMTK_CMD_STANDBY_MODE); // Put GPS module into standby mode (not supported by EB-500)
 			UC1701_SetBacklight(0);
@@ -846,9 +837,10 @@ int main(void) {
 
 			GPS_SendCommand(PMTK_TEST); // Send dummy command to GPS module to wake it up (actually one byte is enough)
 			nRF24_SetRXMode(); // Wake the receiver and configure it for RX mode
+ 			_GPS_time_duty_cycle = GPS_TIME_SYNC_DUTY_CYCLE + 1;
  			RTC_SetWakeUp(1); // Wake every second
 
-			GUI_refresh = TRUE;
+ 			GUI_refresh = TRUE;
 		}
 
 		if (_new_packet) {
@@ -856,7 +848,7 @@ int main(void) {
 			_new_packet = FALSE;
 			_RF_icon = !_RF_icon; // Blink RF icon
 
-			// Write debug information to log file
+			// Write debug information to the log file
 			if (_logging) {
 				LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
 				LOG_WriteStr(";");
@@ -876,13 +868,23 @@ int main(void) {
 				LOG_WriteStr(";");
 				LOG_WriteIntU(CurData.Cadence);
 				LOG_WriteStr(";");
+				LOG_WriteIntU(_cdc[0]);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_cdc[1]);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_cdc[2]);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_cdc[3]);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_cdc[4]);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_cdc_avg);
+				LOG_WriteStr(";");
 				LOG_WriteIntF(CurData.Odometer,5);
 				LOG_WriteStr(";");
 				LOG_WriteIntU(CurData.dbg_cntr_diff);
 				LOG_WriteStr(";");
 				LOG_WriteIntU(CurData.dbg_prev_cntr);
-				LOG_WriteStr(";");
-				LOG_WriteIntU(CurData.dbg_spd_cntr);
 				LOG_WriteStr(";");
 				LOG_WriteIntF(nRF24_Packet.vrefint,2);
 				LOG_WriteStr(";");
@@ -976,13 +978,14 @@ int main(void) {
 			// Current time
 			GUI_PutTimeSec(0,10,RTC_Time.RTC_Hours * 3600 + RTC_Time.RTC_Minutes * 60 + RTC_Time.RTC_Seconds,fnt5x7);
 
-			ccc++; // <--- Iterations counter, for debug purposes
-/*
+///*
+			// Draw iterations counter
 			i = PutInt(3,3,ccc,fnt5x7);
-			Rect(0,0,i + 4,12,PReset);
+			FillRect(0,0,i + 4,12,PReset);
 			Rect(1,1,i + 3,11,PSet);
 			Rect(2,2,i + 2,10,PReset);
-*/
+			PutInt(3,3,ccc,fnt5x7);
+//*/
 
 			UC1701_Flush();
 			GUI_refresh = FALSE;
@@ -999,8 +1002,7 @@ int main(void) {
 		}
 
 		// "Enter" button hold - show main menu
-//		if (BTN[BTN_ENTER].state == BTN_Hold) {
-		if (BTN[BTN_ENTER].state == BTN_Hold || BTN[BTN_ENTER].cntr) { // <--- TODO: Short press is temporary here
+		if (BTN[BTN_ENTER].state == BTN_Hold || BTN[BTN_ENTER].cntr) { // <--- FIXME: Short press is temporary here
 			GUI_MainMenu();
 		}
 
@@ -1008,6 +1010,8 @@ int main(void) {
 		if (BTN[BTN_ESCAPE].cntr) {
 			BTN[BTN_ESCAPE].cntr = 0;
 		}
+
+		ccc++; // <--- Iterations counter, for debug purposes
 
 		SleepWait(); // Sleep mode
 	}
