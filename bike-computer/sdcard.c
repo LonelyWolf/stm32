@@ -538,25 +538,3 @@ SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 
 	return SDR_Success;
 }
-
-uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
-	SDResult_TypeDef Status = SDR_Success;
-
-	// FIXME: this should be an atomic procedure?
-	__disable_irq();
-    Status = SD_ReadBlock(sector,buffer,512);
-	__enable_irq();
-
-    return (Status == SDR_Success) ? 0 : 1;
-}
-
-uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
-	SDResult_TypeDef Status = SDR_Success;
-
-	// FIXME: this should be an atomic procedure?
-	__disable_irq();
-    Status = SD_WriteBlock(sector,buffer,512);
-    __enable_irq();
-
-    return (Status == SDR_Success) ? 0 : 1;
-}

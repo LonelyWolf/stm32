@@ -118,5 +118,6 @@ SDResult_TypeDef SD_Init(void);
 SDResult_TypeDef SD_ReadCSD(void);
 SDResult_TypeDef SD_ReadCID(void);
 SDResult_TypeDef SD_ReadBlock(uint32_t addr, uint8_t *pBuf, uint32_t len);
+SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len);
 
 #endif // __SDCARD_H
