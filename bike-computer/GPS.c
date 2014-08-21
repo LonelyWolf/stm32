@@ -313,9 +313,10 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 	uint16_t pos = Sentence->start;
 	uint8_t i;
 	uint8_t GSV_msg;   // GSV sentence number
+	uint8_t sat_num;   // Satellites quantity in sentence
 	uint8_t GSV_sats;  // Total number of satellites in view
-	uint32_t ui_32 = 0;
-	uint16_t ui_16 = 0;
+	uint32_t ui_32;
+	uint16_t ui_16;
 
 	switch (Sentence->type) {
 	case NMEA_RMC:
@@ -569,18 +570,24 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		if (buf[pos] != ',') {
 			GSV_msg = atos_len(&buf[pos],1);
 			pos += 2;
-		} else pos++;
+		} else {
+			pos++;
+			GSV_msg = 0;
+		}
 
 		// Total number of satellites in view
 		if (buf[pos] != ',') {
 			GSV_sats = atos_len(&buf[pos],2);
 			pos += 3;
-		} else pos++;
+		} else {
+			GSV_sats = 0;
+			pos++;
+		}
 
 		GPSData.sats_view = GSV_sats;
 
 		// Parse no more than 12 satellites in view
-		uint8_t sat_num = (GSV_msg - 1) * 4;
+		sat_num = (GSV_msg - 1) * 4;
 		if (GSV_sats != 0 && sat_num < MAX_SATELLITES_VIEW) {
 			// 4 satellites per sentence
 			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
