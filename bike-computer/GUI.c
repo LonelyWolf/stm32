@@ -706,13 +706,14 @@ void GUI_DrawRideTime(uint8_t X, uint8_t Y, uint32_t time) {
 	uint16_t hours;
 	uint8_t minutes,seconds;
 
-	hours   = time / 3600;
-	minutes = (time / 60) % 60;
-	seconds = time % 60;
+	hours = time / 3600;
 	if (hours > 99) {
 		hours   = 99;
 		minutes = 59;
 		seconds = 59;
+	} else {
+		minutes = (time / 60) % 60;
+		seconds = time % 60;
 	}
 
 	// Hours
