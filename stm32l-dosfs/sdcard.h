@@ -3,6 +3,9 @@
 #define __SDCARD_H
 
 
+// SDCARD SPI peripheral
+#define SDCARD_SPI_PORT    SPI1
+
 // SDCARD GPIO peripherals
 #define SDCARD_PORT_PERIPH RCC_AHBPeriph_GPIOB
 
@@ -118,5 +121,6 @@ SDResult_TypeDef SD_Init(void);
 SDResult_TypeDef SD_ReadCSD(void);
 SDResult_TypeDef SD_ReadCID(void);
 SDResult_TypeDef SD_ReadBlock(uint32_t addr, uint8_t *pBuf, uint32_t len);
+SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len);
 
 #endif // __SDCARD_H

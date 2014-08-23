@@ -2,6 +2,9 @@
 #ifndef __UC1701_H
 #define __UC1701_H
 
+// Display SPI port
+#define UC1701_SPI_PORT    SPI2
+
 // Display GPIO peripherals
 #define UC1701_PORT_PERIPH RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB
 
@@ -22,20 +25,21 @@
 #define UC1701_LEDA_PIN    GPIO_Pin_1    // PA1
 
 // CS pin macros
-#define UC1701_CS_L() GPIO_ResetBits(UC1701_CS_PORT,UC1701_CS_PIN)
-#define UC1701_CS_H() GPIO_SetBits(UC1701_CS_PORT,UC1701_CS_PIN)
+#define UC1701_CS_L()      UC1701_CS_PORT->BSRRH = UC1701_CS_PIN
+#define UC1701_CS_H()      UC1701_CS_PORT->BSRRL = UC1701_CS_PIN
 
 // RS pin macros
-#define UC1701_RS_L() GPIO_ResetBits(UC1701_RS_PORT,UC1701_RS_PIN)
-#define UC1701_RS_H() GPIO_SetBits(UC1701_RS_PORT,UC1701_RS_PIN)
+#define UC1701_RS_L()      UC1701_RS_PORT->BSRRH = UC1701_RS_PIN
+#define UC1701_RS_H()      UC1701_RS_PORT->BSRRL = UC1701_RS_PIN
 
 // RESET pin macros
-#define UC1701_RST_L() GPIO_ResetBits(UC1701_RST_PORT,UC1701_RST_PIN)
-#define UC1701_RST_H() GPIO_SetBits(UC1701_RST_PORT,UC1701_RST_PIN)
+#define UC1701_RST_L()     UC1701_RST_PORT->BSRRH = UC1701_RST_PIN
+#define UC1701_RST_H()     UC1701_RST_PORT->BSRRL = UC1701_RST_PIN
 
 // LEDA pin macros
-#define UC1701_LEDA_L() GPIO_ResetBits(UC1701_LEDA_PORT,UC1701_LEDA_PIN)
-#define UC1701_LEDA_H() GPIO_SetBits(UC1701_LEDA_PORT,UC1701_LEDA_PIN)
+#define UC1701_LEDA_L()    UC1701_LEDA_PORT->BSRRH = UC1701_LEDA_PIN
+#define UC1701_LEDA_H()    UC1701_LEDA_PORT->BSRRL = UC1701_LEDA_PIN
+
 
 // Screen dimensions
 #define  SCR_W 128
@@ -109,7 +113,7 @@ void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, PSetReset_TypeDef 
 void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2);
 void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B);
 
-uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font);
+uint8_t PutChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font);
 uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
 uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
 uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font);
@@ -117,5 +121,8 @@ uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
 uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font);
 uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font);
 uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
+
+void PutDigit3x5(uint8_t X, uint8_t Y, uint8_t digit);
+uint8_t PutIntULZ3x5(uint8_t X, uint8_t Y, uint32_t num, uint8_t digits);
 
 #endif // __UC1701_H

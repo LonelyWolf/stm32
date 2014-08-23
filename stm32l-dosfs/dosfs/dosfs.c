@@ -20,6 +20,35 @@
 #define div(a,b) ldiv(a,b)
 
 
+#ifdef DFS_RTC
+/*
+	Return FAT time
+*/
+uint16_t DFS_FATTime(RTC_TimeTypeDef *_time) {
+	uint16_t fat_time;
+
+	fat_time  = _time->RTC_Hours   << 11;
+	fat_time |= _time->RTC_Minutes << 5;
+	fat_time |= _time->RTC_Seconds >> 1;
+
+	return fat_time;
+}
+
+/*
+	Return FAT date
+*/
+uint16_t DFS_FATDate(RTC_DateTypeDef *_date) {
+	uint16_t fat_date;
+
+	fat_date  = (_date->RTC_Year + 20) << 9;
+	fat_date |=  _date->RTC_Month << 5;
+	fat_date |=  _date->RTC_Date & 0x1f;
+
+	return fat_date;
+}
+
+#endif
+
 /*
 	Get starting sector# of specified partition on drive #unit
 	NOTE: This code ASSUMES an MBR on the disk.
@@ -542,7 +571,7 @@ uint32_t DFS_OpenDir(PVOLINFO volinfo, uint8_t *dirname, PDIRINFO dirinfo)
 	else {
 		uint8_t tmpfn[12];
 		uint8_t *ptr = dirname;
-		uint32_t result;
+		uint32_t result = 0; // SDA 21.08.14: fix compiler warning
 		DIRENT de;
 
 		if (volinfo->filesystem == FAT32) {
@@ -884,21 +913,19 @@ uint32_t DFS_OpenFile(PVOLINFO volinfo, uint8_t *path, uint8_t mode, uint8_t *sc
 		memcpy(de.name, filename, 11);
 #ifdef DFS_RTC
 		// SDA: use current RTC date/time for file time stamp
-		RTC_TimeTypeDef _time;
-		RTC_DateTypeDef _date;
+//		RTC_TimeTypeDef RTC_Time;
+//		RTC_DateTypeDef RTC_Date;
 
-		RTC_GetDateTime(&_time,&_date);
+//		RTC_GetDateTime(&RTC_Time,&RTC_Date);
+
+		// RTC_Time and RTC_Date structures are populated every second by RTC_WKUP IRQ handler
 
 		// Creation time
-		de.crttime  = _time.RTC_Hours   << 11;
-		de.crttime |= _time.RTC_Minutes << 5;
-		de.crttime |= _time.RTC_Seconds >> 1;
-		if (_time.RTC_Seconds % 2) de.crttimetenth = 0x64;
+		de.crttime = DFS_FATTime(&RTC_Time);
+		if (RTC_Time.RTC_Seconds % 2) de.crttimetenth = 0x64;
 
 		// Creation date
-		de.crtdate  = (_date.RTC_Year + 20) << 9;
-		de.crtdate |=  _date.RTC_Month << 5;
-		de.crtdate |=  _date.RTC_Date & 0x1f;
+		de.crtdate = DFS_FATDate(&RTC_Date);
 
 		// Last write time same as creation time
 		de.wrttime = de.crttime;
@@ -1382,7 +1409,52 @@ uint32_t DFS_WriteFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, ui
 	((PDIRENT) scratch)[fileinfo->diroffset].filesize_1 = (fileinfo->filelen & 0x0000ff00) >> 8;
 	((PDIRENT) scratch)[fileinfo->diroffset].filesize_2 = (fileinfo->filelen & 0x00ff0000) >> 16;
 	((PDIRENT) scratch)[fileinfo->diroffset].filesize_3 = (fileinfo->filelen & 0xff000000) >> 24;
-	// TODO: update last file access time stamp ?
+
+#ifdef DFS_RTC
+	// SDA 21.08.14: use current RTC date/time for file last write date/time
+
+//	RTC_TimeTypeDef RTC_Time;
+//	RTC_DateTypeDef RTC_Date;
+
+//	RTC_GetDateTime(&RTC_Time,&RTC_Date);
+
+	// RTC_Time and RTC_Date structures are populated every second by RTC_WKUP IRQ handler
+
+	// Last write date/time
+	((PDIRENT) scratch)[fileinfo->diroffset].wrttime = DFS_FATTime(&RTC_Time);
+	((PDIRENT) scratch)[fileinfo->diroffset].wrtdate = DFS_FATDate(&RTC_Date);
+#endif
+
 	if (DFS_WriteSector(fileinfo->volinfo->unit, scratch, fileinfo->dirsector, 1)) return DFS_ERRMISC;
 	return result;
+}
+
+// Read one sector from SD card
+// input:
+//   unit - device number (ignored)
+//   buffer - pointer to the data buffer (one sector sized)
+//   sector - sector address
+//   count - number of sectors to read (ignored, one sector always)
+// return: SD_ReadBlock result code
+uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
+	SDResult_TypeDef Status = SDR_Success;
+
+    Status = SD_ReadBlock(sector,buffer,SECTOR_SIZE);
+
+    return (Status == SDR_Success) ? 0 : 1;
+}
+
+// Write one sector to SD card
+// input:
+//   unit - device number (ignored)
+//   buffer - pointer to the data buffer (one sector sized)
+//   sector - sector address
+//   count - number of sectors to read (ignored, one sector always)
+// return: SD_ReadBlock result code
+uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
+	SDResult_TypeDef Status = SDR_Success;
+
+    Status = SD_WriteBlock(sector,buffer,SECTOR_SIZE);
+
+    return (Status == SDR_Success) ? 0 : 1;
 }

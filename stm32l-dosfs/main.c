@@ -12,7 +12,6 @@
 #include <wolk.h>
 #include <delay.h>
 #include <spi.h>
-#include <spi1.h>
 #include <uart.h>
 #include <uc1701.h>
 #include <sdcard.h>
@@ -54,7 +53,8 @@ int main(void) {
 
 	Delay_Init(NULL);
 
-	SPI2_Init();
+	SPIx_Init(SPI1);
+	SPIx_Init(SPI2);
 
 	RTC_Config();
 
@@ -65,8 +65,6 @@ int main(void) {
 	UC1701_Fill(0x00);
 	PutStr(0,0,"SD card...",fnt7x10);
 	UC1701_Flush();
-
-	SPI1_Init();
 
 	UC1701_Fill(0x00);
 	i = PutStr(0,0,"SD init:",fnt5x7) - 1;

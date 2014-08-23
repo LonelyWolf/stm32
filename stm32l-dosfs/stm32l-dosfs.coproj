@@ -94,7 +94,6 @@
     <File name="cmsis_lib/Include/stm32l1xx_usart.h" path="cmsis_lib/Include/stm32l1xx_usart.h" type="1"/>
     <File name="cmsis_lib/Source" path="" type="2"/>
     <File name="RTC.c" path="RTC.c" type="1"/>
-    <File name="spi1.c" path="spi1.c" type="1"/>
     <File name="sdcard.h" path="sdcard.h" type="1"/>
     <File name="cmsis_lib/Include/stm32l1xx_gpio.h" path="cmsis_lib/Include/stm32l1xx_gpio.h" type="1"/>
     <File name="cmsis_lib/Source/stm32l1xx_syscfg.c" path="cmsis_lib/Source/stm32l1xx_syscfg.c" type="1"/>
@@ -106,15 +105,15 @@
     <File name="spi.c" path="spi.c" type="1"/>
     <File name="cmsis_boot/stm32l1xx.h" path="cmsis_boot/stm32l1xx.h" type="1"/>
     <File name="uc1701.c" path="uc1701.c" type="1"/>
+    <File name="cmsis_boot/Startup/startup_stm32l1xx_md.c" path="cmsis_boot/Startup/startup_stm32l1xx_md.c" type="1"/>
     <File name="cmsis_boot/system_stm32l1xx.h" path="cmsis_boot/system_stm32l1xx.h" type="1"/>
     <File name="wolk.h" path="wolk.h" type="1"/>
-    <File name="cmsis_boot/Startup/startup_stm32l1xx_md.c" path="cmsis_boot/Startup/startup_stm32l1xx_md.c" type="1"/>
     <File name="cmsis_lib/Include" path="" type="2"/>
+    <File name="resources.h" path="../stm32l-rtc/resources.h" type="1"/>
     <File name="cmsis/core_cmInstr.h" path="cmsis/core_cmInstr.h" type="1"/>
     <File name="font5x7.h" path="font5x7.h" type="1"/>
     <File name="RTC.h" path="RTC.h" type="1"/>
     <File name="cmsis/core_cm3.h" path="cmsis/core_cm3.h" type="1"/>
-    <File name="spi1.h" path="spi1.h" type="1"/>
     <File name="cmsis_boot/system_stm32l1xx.c" path="cmsis_boot/system_stm32l1xx.c" type="1"/>
     <File name="spi.h" path="spi.h" type="1"/>
     <File name="log.c" path="log.c" type="1"/>
@@ -128,8 +127,8 @@
     <File name="sdcard.c" path="sdcard.c" type="1"/>
     <File name="delay.c" path="delay.c" type="1"/>
     <File name="cmsis_lib/Include/stm32l1xx_tim.h" path="cmsis_lib/Include/stm32l1xx_tim.h" type="1"/>
-    <File name="uc1701.h" path="uc1701.h" type="1"/>
     <File name="cmsis_lib/Include/misc.h" path="cmsis_lib/Include/misc.h" type="1"/>
+    <File name="uc1701.h" path="uc1701.h" type="1"/>
     <File name="cmsis_boot/Startup" path="" type="2"/>
     <File name="cmsis_lib/Include/stm32l1xx_exti.h" path="cmsis_lib/Include/stm32l1xx_exti.h" type="1"/>
     <File name="main.c" path="main.c" type="1"/>

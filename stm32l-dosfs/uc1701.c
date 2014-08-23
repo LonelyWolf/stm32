@@ -5,6 +5,7 @@
 #include <spi.h>
 #include <delay.h>
 #include <uc1701.h>
+#include <resources.h>
 
 
 uint16_t                  scr_width        = SCR_W;
@@ -22,7 +23,7 @@ uint8_t vRAM[SCR_W * SCR_H / 8]; // Display buffer
 //   cmd - 8-bit command to send
 void UC1701_cmd(uint8_t cmd) {
 	UC1701_RS_L();
-	SPI2_Send(cmd);
+	SPIx_SendRecv(UC1701_SPI_PORT,cmd);
 }
 
 // Send double byte command to display controller
@@ -31,8 +32,8 @@ void UC1701_cmd(uint8_t cmd) {
 //   cmd2 - second byte of command to send
 void UC1701_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 	UC1701_RS_L();
-	SPI2_Send(cmd1);
-	SPI2_Send(cmd2);
+	SPIx_SendRecv(UC1701_SPI_PORT,cmd1);
+	SPIx_SendRecv(UC1701_SPI_PORT,cmd2);
 }
 
 // Send data byte to display controller
@@ -40,7 +41,7 @@ void UC1701_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 //   data - date byte to send
 void UC1701_data(uint8_t data) {
 	UC1701_RS_H();
-	SPI2_Send(data);
+	SPIx_SendRecv(UC1701_SPI_PORT,data);
 }
 
 // Save CS pin state and disable it
@@ -147,7 +148,7 @@ void UC1701_Init(void) {
 	Delay_ms(5); // Wait at least 5ms
 	UC1701_CS_L();
 
-	UC1701_cmd(0xe2); // Software system reset
+	UC1701_cmd(0xe2); // Software display reset
 	UC1701_cmd(0x2f); // Power control: Boost ON,  V.Regular ON,  V.Follower ON
 	UC1701_cmd(0xa2); // Set LCD bias ratio (BR = 0)
 	UC1701_cmd(0xaf); // Display enable
@@ -163,7 +164,7 @@ void UC1701_Init(void) {
 // Doesn't affect the display memory
 void UC1701_Reset(void) {
 	UC1701_CS_L();
-	UC1701_cmd(0xe2);
+	UC1701_cmd(0xe2); // Software display reset
 	UC1701_CS_H();
 }
 
@@ -286,16 +287,18 @@ void UC1701_Orientation(uint8_t orientation) {
 // Send vRAM buffer content into display
 void UC1701_Flush(void) {
 	uint16_t i,j;
+	uint16_t offset;
 
+	offset = 0;
 	UC1701_CS_L();
 	for (j = 0; j < 8; j++) {
 		 // Column 0 address LSB
 		if (scr_orientation == scr_180 || scr_orientation == scr_CCW) UC1701_cmd(0x04); else UC1701_cmd(0x00);
 		UC1701_cmd(0x10); // Column 0 address MSB
 		UC1701_cmd(0xb0 | j); // Page address
-		for (i = 0; i < 128; i++) {
-			UC1701_data(vRAM[(j * SCR_W) + i]);
-		}
+		UC1701_RS_H(); // Send data
+		for (i = 0; i < 128; i++) SPIx_SendRecv(UC1701_SPI_PORT,vRAM[offset + i]);
+		offset += SCR_W; // Don't use multiplication
 	}
 	UC1701_CS_H();
 }
@@ -515,7 +518,7 @@ void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B) {
 //   Char - character to be drawn
 //   Font - pointer to font
 // return: character width in pixels
-uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
+uint8_t PutChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
 	uint8_t chW,chH;
 	uint8_t pX = X;
 	uint8_t pY = Y;
@@ -546,7 +549,6 @@ uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
 				for (i = 0; i < chW; i++) {
 					tmpCh = buffer[(i << 1) + k];
 					for (j = 0; j < 8; j++) {
-//						if ((tmpCh >> j) & 0x01) SetPixel(pX,pY);
 						if ((tmpCh >> (7 - j)) & 0x01) SetPixel(pX,pY);
 						pY++;
 						if (pY > Y + chH) break;
@@ -582,7 +584,7 @@ uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
 	uint8_t strLen = 0;
 
     while (*str) {
-        X += DrawChar(X,Y,*str++,Font);
+        X += PutChar(X,Y,*str++,Font);
         if (X > scr_width - Font->font_Width - 1) break;
         strLen++;
     };
@@ -600,7 +602,7 @@ uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
 	uint8_t strLen = 0;
 
     while (*str) {
-        DrawChar(X,Y,*str++,Font);
+        PutChar(X,Y,*str++,Font);
         if (X < scr_width - Font->font_Width - 1) {
         	X += Font->font_Width + 1;
         } else if (Y < scr_height - Font->font_Height - 1) {
@@ -636,7 +638,7 @@ uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font) {
 	intLen = i;
 	pX = X + (intLen - 1) * (Font->font_Width + 1);
 	for (i = 0; i < intLen; i++) {
-		pX -= DrawChar(pX,Y,str[i],Font);
+		pX -= PutChar(pX,Y,str[i],Font);
 	}
 
     return intLen * (Font->font_Width + 1);
@@ -658,7 +660,7 @@ uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 	intLen = i;
 	pX = X + (intLen - 1) * (Font->font_Width + 1);
 	for (i = 0; i < intLen; i++) {
-		pX -= DrawChar(pX,Y,str[i],Font);
+		pX -= PutChar(pX,Y,str[i],Font);
 	}
 
     return intLen * (Font->font_Width + 1);
@@ -693,7 +695,7 @@ uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_
 
 	neg = X;
 	for (i = 0; i < strLen; i++) {
-		DrawChar(neg,Y,str[strLen - i - 1],Font);
+		PutChar(neg,Y,str[strLen - i - 1],Font);
 		neg += Font->font_Width + 1;
 		if (strLen - i - 1 == decimals && decimals != 0) {
 			Rect(neg,Y + Font->font_Height - 2,neg + 1,Y + Font->font_Height - 1,PSet);
@@ -731,12 +733,12 @@ uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_T
 	}
 
 	if (neg) {
-		DrawChar(X,Y,'-',Font);
+		PutChar(X,Y,'-',Font);
 		X += Font->font_Width + 1;
 		num *= -1;
 	}
 	for (i = 0; i < digits - len; i++) {
-		DrawChar(X,Y,'0',Font);
+		PutChar(X,Y,'0',Font);
 		X += Font->font_Width + 1;
 	}
 	X += PutInt(X,Y,num,Font);
@@ -764,8 +766,52 @@ uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 
 	pX = X + (intLen - 1) * (Font->font_Width + 1);
 	for (i = 0; i < intLen; i++) {
-		pX -= DrawChar(pX,Y,str[i],Font);
+		pX -= PutChar(pX,Y,str[i],Font);
 	}
 
     return intLen * (Font->font_Width + 1);
+}
+
+// Draw small digit (3x5)
+// input:
+//   X,Y - digit top left corner coordinate
+//   digit - digit to draw
+void PutDigit3x5(uint8_t X, uint8_t Y, uint8_t digit) {
+	uint8_t i,j;
+	uint8_t ch;
+
+    for (i = 0; i < 3; i++) {
+    	ch = digits_3x5[i + digit * 3];
+    	for (j = 0; j < 5; j++) {
+    		if ((ch >> j) & 0x01) SetPixel(X + i,Y + j); else ResetPixel(X + i,Y + j);
+    	}
+    }
+}
+
+// Draw unsigned integer with leading zeros in small 3x5 font
+// input:
+//   X,Y - number top left corner coordinate
+//   num - number to draw
+//   digits - number of leading zeros (0 for none)
+// return:
+//   number width in pixels
+uint8_t PutIntULZ3x5(uint8_t X, uint8_t Y, uint32_t num, uint8_t digits) {
+	uint8_t i = 0;
+	uint8_t strLen;
+	uint8_t str[11];
+
+	do { str[i++] = num % 10; } while ((num /= 10) > 0);
+	strLen = i;
+
+	if (strLen < digits) for (i = 0; i < digits - strLen; i++) {
+		PutDigit3x5(X,Y,0);
+		X += 4;
+	}
+
+	for (i = strLen; i > 0; i--) {
+		PutDigit3x5(X,Y,str[i - 1]);
+		X += 4;
+	}
+
+	if (strLen < digits) return digits * 4; else return strLen * 4;
 }

@@ -1,62 +1,71 @@
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
-#include <stm32l1xx_spi.h>
+
 #include <spi.h>
 
 
-// SPI2 peripheral initialization
-void SPI2_Init(void) {
-	// SPI2
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2,ENABLE);
-	RCC_AHBPeriphClockCmd(SPI2_PERIPH,ENABLE);
-
-	// Configure SPI pins
+// SPI peripheral initialization
+// input:
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+void SPIx_Init(SPI_TypeDef *SPI) {
 	GPIO_InitTypeDef PORT;
-	PORT.GPIO_Pin  = SPI_SCK_PIN | SPI_MOSI_PIN | SPI_MISO_PIN;
+
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
 	PORT.GPIO_OType = GPIO_OType_PP;
-	PORT.GPIO_Mode = GPIO_Mode_AF;
-	PORT.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(SPI_GPIO_PORT,&PORT);
+	PORT.GPIO_Mode  = GPIO_Mode_AF;
+	PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
 
-	// Alternative functions of GPIO pins
-	GPIO_PinAFConfig(GPIOB,GPIO_PinSource13,GPIO_AF_SPI2);
-	GPIO_PinAFConfig(GPIOB,GPIO_PinSource14,GPIO_AF_SPI2);
-	GPIO_PinAFConfig(GPIOB,GPIO_PinSource15,GPIO_AF_SPI2);
+	if (SPI == SPI1) {
+		RCC_AHBPeriphClockCmd(SPI1_PERIPH,ENABLE); // Enable the SPI GPIO peripheral
+		RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1,ENABLE); // Enable the SPI peripheral
+		PORT.GPIO_Pin = SPI1_SCK_PIN | SPI1_MOSI_PIN | SPI1_MISO_PIN;
+		GPIO_Init(SPI1_GPIO_PORT,&PORT);
+		GPIO_PinAFConfig(SPI1_GPIO_PORT,SPI1_SCK_PIN_SRC, GPIO_AF_SPI1);
+		GPIO_PinAFConfig(SPI1_GPIO_PORT,SPI1_MISO_PIN_SRC,GPIO_AF_SPI1);
+		GPIO_PinAFConfig(SPI1_GPIO_PORT,SPI1_MOSI_PIN_SRC,GPIO_AF_SPI1);
+	} else {
+		RCC_AHBPeriphClockCmd(SPI2_PERIPH,ENABLE); // Enable the SPI GPIO peripheral
+		RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2,ENABLE); // Enable the SPI peripheral
+		PORT.GPIO_Pin = SPI2_SCK_PIN | SPI2_MOSI_PIN | SPI2_MISO_PIN;
+		GPIO_Init(SPI2_GPIO_PORT,&PORT);
+		GPIO_PinAFConfig(SPI2_GPIO_PORT,SPI2_SCK_PIN_SRC, GPIO_AF_SPI2);
+		GPIO_PinAFConfig(SPI2_GPIO_PORT,SPI2_MISO_PIN_SRC,GPIO_AF_SPI2);
+		GPIO_PinAFConfig(SPI2_GPIO_PORT,SPI2_MOSI_PIN_SRC,GPIO_AF_SPI2);
+	}
 
-	// Configure and enable SPI2
-	SPI_InitTypeDef SPI;
-	SPI.SPI_Mode = SPI_Mode_Master;
-	SPI.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_2;
-	SPI.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
-	SPI.SPI_CPOL = SPI_CPOL_Low;
-	SPI.SPI_CPHA = SPI_CPHA_1Edge;
-	SPI.SPI_CRCPolynomial = 7;
-	SPI.SPI_DataSize = SPI_DataSize_8b;
-	SPI.SPI_FirstBit = SPI_FirstBit_MSB;
-	SPI.SPI_NSS = SPI_NSS_Soft;
-	SPI_Init(SPI_PORT,&SPI);
-	// NSS must be set to '1' due to NSS_Soft settings (otherwise it will be Multimaster mode).
-	SPI_NSSInternalSoftwareConfig(SPI_PORT,SPI_NSSInternalSoft_Set);
-	SPI_Cmd(SPI_PORT,ENABLE);
+	SPI->CR1 &= 0x3040; // Clear SPI settings
+	// SPI settings:
+	//   - master mode
+	//   - 2 lines full duplex
+	//   - CPOL low
+	//   - CPHA 1 edge
+	//   - data size 8 bit
+	//   - MSB first bit
+	//   - software NSS selection
+	SPI->CR1 |= SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM; // Master mode
+	SPI->I2SCFGR &= ~SPI_I2SCFGR_I2SMOD; // Clear I2SMOD bit - SPI mode
+	SPI->CRCPR = 7; // Polynomial for CRC calculation
+	SPI->CR1 |= SPI_CR1_SPE; // Enable the specified SPI peripheral
 }
 
-// Send byte via SPI2
+// Set SPI speed
 // input:
-//   data - byte to send
-void SPI2_Send(uint8_t data) {
-	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_TXE) == RESET); // Wait while DR register is not empty
-	SPI_PORT->DR = data; // Send byte to SPI
-	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_BSY) == SET); // Wait while SPI is busy
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   prescaler - SPI prescaler (SPI_BR_x)
+void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t prescaler) {
+	SPI->CR1 &= ~SPI_CR1_BR; // Clear SPI baud rate bits
+	SPI->CR1 |= prescaler; // Set SPI baud rate bits
 }
 
 // Send/Receive data via SPI
 // input:
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   data - byte to send
-// output: received byte from nRF24L01
-uint8_t SPI2_SendRecv(uint8_t data) {
-	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_TXE) == RESET); // Wait while DR register is not empty
-	SPI_PORT->DR = data; // Send byte to SPI
-	while (SPI_I2S_GetFlagStatus(SPI_PORT,SPI_I2S_FLAG_RXNE) == RESET); // Wait to receive byte
-	return SPI_PORT->DR; // Read byte from SPI bus
+// return: received byte from SPI
+uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data) {
+	while (!(SPI->SR & SPI_SR_TXE)); // Wait while receive buffer is not empty
+	SPI->DR = data; // Send byte to SPI
+	while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
+
+	return SPI->DR; // Read byte from SPI
 }

@@ -232,14 +232,13 @@ uint32_t LOG_WriteIntF(uint32_t num, uint8_t decimals) {
 	uint8_t txt[11]; // Maximum length of unsigned int32 with decimal point
 	int8_t i;
 
-	memset(txt,'#',11);
 	if (num == 0) {
 		// Special case for '0.0'
 		txt[10] = '0';
 		txt[9]  = '.';
 		txt[8]  = '0';
 		len = 3;
-		i = 7;
+		i = 8;
 	} else {
 		i = 10;
 		len = numlenu(num) + 1;
@@ -251,17 +250,17 @@ uint32_t LOG_WriteIntF(uint32_t num, uint8_t decimals) {
 				num /= 10;
 			}
 		} while (num > 0);
-	}
-	if (10 - i <= decimals) {
-		while (10 - i < decimals) {
+		if (10 - i <= decimals) {
+			while (10 - i < decimals) {
+				txt[i--] = '0';
+				len++;
+			}
+			txt[i--] = '.';
 			txt[i--] = '0';
 			len++;
 		}
-		txt[i--] = '.';
-		txt[i--] = '0';
-		len++;
+		i++;
 	}
-	i++;
 
 	len = LOG_WriteBin(&txt[i],len);
 
