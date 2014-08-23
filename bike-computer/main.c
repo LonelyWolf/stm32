@@ -31,7 +31,6 @@
 #include <GPS.h>
 #include <USB.h>
 #include <beeper.h>
-#include <spi1.h>
 #include <sdcard.h>
 #include <log.h>
 #include <EEPROM.h>
@@ -233,11 +232,13 @@ void InitPeripherals(void) {
 	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
 	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
 
-	// SPI2 port initialization (display and nRF24)
-	SPI2_Init();
-
 	// SPI1 port initialization (SD card)
-	SPI1_Init();
+	SPIx_Init(SPI1);
+	SPIx_SetSpeed(SPI_BR_2); // Maximum speed
+
+	// SPI2 port initialization (display and nRF24)
+	SPIx_Init(SPI2);
+	SPIx_SetSpeed(SPI_BR_2); // Maximum speed
 
 	// Initialize and configure LCD
 	Display_Init();
@@ -978,14 +979,14 @@ int main(void) {
 			// Current time
 			GUI_PutTimeSec(0,10,RTC_Time.RTC_Hours * 3600 + RTC_Time.RTC_Minutes * 60 + RTC_Time.RTC_Seconds,fnt5x7);
 
-///*
+/*
 			// Draw iterations counter
 			i = PutInt(3,3,ccc,fnt5x7);
 			FillRect(0,0,i + 4,12,PReset);
 			Rect(1,1,i + 3,11,PSet);
 			Rect(2,2,i + 2,10,PReset);
 			PutInt(3,3,ccc,fnt5x7);
-//*/
+*/
 
 			UC1701_Flush();
 			GUI_refresh = FALSE;

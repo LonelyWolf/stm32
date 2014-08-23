@@ -23,7 +23,7 @@ uint8_t vRAM[SCR_W * SCR_H / 8]; // Display buffer
 //   cmd - 8-bit command to send
 void UC1701_cmd(uint8_t cmd) {
 	UC1701_RS_L();
-	SPI2_Send(cmd);
+	SPIx_SendRecv(UC1701_SPI_PORT,cmd);
 }
 
 // Send double byte command to display controller
@@ -32,8 +32,8 @@ void UC1701_cmd(uint8_t cmd) {
 //   cmd2 - second byte of command to send
 void UC1701_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 	UC1701_RS_L();
-	SPI2_Send(cmd1);
-	SPI2_Send(cmd2);
+	SPIx_SendRecv(UC1701_SPI_PORT,cmd1);
+	SPIx_SendRecv(UC1701_SPI_PORT,cmd2);
 }
 
 // Send data byte to display controller
@@ -41,7 +41,7 @@ void UC1701_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 //   data - date byte to send
 void UC1701_data(uint8_t data) {
 	UC1701_RS_H();
-	SPI2_Send(data);
+	SPIx_SendRecv(UC1701_SPI_PORT,data);
 }
 
 // Save CS pin state and disable it
@@ -148,7 +148,7 @@ void UC1701_Init(void) {
 	Delay_ms(5); // Wait at least 5ms
 	UC1701_CS_L();
 
-	UC1701_cmd(0xe2); // Software system reset
+	UC1701_cmd(0xe2); // Software display reset
 	UC1701_cmd(0x2f); // Power control: Boost ON,  V.Regular ON,  V.Follower ON
 	UC1701_cmd(0xa2); // Set LCD bias ratio (BR = 0)
 	UC1701_cmd(0xaf); // Display enable
@@ -164,7 +164,7 @@ void UC1701_Init(void) {
 // Doesn't affect the display memory
 void UC1701_Reset(void) {
 	UC1701_CS_L();
-	UC1701_cmd(0xe2);
+	UC1701_cmd(0xe2); // Software display reset
 	UC1701_CS_H();
 }
 
@@ -287,16 +287,18 @@ void UC1701_Orientation(uint8_t orientation) {
 // Send vRAM buffer content into display
 void UC1701_Flush(void) {
 	uint16_t i,j;
+	uint16_t offset;
 
+	offset = 0;
 	UC1701_CS_L();
 	for (j = 0; j < 8; j++) {
 		 // Column 0 address LSB
 		if (scr_orientation == scr_180 || scr_orientation == scr_CCW) UC1701_cmd(0x04); else UC1701_cmd(0x00);
 		UC1701_cmd(0x10); // Column 0 address MSB
 		UC1701_cmd(0xb0 | j); // Page address
-		for (i = 0; i < 128; i++) {
-			UC1701_data(vRAM[(j * SCR_W) + i]);
-		}
+		UC1701_RS_H(); // Send data
+		for (i = 0; i < 128; i++) SPIx_SendRecv(UC1701_SPI_PORT,vRAM[offset + i]);
+		offset += SCR_W; // Don't use multiplication
 	}
 	UC1701_CS_H();
 }
@@ -547,7 +549,6 @@ uint8_t PutChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
 				for (i = 0; i < chW; i++) {
 					tmpCh = buffer[(i << 1) + k];
 					for (j = 0; j < 8; j++) {
-//						if ((tmpCh >> j) & 0x01) SetPixel(pX,pY);
 						if ((tmpCh >> (7 - j)) & 0x01) SetPixel(pX,pY);
 						pY++;
 						if (pY > Y + chH) break;
@@ -787,7 +788,7 @@ void PutDigit3x5(uint8_t X, uint8_t Y, uint8_t digit) {
     }
 }
 
-// Put unsigned integer with leading zeros in small 3x5 font
+// Draw unsigned integer with leading zeros in small 3x5 font
 // input:
 //   X,Y - number top left corner coordinate
 //   num - number to draw

@@ -3,14 +3,17 @@
 #define __NRF24_H
 
 
-// nRF24L01+ connection pinout:
+// nRF24L01+ connector pinout:
 //   PC7  -> CE
-//   PB12 -> CS
+//   PC8  -> CSN
 //   PB13 -> SCK
 //   PB15 -> MOSI
 //   PB14 <- MISO
 //   PC6  <- IRQ
 
+
+// nRF24L01 SPI peripheral
+#define nRF24_SPI_PORT    SPI2
 
 // nRF24L01 GPIO peripherals
 #define nRF24_PORT_PERIPH RCC_AHBPeriph_GPIOC
@@ -30,12 +33,12 @@
 // Handy macros
 
 // Chip Enable Activates RX or TX mode
-#define nRF24_CE_L() GPIO_ResetBits(nRF24_CE_PORT,nRF24_CE_PIN)
-#define nRF24_CE_H() GPIO_SetBits(nRF24_CE_PORT,nRF24_CE_PIN)
+#define nRF24_CE_L()      nRF24_CE_PORT->BSRRH = nRF24_CE_PIN
+#define nRF24_CE_H()      nRF24_CE_PORT->BSRRL = nRF24_CE_PIN
 
 // SPI Chip Select
-#define nRF24_CSN_L() GPIO_ResetBits(nRF24_CSN_PORT,nRF24_CSN_PIN)
-#define nRF24_CSN_H() GPIO_SetBits(nRF24_CSN_PORT,nRF24_CSN_PIN)
+#define nRF24_CSN_L()     nRF24_CSN_PORT->BSRRH = nRF24_CSN_PIN
+#define nRF24_CSN_H()     nRF24_CSN_PORT->BSRRL = nRF24_CSN_PIN
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -161,6 +164,8 @@ typedef enum {
 #define nRF24_FIFO_RX_EMPTY        0x01  // RX FIFO empty flag
 #define nRF24_FIFO_RX_FULL         0x02  // RX FIFO full flag
 
+#define nRF24_TEST_ADDR         "nRF24"  // Fake address to test nRF24 presense
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -168,10 +173,10 @@ typedef enum {
 // Function prototypes
 void nRF24_init();
 
-uint8_t nRF24_RWReg(uint8_t reg, uint8_t value);
+void nRF24_WriteReg(uint8_t reg, uint8_t value);
 uint8_t nRF24_ReadReg(uint8_t reg);
-uint8_t nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count);
-uint8_t nRF24_WriteBuf(uint8_t reg, uint8_t *pBuf, uint8_t count);
+void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count);
+void nRF24_WriteBuf(uint8_t reg, uint8_t *pBuf, uint8_t count);
 
 uint8_t nRF24_Check(void);
 

@@ -1,5 +1,4 @@
 #include <wolk.h>
-#include <EEPROM.h>
 
 
 nRF24_Packet_TypeDef nRF24_Packet;          // nRF24L01 last received packet

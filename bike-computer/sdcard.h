@@ -3,6 +3,9 @@
 #define __SDCARD_H
 
 
+// SDCARD SPI peripheral
+#define SDCARD_SPI_PORT    SPI1
+
 // SDCARD GPIO peripherals
 #define SDCARD_PORT_PERIPH RCC_AHBPeriph_GPIOB
 
