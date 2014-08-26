@@ -79,8 +79,7 @@ void BEEPER_Init(void) {
 	// BEEPER_TIM IRQ
 	NVICInit.NVIC_IRQChannel = BEEPER_TIM_IRQN;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x05; // below middle priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x05; // below middle priority
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0b;
 	NVIC_Init(&NVICInit);
 }
 

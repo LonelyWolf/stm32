@@ -164,7 +164,7 @@ typedef enum {
 #define nRF24_FIFO_RX_EMPTY        0x01  // RX FIFO empty flag
 #define nRF24_FIFO_RX_FULL         0x02  // RX FIFO full flag
 
-#define nRF24_TEST_ADDR         "nRF24"  // Fake address to test nRF24 presense
+#define nRF24_TEST_ADDR         "nRF24"  // Fake address to test nRF24 presence
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

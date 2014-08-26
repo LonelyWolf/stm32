@@ -42,6 +42,7 @@ void SPIx_Init(SPI_TypeDef *SPI) {
 	//   - data size 8 bit
 	//   - MSB first bit
 	//   - software NSS selection
+	//   - baudrate prescaler 2
 	SPI->CR1 |= SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM; // Master mode
 	SPI->I2SCFGR &= ~SPI_I2SCFGR_I2SMOD; // Clear I2SMOD bit - SPI mode
 	SPI->CRCPR = 7; // Polynomial for CRC calculation

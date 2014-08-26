@@ -8,6 +8,7 @@
 
 #define PMTK_TEST                       "$PMTK000*" // MTK test packet (MTK should respond with "$PMTK001,0,3*30")
 #define PMTK_SET_NMEA_OUTPUT_ALLDATA    "$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*" // All supported NMEA sentences
+#define PMTK_SET_NMEA_OUTPUT_EFFICIENT  "$PMTK314,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*" // Efficient NMEA sentences (no GLL and VTG sentences)
 #define PMTK_SET_NMEA_BAUDRATE_115200   "$PMTK251,115200*" // Set NMEA baudrate to 115200bps
 #define PMTK_CMD_HOT_START              "$PMTK101*" // Hot start the GPS module
 #define PMTK_CMD_STANDBY_MODE           "$PMTK161,0*" // Enter standby mode
@@ -18,6 +19,9 @@
 #define PMTK_EASY_ENABLE                "$PMTK869,1,1*" // Enable EASY function (MT333x)
 #define PMTK_EASY_DISABLE               "$PMTK869,1,0*" // Disable EASY function (MT333x)
 #define PMTK_SET_PERIODIC_MODE_NORMAL   "$PMTK225,0*" // Disable periodic mode
+
+#define GPS_DOP_FACTOR                  5 // Factor for translating PDOP to accuracy in meters
+                                          // This very rough value representing GPS horizontal position accuracy
 
 
 typedef enum {
@@ -52,6 +56,7 @@ typedef struct {
 	uint32_t PDOP;                // Dilution of precision
 	uint32_t HDOP;                // Horizontal dilution of precision
 	uint32_t VDOP;                // Vertical dilution of precision
+	uint32_t accuracy;            // Position accuracy (meters) [500 means 5.00m]
 	uint8_t  sats_used;           // Satellites used for fix
 	uint8_t  sats_view;           // Satellites in view
 	int32_t  altitude;            // Mean-sea-level altitude (meters)
@@ -59,7 +64,7 @@ typedef struct {
 	uint8_t  fix;                 // Fix indicator (1=Fix not available, 2=2D fix, 3=3D fix)
 	uint32_t fix_time;            // Time of fix (seconds from midnight)
 	uint32_t fix_date;            // Date of fix (DDMMYYYY)
-	uint8_t  fix_quality;         // Position fix indicator: (http://www.gpsinformation.org/dale/nmea.htm#GGA)
+	uint8_t  fix_quality;         // Position fix indicator:
                                   //   0 = invalid
                                   //   1 = GPS fix (SPS)
                                   //   2 = DGPS fix
@@ -75,7 +80,6 @@ typedef struct {
 	                              // R=Coarse pos., S=Simulator, N=Data not valid)
 	uint32_t dgps_age;            // Time since last DGPS update (seconds)
 	uint32_t dgps_id;             // DGPS station ID number
-	bool     time_valid;          // Have valid time
 	bool     datetime_valid;      // Have valid date and time
 	bool     valid;               // GPS status: TRUE if data valid
 } GPS_Data_TypeDef;

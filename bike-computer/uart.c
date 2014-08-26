@@ -43,8 +43,7 @@ void UART2_Init(uint32_t baudrate) {
 	USART_ITConfig(UART_PORT,USART_IT_RXNE,ENABLE); // Enable USART2 RX interrupt
 	NVICInit.NVIC_IRQChannel = USART2_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x02; // high priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0c;
 	NVIC_Init(&NVICInit);
 
 	USART_DMACmd(UART_PORT,USART_DMAReq_Rx,ENABLE); // Enable DMA for USART2 RX
@@ -68,8 +67,7 @@ void UART2_Init(uint32_t baudrate) {
 	// USART2 DMA interrupt
 	NVICInit.NVIC_IRQChannel = DMA1_Channel6_IRQn;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x02; // high priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0d;
 	NVIC_Init(&NVICInit);
 }
 

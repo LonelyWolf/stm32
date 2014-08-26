@@ -548,7 +548,7 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 
 		X = 4; Y = 4;
 		X += GUI_PutTimeSec(X,Y,GPSData.time,fnt5x7) + 5;
-		X += GUI_PutDate(X,Y,GPSData.date,fnt5x7);
+		GUI_PutDate(X,Y,GPSData.date,fnt5x7);
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"Fix:",fnt5x7) - 1;
@@ -565,16 +565,15 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		X += PutStr(X,Y,"Mode:",fnt5x7) - 1;
 		PutChar(X,Y,GPSData.mode,fnt5x7);
 
-		X = 4; Y += 8;
-		GUI_PutCoord(X,Y,GPSData.latitude,GPSData.latitude_char,fnt5x7);
-		X = 67;
-		GUI_PutCoord(X,Y,GPSData.longitude,GPSData.longitude_char,fnt5x7);
+		Y += 8;
+		GUI_PutCoord(4,Y,GPSData.latitude,GPSData.latitude_char,fnt5x7);
+		GUI_PutCoord(67,Y,GPSData.longitude,GPSData.longitude_char,fnt5x7);
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"Alt:",fnt5x7) - 1;
 		X += PutInt(X,Y,GPSData.altitude,fnt5x7) + 5;
 		X += PutStr(X,Y,"Spd:",fnt5x7) - 1;
-		X += PutIntF(X,Y,GPSData.speed,2,fnt5x7);
+		PutIntF(X,Y,GPSData.speed,2,fnt5x7);
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"Crs:",fnt5x7) - 1;
@@ -582,23 +581,29 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		X += PutStr(X,Y,"Sat:",fnt5x7) - 1;
 		X += PutInt(X,Y,GPSData.sats_used,fnt5x7);
 		X += PutChar(X,Y,'/',fnt5x7);
-		X += PutInt(X,Y,GPSData.sats_view,fnt5x7);
+		PutInt(X,Y,GPSData.sats_view,fnt5x7);
 
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"PDOP:",fnt5x7) - 1;
 		X += PutIntF(X,Y,GPSData.PDOP,2,fnt5x7) + 3;
-
 		X += PutInt(X,Y,GPS_sentences_parsed,fnt5x7) + 2;
 		X += PutInt(X,Y,GPS_sentences_unknown,fnt5x7) + 3;
-
 		X += PutInt(X,Y,GPSData.dgps_age,fnt5x7) + 2;
-		X += PutInt(X,Y,GPSData.dgps_id,fnt5x7) + 2;
+		PutInt(X,Y,GPSData.dgps_id,fnt5x7) + 2;
 
+/*
+		Since PDOP = sqrt(pow(HDOP,2) + pow(VDOP,2)) there is no sense to output these values
 		X = 4; Y += 8;
 		X += PutStr(X,Y,"HDOP:",fnt5x7) - 1;
 		X += PutIntF(X,Y,GPSData.HDOP,2,fnt5x7) + 5;
 		X += PutStr(X,Y,"VDOP:",fnt5x7) - 1;
 		X += PutIntF(X,Y,GPSData.VDOP,2,fnt5x7) + 5;
+*/
+
+		X = 4; Y += 8;
+		X += PutStr(X,Y,"Accuracy:",fnt5x7) - 1;
+		X += PutIntU(X,Y,GPSData.accuracy / 100,fnt5x7);
+		PutChar(X,Y,'m',fnt5x7);
 
 		UC1701_Flush();
 
@@ -640,6 +645,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 		HLine(0,scr_width - 1,scr_height - 7,PSet);
 
 		X = PutIntULZ3x5(0,scr_height - 5,pos,0) + 10;
+		X += PutIntULZ3x5(X,scr_height - 5,pos + i,0) + 10;
 		PutIntULZ3x5(X,scr_height - 5,BufSize,0);
 
 		UC1701_Flush();
@@ -1360,34 +1366,41 @@ void GUI_MainMenu(void) {
 							&mnuLogging,mnu_sub_sel,WaitForKeyPress);
 					if (mnu_sub_sel != 0xff) switch (mnu_sub_sel) {
 						case 0:
-							log_num = 0;
-							i = LOG_NewFile(&log_num);
-							if (i == LOG_OK) {
-								_logging = TRUE;
-								// Write header
-								LOG_WriteStr("WBC log #");
-								LOG_WriteInt(log_num);
-								LOG_WriteStr(" (start ");
-								LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
-								LOG_WriteStr(" ");
-								LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
-//								LOG_WriteStr(")\r\n");
-								LOG_WriteStr(")\r\nDate;Time;Wake;SPD.c;_prev_cntr_SPD;SPD.t;CDC.t;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;dbg_cntr_diff;dbg_prev_cntr;Vref;Temperature;Pressure\r\n");
+							if (!_logging) {
+								log_num = 0;
+								i = LOG_NewFile(&log_num);
+								if (i == LOG_OK) {
+									_logging = TRUE;
+									// Write header
+									LOG_WriteStr("WBC log #");
+									LOG_WriteInt(log_num);
+									LOG_WriteStr(" (start ");
+									LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
+									LOG_WriteStr(" ");
+									LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
+	//								LOG_WriteStr(")\r\n");
+									LOG_WriteStr(")\r\nDate;Time;Wake;SPD.c;_prev_cntr_SPD;SPD.t;CDC.t;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;");
+									LOG_WriteStr("Latitude;Longitude;Altitude;GPS_spd;PDOP;Qlty;dbg_cntr_diff;dbg_prev_cntr;Vref;Temperature;Pressure\r\n");
+								}
+								UC1701_Fill(0x00);
+								PutStr(0,0,"RES:",fnt7x10);
+								PutIntU(32,0,i,fnt7x10);
+								PutStr(0,12,"NUM:",fnt7x10);
+								PutIntU(32,12,log_num,fnt7x10);
+								PutStr(0,40,_logging ? "TRUE" : "FALSE",fnt7x10);
+								UC1701_Flush();
+								Delay_ms(2000);
+								mnu_sub_sel = 0xff;
+								mnu_sel = 0xff;
+							} else {
+								BEEPER_Enable(4321,10);
 							}
-							UC1701_Fill(0x00);
-							PutStr(0,0,"RES:",fnt7x10);
-							PutIntU(32,0,i,fnt7x10);
-							PutStr(0,12,"NUM:",fnt7x10);
-							PutIntU(32,12,log_num,fnt7x10);
-							PutStr(0,40,_logging ? "TRUE" : "FALSE",fnt7x10);
-							UC1701_Flush();
-							Delay_ms(2000);
-							mnu_sub_sel = 0xff;
-							mnu_sel = 0xff;
 							break;
 						case 1:
 							if (_logging) {
 								LOG_FileSync();
+							} else {
+								BEEPER_Enable(4321,10);
 							}
 							mnu_sub_sel = 0xff;
 							break;
@@ -1400,6 +1413,8 @@ void GUI_MainMenu(void) {
 								LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
 								LOG_WriteStr(")\r\n");
 								LOG_FileSync();
+							} else {
+								BEEPER_Enable(4321,10);
 							}
 							_logging = FALSE;
 							mnu_sub_sel = 0xff;

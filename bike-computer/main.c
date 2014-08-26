@@ -43,7 +43,7 @@
 /////////////////////////////////////////////////////////////////////////
 
 
-#define ALT_MEASURE_DUTY_CYCLE          30  // Temperature/pressure measurement duty cycle (seconds)
+#define ALT_MEASURE_DUTY_CYCLE          60  // Temperature/pressure measurement duty cycle (seconds)
 #define NO_SIGNAL_TIME                  10  // Sensor signal timeout (seconds)
 #define GPS_TIME_SYNC_DUTY_CYCLE       120  // Duty cycle to sync system time with GPS time (seconds)
 
@@ -168,6 +168,8 @@ void NVIC_Configuration(void) {
 	NVIC_Init(&NVICInit);
 
 	// EXTI15_10 interrupt
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x01; // highest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x01;
 	NVICInit.NVIC_IRQChannel = EXTI15_10_IRQn;
 	NVIC_Init(&NVICInit);
 
@@ -234,11 +236,9 @@ void InitPeripherals(void) {
 
 	// SPI1 port initialization (SD card)
 	SPIx_Init(SPI1);
-	SPIx_SetSpeed(SPI_BR_2); // Maximum speed
 
 	// SPI2 port initialization (display and nRF24)
 	SPIx_Init(SPI2);
-	SPIx_SetSpeed(SPI_BR_2); // Maximum speed
 
 	// Initialize and configure LCD
 	Display_Init();
@@ -308,7 +308,7 @@ void EXTI9_5_IRQHandler(void) {
 			_no_signal_time = 0;
 			// FIXME: with this enabled no menu/GUI timeout will happen in case of constant packets receiving
 			if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout;
-//			BEEPER_Enable(4000,1);
+			BEEPER_Enable(444,1);
 		}
 		EXTI_ClearITPendingBit(EXTI_Line6);
 	}
@@ -370,7 +370,7 @@ void RTC_WKUP_IRQHandler(void) {
 			if (_idle_time > Settings.LCD_timeout && Settings.LCD_timeout) UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
 			// ATTENTION! BMP180 polling pretty slow!
 			// Execute it from this place is really a bad idea!
-			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+//			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
 		}
 
 		PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
@@ -408,10 +408,9 @@ void USART2_IRQHandler(void) {
 	if (UART_PORT->SR & USART_SR_RXNE) {
 		// Received data ready to be read
 		UART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART2 RX complete interrupt
-		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
+		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
 		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE;
 		DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
-		TIM7->CNT  = 0;
 		TIM7->CR1 |= TIM_CR1_CEN; // Enable TIM7
 	}
 }
@@ -423,14 +422,14 @@ void DMA1_Channel6_IRQHandler() {
 
 	if (DMA1->ISR & DMA_ISR_TCIF6) {
 		// Channel 6 transfer complete
-		DMA1->IFCR |= DMA_IFCR_CTCIF6; // Clear DMA1 channel6 transfer complete flag
+		DMA1->IFCR = DMA_IFCR_CTCIF6; // Clear DMA1 channel6 transfer complete flag
 		// Amount of received data (in fact should be equal to FIFO_BUFFER_SIZE)
 		b_rcvd = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
 		// Prevent data buffer overflow
 		if (GPS_buf_cntr + b_rcvd >= GPS_BUFFER_SIZE) b_rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
 		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,b_rcvd); // Copy data to the GPS buffer
 		GPS_buf_cntr += b_rcvd;
-		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (for reload counter value)
+		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (to reload counter value)
 		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE; // Reload DMA counter
 		// If the data buffer is full the DMA should remain disabled until the buffer is processed.
 		if (GPS_buf_cntr <= GPS_BUFFER_SIZE) DMA1_Channel6->CCR |= DMA_CCR6_EN; // Enable DMA
@@ -470,11 +469,11 @@ void ParsePacket(void) {
 	uint32_t i;
 
 	// memcpy doesn't work here due to struct alignments
-	nRF24_Packet.cntr_SPD     = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
-	nRF24_Packet.tim_SPD      = (nRF24_RX_Buf[2] << 8) + nRF24_RX_Buf[3];
-	nRF24_Packet.tim_CDC      = (nRF24_RX_Buf[4] << 8) + nRF24_RX_Buf[5];
-	nRF24_Packet.vrefint      = ((nRF24_RX_Buf[6] & 0x03) << 8) + nRF24_RX_Buf[7];
-	nRF24_Packet.cntr_wake    = (nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9];
+	nRF24_Packet.cntr_SPD  = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
+	nRF24_Packet.tim_SPD   = (nRF24_RX_Buf[2] << 8) + nRF24_RX_Buf[3];
+	nRF24_Packet.tim_CDC   = (nRF24_RX_Buf[4] << 8) + nRF24_RX_Buf[5];
+	nRF24_Packet.vrefint   = ((nRF24_RX_Buf[6] & 0x03) << 8) + nRF24_RX_Buf[7];
+	nRF24_Packet.cntr_wake = (nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9];
 
 	// Convert SPD impulses period into speed
 	if (nRF24_Packet.tim_SPD > 0) {
@@ -849,8 +848,10 @@ int main(void) {
 			_new_packet = FALSE;
 			_RF_icon = !_RF_icon; // Blink RF icon
 
+			// FIXME: it's a bad idea to do that in a place like this (IRQ handler)
 			// Write debug information to the log file
 			if (_logging) {
+//				__set_BASEPRI(6 << (8 - __NVIC_PRIO_BITS)); // Block interrupts with priority higher or equal to 6
 				LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
 				LOG_WriteStr(";");
 				LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
@@ -883,6 +884,22 @@ int main(void) {
 				LOG_WriteStr(";");
 				LOG_WriteIntF(CurData.Odometer,5);
 				LOG_WriteStr(";");
+				if (GPSData.valid) {
+					LOG_WriteIntF(GPSData.latitude,4);
+					LOG_WriteStr(";");
+					LOG_WriteIntF(GPSData.longitude,4);
+					LOG_WriteStr(";");
+					LOG_WriteInt(GPSData.altitude);
+					LOG_WriteStr(";");
+					LOG_WriteIntF(GPSData.speed,2);
+					LOG_WriteStr(";");
+					LOG_WriteIntF(GPSData.PDOP,2);
+					LOG_WriteStr(";");
+					LOG_WriteIntU(GPSData.fix_quality);
+					LOG_WriteStr(";");
+				} else {
+					LOG_WriteStr("XX.XXXX;XXX.XXXX;0;0.0;0.0;0;");
+				}
 				LOG_WriteIntU(CurData.dbg_cntr_diff);
 				LOG_WriteStr(";");
 				LOG_WriteIntU(CurData.dbg_prev_cntr);
@@ -893,6 +910,7 @@ int main(void) {
 				LOG_WriteStr(";");
 				LOG_WriteIntF(BMP180_hPa_to_mmHg(CurData.Pressure),1);
 				LOG_WriteStr("\r\n");
+//				__set_BASEPRI(0U); // Remove the BASEPRI masking
 			}
 		}
 
@@ -917,6 +935,8 @@ int main(void) {
 		if (_new_time) {
 			// Time updated (every second)
 			_new_time = FALSE;
+			// ATTENTION! BMP180 polling is pretty slow!
+			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
 		}
 
 		if (GUI_refresh) {

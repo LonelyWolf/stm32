@@ -118,6 +118,9 @@ uint8_t SD_Cmd(uint8_t cmd, uint32_t arg) {
 	return response;
 }
 
+// Initialize the SD card
+// return: SDResult
+// note: SPI peripheral must be initialized before
 SDResult_TypeDef SD_Init(void) {
 	uint32_t wait;
 	uint8_t response;
@@ -132,10 +135,6 @@ SDResult_TypeDef SD_Init(void) {
 	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
 	PORT.GPIO_Pin = SDCARD_CS_PIN;
 	GPIO_Init(SDCARD_CS_PORT,&PORT);
-
-	//////////////////////////////////////////////////
-	// ****** SPI must be initialized before ****** //
-	//////////////////////////////////////////////////
 
 	// Set low SPI speed (32MHz -> 125kHz)
 	SPIx_SetSpeed(SDCARD_SPI_PORT,SPI_BR_256);
@@ -534,6 +533,8 @@ SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 		SDCARD_CS_H();
 		return SDR_WriteError; // WRITE_SINGLE_BLOCK failed
 	}
+
+	BEEPER_Enable(3333,1); // FIXME: <--------------------------------------------------- DEBUG
 
 	return SDR_Success;
 }

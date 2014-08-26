@@ -12,7 +12,7 @@ bool GPS_new_data;                          // TRUE if received new GPS packet
 uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
 NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
 uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter
-uint8_t GPS_sentences_unknown;               // Found unknown NMEA sentences counter
+uint8_t GPS_sentences_unknown;              // Found unknown NMEA sentences counter
 uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 uint8_t GPS_sats[12];                       // IDs of satellites used in position fix
 // Information about satellites in view (can be increased if receiver able handle more)
@@ -66,7 +66,7 @@ void GPS_SendCommand(char *cmd) {
 //   buf - pointer to the data buffer
 //   buf_size - size of the data buffer
 // return: buffer offset
-uint16_t GPS_FindSentenceEnd(uint8_t *buf, uint16_t buf_size) {
+uint16_t GPS_FindSentenceTail(uint8_t *buf, uint16_t buf_size) {
 	uint16_t pos = 0;
 	uint16_t crlf;
 
@@ -115,7 +115,7 @@ void GPS_FindSentence(NMEASentence_TypeDef *Sentence, uint8_t *buf, uint16_t sta
 			hdr = (buf[pos + 3] << 16) |
 				  (buf[pos + 4] << 8)  |
 				   buf[pos + 5];
-			pos += GPS_FindSentenceEnd(&buf[pos],buf_size);
+			pos += GPS_FindSentenceTail(&buf[pos],buf_size);
 			if (pos >= buf_size) return;
 			Sentence->end = pos + 1;
 			if (hdr == 0x00474c4c) { Sentence->type = NMEA_GLL; return; }
@@ -134,7 +134,7 @@ void GPS_FindSentence(NMEASentence_TypeDef *Sentence, uint8_t *buf, uint16_t sta
 			hdr = (buf[pos + 3] << 16) |
 				  (buf[pos + 4] << 8)  |
 				   buf[pos + 5];
-			pos += GPS_FindSentenceEnd(&buf[pos],buf_size);
+			pos += GPS_FindSentenceTail(&buf[pos],buf_size);
 			if (pos >= buf_size) return;
 			Sentence->end = pos + 1;
 
@@ -147,7 +147,7 @@ void GPS_FindSentence(NMEASentence_TypeDef *Sentence, uint8_t *buf, uint16_t sta
 				  (buf[pos + 5] << 16) |
 				  (buf[pos + 6] << 8)  |
 				   buf[pos + 7];
-			pos += GPS_FindSentenceEnd(&buf[pos],buf_size);
+			pos += GPS_FindSentenceTail(&buf[pos],buf_size);
 			if (pos >= buf_size) return;
 			Sentence->end = pos + 1;
 			if (hdr == 0x4b303031) { Sentence->type = NMEA_PMTK001; return; }
@@ -300,7 +300,6 @@ uint16_t GPS_ParseTime(uint8_t *buf, uint32_t *time) {
 	*time += atos_len(&buf[pos],2);
 	pos += 3;
 	pos += GPS_NextField(&buf[pos]); // Ignore milliseconds
-	GPSData.time_valid = TRUE;
 
 	return pos;
 }
@@ -340,6 +339,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// Horizontal speed (in knots)
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
+
+		// Convert speed in knots to speed in km/h
+		if (GPSData.speed == 0 && GPSData.speed_k != 0) GPSData.speed = (GPSData.speed_k * 1852) / 1000;
 
 		// Course
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
@@ -443,6 +445,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// Speed over ground in knots
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
+
+		// Convert speed in knots to speed in km/h
+		if (GPSData.speed == 0 && GPSData.speed_k != 0) GPSData.speed = (GPSData.speed_k * 1852) / 1000;
 
 		// Field with 'N' - speed over ground measured in knots, ignore it
 		pos += GPS_NextField(&buf[pos]);
@@ -550,7 +555,9 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 		}
 
 		// PDOP - position dilution
+		// In theory this thing must be equal to SQRT(pow(HDOP,2) + pow(VDOP,2))
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.PDOP);
+		GPSData.accuracy = GPSData.PDOP * GPS_DOP_FACTOR;
 
 		// HDOP - horizontal position dilution
 		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
@@ -690,7 +697,8 @@ void GPS_Init(void) {
 
 	// Configure MTK chip if it responded correctly
 	if (GPS_PMTK.PMTK010 == 2) {
-		GPS_SendCommand(PMTK_SET_NMEA_OUTPUT_ALLDATA); // All supported sentences
+//		GPS_SendCommand(PMTK_SET_NMEA_OUTPUT_ALLDATA); // All supported sentences
+		GPS_SendCommand(PMTK_SET_NMEA_OUTPUT_EFFICIENT); // Efficient sentences only
 		GPS_SendCommand(PMTK_SET_AIC_ENABLED); // Enable AIC (enabled by default)
 		GPS_SendCommand(PMTK_API_SET_STATIC_NAV_THD_OFF); // Disable speed threshold
 		GPS_SendCommand(PMTK_EASY_ENABLE); // Enable EASY (for MT3339)

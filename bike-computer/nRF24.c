@@ -104,7 +104,7 @@ uint8_t nRF24_Check(void) {
     uint8_t *ptr = (uint8_t *)nRF24_TEST_ADDR;
     uint8_t i;
 
-    nRF24_WriteBuf(nRF24_CMD_WREG | nRF24_REG_TX_ADDR,(uint8_t *)nRF24_TEST_ADDR,5); // Write fake TX address
+    nRF24_WriteBuf(nRF24_CMD_WREG | nRF24_REG_TX_ADDR,ptr,5); // Write fake TX address
     nRF24_ReadBuf(nRF24_REG_TX_ADDR,rxbuf,5); // Read TX_ADDR register
     for (i = 0; i < 5; i++) if (rxbuf[i] != *ptr++) return 0;
 

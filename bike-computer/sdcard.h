@@ -111,7 +111,6 @@ typedef struct {
 
 
 extern SDCard_TypeDef SDCard;                 // SD card parameters
-//extern uint8_t  SD_sector[512];               // Buffer for SD card sector
 
 
 uint16_t CRC16_buf(const uint8_t * pBuf, uint16_t len);
