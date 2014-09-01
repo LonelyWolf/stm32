@@ -59,17 +59,12 @@ typedef enum {
     nRF24_TXPower_0dBm  = (uint8_t)0x06  //   0dBm
 } nRF24_TXPower_TypeDef;
 
-// nRF24L01 enable CRC
-typedef enum {
-    nRF24_CRC_on  = (uint8_t)0x08, // CRC enabled
-    nRF24_CRC_off = (uint8_t)0x00  // CRC disabled
-} nRF24_CRC_TypeDef;
-
 // nRF24L01 CRC encoding scheme
 typedef enum {
-    nRF24_CRC_1byte = (uint8_t)0x00, // 1-byte CRC
-    nRF24_CRC_2byte = (uint8_t)0x04  // 2-byte CRC
-} nRF24_CRCO_TypeDef;
+    nRF24_CRC_off   = (uint8_t)0x00, // CRC disabled
+    nRF24_CRC_1byte = (uint8_t)0x08, // 1-byte CRC
+    nRF24_CRC_2byte = (uint8_t)0x0c  // 2-byte CRC
+} nRF24_CRC_TypeDef;
 
 // nRF24L01 power control
 typedef enum {
@@ -171,7 +166,7 @@ typedef enum {
 
 
 // Function prototypes
-void nRF24_init();
+void nRF24_Init();
 
 void nRF24_WriteReg(uint8_t reg, uint8_t value);
 uint8_t nRF24_ReadReg(uint8_t reg);
@@ -184,12 +179,11 @@ void nRF24_SetRFChannel(uint8_t RFChannel);
 void nRF24_FlushTX(void);
 void nRF24_FlushRX(void);
 void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_DataRate_TypeDef DataRate,
-		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO,
-		nRF24_PWR_TypeDef Power, uint8_t *TX_Addr, uint8_t TX_Addr_Width);
+		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_PWR_TypeDef Power, uint8_t *TX_Addr,
+		uint8_t TX_Addr_Width);
 void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_t RFChan,
-		nRF24_DataRate_TypeDef DataRate, nRF24_CRC_TypeDef CRCS,
-		nRF24_CRCO_TypeDef CRCO, uint8_t *RX_Addr, uint8_t RX_Addr_Width, uint8_t RX_PAYLOAD,
-		nRF24_TXPower_TypeDef TXPower);
+		nRF24_DataRate_TypeDef DataRate, nRF24_CRC_TypeDef CRCS, uint8_t *RX_Addr, uint8_t RX_Addr_Width,
+		uint8_t RX_PAYLOAD, nRF24_TXPower_TypeDef TXPower);
 void nRF24_SetPipeAddr(nRF24_RX_PIPE_TypeDef PIPE, uint8_t *Addr, uint8_t Addr_Width);
 
 uint8_t nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD);

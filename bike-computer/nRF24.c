@@ -15,7 +15,7 @@ const uint8_t RX_ADDR_PIPES[6] = {nRF24_REG_RX_ADDR_P0, nRF24_REG_RX_ADDR_P1, nR
 
 // nRF24L01 initialization
 // note: SPI peripheral must be initialized before
-void nRF24_init() {
+void nRF24_Init() {
 	GPIO_InitTypeDef PORT;
 
 	// Initialize nRF24L01 GPIO
@@ -136,18 +136,17 @@ void nRF24_FlushRX(void) {
 //   RFChan - Frequency channel (0..127) (frequency = 2400 + RFChan [MHz])
 //   DataRate - Set data rate: nRF24_DataRate_1Mbps or nRF24_DataRate_2Mbps
 //   TXPower - RF output power (-18dBm, -12dBm, -6dBm, 0dBm)
-//   CRCS - CRC state (nRF24_CRC_on or nRF24_CRC_off)
-//   CRCO - CRC encoding scheme (nRF24_CRC_1byte or nRF24_CRC_2byte)
+//   CRCS - CRC encoding scheme (nRF24_CRC_[off | 1byte | 2byte])
 //   PWR - power state (nRF24_PWR_Up or nRF24_PWR_Down)
 //   TX_Addr - buffer with TX address
 //   TX_Addr_Width - size of the TX address (3..5 bytes)
 void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_DataRate_TypeDef DataRate,
-		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_CRCO_TypeDef CRCO,
-		nRF24_PWR_TypeDef Power, uint8_t *TX_Addr, uint8_t TX_Addr_Width) {
+		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_PWR_TypeDef Power, uint8_t *TX_Addr,
+		uint8_t TX_Addr_Width) {
     nRF24_CE_L();
     nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_SETUP_RETR,((RetrDelay << 4) & 0xf0) | (RetrCnt & 0x0f)); // Auto retransmit settings
     nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // Setup register
-    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | (uint8_t)CRCO | (uint8_t)Power | nRF24_PRIM_TX); // Config register
+    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | (uint8_t)Power | nRF24_PRIM_TX); // Config register
     nRF24_SetRFChannel(RFChan); // Set frequency channel (OBSERVER_TX part PLOS_CNT will be cleared)
     nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_EN_AA,0x01); // Enable ShockBurst for data pipe 0 to receive ACK packet
 	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_SETUP_AW,TX_Addr_Width); // Set address width
@@ -161,16 +160,14 @@ void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_Data
 //   PIPE_AA - auto acknowledgment for data pipe (nRF24_ENAA_P[0..5] or nRF24_ENAA_OFF)
 //   RFChan - Frequency channel (0..127) (frequency = 2400 + RFChan [MHz])
 //   DataRate - Set data rate (nRF24_DataRate_[250kbps,1Mbps,2Mbps])
-//   CRCS - CRC state (nRF24_CRC_on or nRF24_CRC_off)
-//   CRCO - CRC encoding scheme (nRF24_CRC_1byte or nRF24_CRC_2byte)
+//   CRCS - CRC encoding scheme (nRF24_CRC_[off | 1byte | 2byte])
 //   RX_Addr - buffer with TX address
 //   RX_Addr_Width - size of TX address (3..5 byte)
 //   RX_PAYLOAD - receive buffer length
 //   TXPower - RF output power for ACK packets (-18dBm, -12dBm, -6dBm, 0dBm)
 void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_t RFChan,
-		nRF24_DataRate_TypeDef DataRate, nRF24_CRC_TypeDef CRCS,
-		nRF24_CRCO_TypeDef CRCO, uint8_t *RX_Addr, uint8_t RX_Addr_Width, uint8_t RX_PAYLOAD,
-		nRF24_TXPower_TypeDef TXPower) {
+		nRF24_DataRate_TypeDef DataRate, nRF24_CRC_TypeDef CRCS, uint8_t *RX_Addr, uint8_t RX_Addr_Width,
+		uint8_t RX_PAYLOAD, nRF24_TXPower_TypeDef TXPower) {
 	uint8_t rreg;
 
 	nRF24_CE_L();
@@ -188,7 +185,7 @@ void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_
 	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_EN_RXADDR,rreg | (1 << (uint8_t)PIPE)); // Enable given data pipe
 	nRF24_WriteReg(nRF24_CMD_WREG | RX_PW_PIPES[(uint8_t)PIPE],RX_PAYLOAD); // Set RX payload length
     nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // SETUP register
-    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | (uint8_t)CRCO | nRF24_PWR_Up | nRF24_PRIM_RX); // Config register
+    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | nRF24_PWR_Up | nRF24_PRIM_RX); // Config register
     nRF24_SetRFChannel(RFChan); // Set frequency channel
     nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_SETUP_AW,RX_Addr_Width - 2); // Set of address widths (common for all data pipes)
     nRF24_WriteBuf(nRF24_CMD_WREG | RX_ADDR_PIPES[(uint8_t)PIPE],RX_Addr,RX_Addr_Width); // Set static RX address for given data pipe

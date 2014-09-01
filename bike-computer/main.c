@@ -79,6 +79,9 @@ uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter
 uint32_t i,j;                               // THIS IS UNIVERSAL VARIABLES
 uint32_t ccc;                               // Wake-ups count, for debug purposes
 
+uint8_t _CRC_rcvd;                          // FIXME: last received CRC for debug
+uint8_t _CRC_locl;                          // FIXME: last computed CRC for debug
+
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -236,9 +239,11 @@ void InitPeripherals(void) {
 
 	// SPI1 port initialization (SD card)
 	SPIx_Init(SPI1);
+	SPIx_SetSpeed(SPI2,SPI_BR_256); // Lowest SPI1 speed
 
 	// SPI2 port initialization (display and nRF24)
 	SPIx_Init(SPI2);
+	SPIx_SetSpeed(SPI2,SPI_BR_2); // Maximum SPI2 speed
 
 	// Initialize and configure LCD
 	Display_Init();
@@ -252,8 +257,7 @@ void nRF24_SetRXMode(void) {
 			nRF24_ENAA_OFF,           // Auto acknowledgment
 			nRF24_RF_CHANNEL,         // RF Channel
 			nRF24_DataRate_250kbps,   // Data rate
-			nRF24_CRC_on,             // CRC
-			nRF24_CRC_1byte,          // CRC scheme
+			nRF24_CRC_2byte,          // CRC scheme
 			(uint8_t *)nRF24_RX_Addr, // RX address
 			nRF24_RX_Addr_Size,       // RX address size
 			nRF24_RX_PAYLOAD,         // Payload length
@@ -467,6 +471,18 @@ void callback_Delay(void) {
 void ParsePacket(void) {
 	uint32_t diff_SPD;
 	uint32_t i;
+	uint8_t CRC_local;
+
+	// Check CRC of the packet
+	CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
+	// FIXME: for debug begin
+	_CRC_rcvd = nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1];
+	_CRC_locl = CRC_local;
+	// FIXME: for debug end
+	if (CRC_local != nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) {
+		_new_packet = TRUE; // FIXME: for debug
+		return;
+	}
 
 	// memcpy doesn't work here due to struct alignments
 	nRF24_Packet.cntr_SPD  = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
@@ -716,7 +732,7 @@ int main(void) {
 	// Configure nRF24L01+
 	i = PutStr(0,8,"nRF24L01:",fnt5x7) - 1;
 	UC1701_Flush();
-    nRF24_init();
+    nRF24_Init();
     if (nRF24_Check()) {
     	nRF24_SetRXMode();
     	PutStr(i,8,"OK",fnt5x7);
@@ -856,6 +872,10 @@ int main(void) {
 				LOG_WriteStr(";");
 				LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
 				LOG_WriteStr(";");
+				LOG_WriteIntU(_CRC_rcvd);
+				LOG_WriteStr(";");
+				LOG_WriteIntU(_CRC_locl);
+				LOG_WriteStr(";");
 				LOG_WriteIntU(nRF24_Packet.cntr_wake);
 				LOG_WriteStr(";");
 				LOG_WriteIntU(nRF24_Packet.cntr_SPD);
@@ -892,6 +912,8 @@ int main(void) {
 					LOG_WriteInt(GPSData.altitude);
 					LOG_WriteStr(";");
 					LOG_WriteIntF(GPSData.speed,2);
+					LOG_WriteStr(";");
+					LOG_WriteInt(GPSData.course);
 					LOG_WriteStr(";");
 					LOG_WriteIntF(GPSData.PDOP,2);
 					LOG_WriteStr(";");

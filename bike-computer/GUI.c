@@ -589,7 +589,7 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		X += PutInt(X,Y,GPS_sentences_parsed,fnt5x7) + 2;
 		X += PutInt(X,Y,GPS_sentences_unknown,fnt5x7) + 3;
 		X += PutInt(X,Y,GPSData.dgps_age,fnt5x7) + 2;
-		PutInt(X,Y,GPSData.dgps_id,fnt5x7) + 2;
+		PutInt(X,Y,GPSData.dgps_id,fnt5x7);
 
 /*
 		Since PDOP = sqrt(pow(HDOP,2) + pow(VDOP,2)) there is no sense to output these values
@@ -1379,8 +1379,8 @@ void GUI_MainMenu(void) {
 									LOG_WriteStr(" ");
 									LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
 	//								LOG_WriteStr(")\r\n");
-									LOG_WriteStr(")\r\nDate;Time;Wake;SPD.c;_prev_cntr_SPD;SPD.t;CDC.t;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;");
-									LOG_WriteStr("Latitude;Longitude;Altitude;GPS_spd;PDOP;Qlty;dbg_cntr_diff;dbg_prev_cntr;Vref;Temperature;Pressure\r\n");
+									LOG_WriteStr(")\r\nDate;Time;CRC_R;CRC_L;Wake;SPD.c;_prev_cntr_SPD;SPD.t;CDC.t;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;");
+									LOG_WriteStr("Latitude;Longitude;Altitude;GPS_spd;Course;PDOP;Qlty;dbg_cntr_diff;dbg_prev_cntr;Vref;Temperature;Pressure\r\n");
 								}
 								UC1701_Fill(0x00);
 								PutStr(0,0,"RES:",fnt7x10);

@@ -164,6 +164,26 @@ uint8_t numlenu(uint32_t num) {
 	return len;
 }
 
+// CRC8-CCITT calculation for buffer (polynomial: x^8 + x^2 + x + 1 (0xE0))
+// input:
+//   buf - pointer to the buffer to calc CRC
+//   len - length of the buffer (bytes)
+// return: CRC8 of the buffer
+uint8_t CRC8_CCITT(uint8_t *buf, uint8_t len) {
+    uint8_t i;
+    uint8_t data = 0;
+
+    while (len--) {
+        data ^= *buf++;
+        for (i = 0; i < 8; i++ ) {
+            if (data & 0x80) data ^= 0x07;
+            data <<= 1;
+        }
+    }
+
+    return data;
+}
+
 // Wait for key press
 // input:
 //   Sleep - execute SleepWait if TRUE

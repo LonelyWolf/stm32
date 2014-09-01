@@ -15,7 +15,7 @@
 #define nRF24_RX_Addr                 "WBC" // RX address for nRF24L01
 #define nRF24_RX_Addr_Size                3 // RX address size
 #define nRF24_RF_CHANNEL                 90 // nRF24L01 channel (90CH = 2490MHz)
-#define nRF24_RX_PAYLOAD                 10 // nRF24L01 payload length
+#define nRF24_RX_PAYLOAD                 11 // nRF24L01 payload length
 
 
 // Buttons
@@ -132,6 +132,7 @@ int32_t atos_char(uint8_t *buf, uint16_t *pos);
 uint32_t stringlen(const char *str);
 uint8_t numlen(int32_t num);
 uint8_t numlenu(uint32_t num);
+uint8_t CRC8_CCITT(uint8_t *buf, uint8_t len);
 
 void WaitForKeyPress(bool Sleep, bool *WaitFlag, uint32_t Timeout);
 void ClearKeys(void);
