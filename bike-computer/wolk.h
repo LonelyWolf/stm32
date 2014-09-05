@@ -113,9 +113,10 @@ extern nRF24_Packet_TypeDef nRF24_Packet;          // nRF24L01 last received pac
 extern Cur_Data_TypeDef CurData;                   // Current data (Speed, Cadence, etc.)
 extern BTN_TypeDef BTN[4];                         // Buttons
 extern Settings_TypeDef Settings;                  // Settings which stored in EEPROM
-extern bool _screensaver;                          // TRUE if screen saver active or must be activated
-extern uint32_t _no_signal_time;                   // Time since last packet received (seconds)
-extern uint32_t _idle_time;                        // Time from last user event (button press)
+extern bool _screensaver;                          // TRUE if screensaver active or must be activated
+extern uint32_t _time_scr_timeout;                 // Timeout for screensaver start
+extern uint32_t _time_no_signal;                   // Time since last packet received (seconds)
+extern uint32_t _time_idle;                        // Time from last user event (button press)
 
 
 // Embedded internal reference voltage calibration value

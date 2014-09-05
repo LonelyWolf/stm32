@@ -5,9 +5,10 @@ nRF24_Packet_TypeDef nRF24_Packet;          // nRF24L01 last received packet
 Cur_Data_TypeDef CurData;                   // Current data (Speed, Cadence, etc.)
 BTN_TypeDef BTN[4];                         // Buttons
 Settings_TypeDef Settings;                  // Settings which stored in EEPROM
-bool _screensaver;                          // TRUE if screen saver active or must be activated
-uint32_t _no_signal_time;                   // Time since last packet received (seconds)
-uint32_t _idle_time;                        // Time from last user event (button press)
+bool _screensaver;                          // TRUE if screensaver active or must be activated
+uint32_t _time_scr_timeout;                 // Timeout for screensaver start
+uint32_t _time_no_signal;                   // Time since last packet received (seconds)
+uint32_t _time_idle;                        // Time from last user event (button press)
 
 
 // Execute WFI instruction
@@ -199,7 +200,7 @@ void WaitForKeyPress(bool Sleep, bool *WaitFlag, uint32_t Timeout) {
 				BTN[2].state == BTN_Hold || BTN[3].state == BTN_Hold;
 		if (WaitFlag) key_pressed |= *WaitFlag;
 		if (Sleep) SleepWait();
-		if (_idle_time > Timeout && Timeout) key_pressed = TRUE;
+		if (_time_idle > Timeout && Timeout) key_pressed = TRUE;
 	} while (!key_pressed);
 }
 

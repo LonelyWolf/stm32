@@ -310,7 +310,7 @@ void GUI_Screen_SensorRAW(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GUI_refresh = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -364,7 +364,7 @@ void GUI_Screen_CurVal1(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GUI_refresh,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GUI_refresh = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -410,7 +410,7 @@ void GUI_Screen_CurVal2(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GUI_new_BMP180,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GUI_new_BMP180 = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -458,7 +458,7 @@ void GUI_Screen_CurVal3(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -523,7 +523,7 @@ void GUI_Screen_GPSSatsView(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -608,7 +608,7 @@ void GUI_Screen_GPSInfo(funcPtrKeyPress_TypeDef WaitForKey) {
 		UC1701_Flush();
 
 		if (WaitForKey) WaitForKey(TRUE,&GPS_new_data,GUI_TIMEOUT); else return;
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		GPS_new_data = FALSE;
 		if (!BTN[BTN_ESCAPE].cntr) ClearKeys();
 	} while (!BTN[BTN_ESCAPE].cntr);
@@ -652,7 +652,7 @@ void GUI_Screen_Buffer(uint8_t *pBuf, uint16_t BufSize, bool *UpdateFlag, funcPt
 
 		// Wait for key press
 		if (WaitForKey) WaitForKey(TRUE,UpdateFlag,GUI_TIMEOUT);
-		if (_idle_time > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
+		if (_time_idle > GUI_TIMEOUT) BTN[BTN_ESCAPE].cntr++;
 		*UpdateFlag = FALSE;
 
 		// "Down" key
@@ -798,7 +798,7 @@ uint8_t GUI_PutCoord(uint8_t X, uint8_t Y, uint32_t coord, char ch, const Font_T
 	uint8_t pX = X;
 
 	X += PutChar(X,Y,ch,Font);
-	X += PutIntF(X,Y,coord,4,Font);
+	X += PutIntF(X,Y,coord,6,Font);
 
 	return X - pX;
 }
@@ -1027,8 +1027,8 @@ uint8_t GUI_Menu(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const Font_TypeDef 
 
 		// Wait for key press
 		if (WaitForKey) WaitForKey(FALSE,NULL,GUI_MENU_TIMEOUT);
-		if (_idle_time >= GUI_MENU_TIMEOUT) return 0xff;
-		_idle_time = 0;
+		if (_time_idle >= GUI_MENU_TIMEOUT) return 0xff;
+		_time_idle = 0;
 
 		// Up button
 		if (BTN[BTN_UP].cntr || BTN[BTN_UP].state == BTN_Hold) {
@@ -1187,13 +1187,13 @@ void GUI_NumericScroll(int8_t X, int8_t Y, uint8_t W, uint8_t H, const Font_Type
 
 		// Wait for key press
 		if (WaitForKey) WaitForKey(FALSE,NULL,GUI_MENU_TIMEOUT);
-		if (_idle_time >= GUI_MENU_TIMEOUT) {
+		if (_time_idle >= GUI_MENU_TIMEOUT) {
 			// Execute callback function with original value
 			if (CallBack) CallBack(sV);
 			*Value = sV;
 			return;
 		}
-		_idle_time = 0;
+		_time_idle = 0;
 
 		// Up button
 		if (BTN[BTN_UP].cntr || BTN[BTN_UP].state == BTN_Hold) {
@@ -1271,7 +1271,7 @@ void GUI_MainMenu(void) {
 					default:
 						break;
 				}
-				if (_idle_time >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
+				if (_time_idle >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 1:
@@ -1295,7 +1295,7 @@ void GUI_MainMenu(void) {
 					default:
 						break;
 				}
-				if (_idle_time >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
+				if (_time_idle >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
 			} while (mnu_sub_sel != 0xff);
 			break;
 		case 2:
@@ -1422,7 +1422,7 @@ void GUI_MainMenu(void) {
 						default:
 							break;
 					}
-					if (_idle_time >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
+					if (_time_idle >= GUI_TIMEOUT) mnu_sel = mnu_sub_sel = 0xff;
 				} while (mnu_sub_sel != 0xff);
 			} else {
 				BEEPER_Enable(4321,10);
@@ -1472,7 +1472,7 @@ void GUI_MainMenu(void) {
 		default:
 			break;
 		}
-		if (_idle_time >= GUI_MENU_TIMEOUT) mnu_sel = 0xff;
+		if (_time_idle >= GUI_MENU_TIMEOUT) mnu_sel = 0xff;
 	} while (mnu_sel != 0xff);
 
 	ClearKeys();
