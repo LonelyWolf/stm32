@@ -56,7 +56,8 @@ uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD];     // nRF24L01 payload buffer
 bool _new_packet;                           // TRUE if new packet was received but not parsed
 bool _new_time;                             // TRUE if time was updated
 bool _bmp180_present;                       // TRUE if BMP180 sensor responded on I2C bus
-bool _RF_icon;                              // Flag for RF icon flashing
+bool _icon_RF;                              // Flag for RF icon flashing
+bool _icon_LOG;                             // Flag for LOG icon flashing
 
 RTC_TimeTypeDef _time;                      // Temporary structure for time
 RTC_DateTypeDef _date;                      // Temporary structure for date
@@ -64,7 +65,7 @@ RTC_DateTypeDef _date;                      // Temporary structure for date
 uint16_t _prev_cntr_SPD;                    // Last received cntr_SPD value
 uint16_t _prev_tim_SPD;                     // Last received tim_SPD value
 uint16_t _tim_excess;                       // Timer excess from 1 second ratio
-uint32_t _cntr_cadence;                     // Cadence counter (for AVG calculation)
+uint32_t _cadence_cntr;                     // Cadence counter (for AVG calculation)
 uint32_t _cadence_accum;                    // Cadence accumulator (for AVG calculation)
 uint32_t _GPS_time_duty_cycle;              // Duty cycle to sync system time with GPS time
 uint32_t _altitude_duty_cycle;              // Altitude measurement duty cycle
@@ -225,7 +226,9 @@ void InitPeripherals(void) {
 	Delay_Init(NULL);
 
 	// UART port initialization
-	UART2_Init(9600); // Use slow speed at startup
+	UARTx_Init(GPS_USART_PORT,9600); // Use slow speed at startup
+	UARTx_InitRxIRQ(GPS_USART_PORT,0x0c); // Configure UART RX IRQ (IRQ priority 0x0c)
+	UARTx_InitRxDMA(GPS_USART_PORT,0x0d); // Configure UART RX DMA (IRQ priority 0x0d)
 
 	// USB port initialization
 //	USB_Init();
@@ -235,6 +238,7 @@ void InitPeripherals(void) {
 	TIM7->PSC   = SystemCoreClock / 16000; // prescaler
 	TIM7->ARR   = 999; // auto reload value
 	TIM7->EGR   = 1; // Generate an update event to reload the prescaler value immediately
+	TIM7->SR   &= ~TIM_SR_UIF; // Clear TIM IRQ flag
 	TIM7->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
 
 	// SPI1 port initialization (SD card)
@@ -290,7 +294,8 @@ void Button_Inquiry(BTN_TypeDef *button) {
 	}
 	if (!_screensaver) UC1701_SetBacklight(Settings.LCD_brightness);
 	_screensaver = FALSE;
-	_idle_time = 0;
+	_time_idle = 0;
+	_time_scr_timeout = 0;
 }
 
 
@@ -309,10 +314,9 @@ void EXTI9_5_IRQHandler(void) {
 		UC1701_ResumeSPI();
 		if (RX_status == nRF24_RX_PCKT_PIPE0) {
 			ParsePacket();
-			_no_signal_time = 0;
-			// FIXME: with this enabled no menu/GUI timeout will happen in case of constant packets receiving
-			if (_idle_time > Settings.LCD_timeout) _idle_time = Settings.LCD_timeout;
-			BEEPER_Enable(444,1);
+			_time_no_signal = 0;
+			if (_time_scr_timeout > Settings.LCD_timeout) _time_scr_timeout = Settings.LCD_timeout;
+//			BEEPER_Enable(444,1);
 		}
 		EXTI_ClearITPendingBit(EXTI_Line6);
 	}
@@ -351,30 +355,35 @@ void RTC_WKUP_IRQHandler(void) {
 		// RTC Wake-up interrupt
 		RTC_GetDateTime(&RTC_Time,&RTC_Date);
 
-		_no_signal_time++;
+		_time_no_signal++;
 		_GPS_time_duty_cycle++;
 		_altitude_duty_cycle++;
-		_idle_time++;
+		_time_idle++;
+		_time_scr_timeout++;
 		_new_time = TRUE;
 
 		// Counters overflow protection  FIXME: is it really necessary?
-		if (_no_signal_time > 36000) _no_signal_time = 36000;
-		if (_idle_time > 36000) _idle_time = 36000;
+		if (_time_no_signal > 36000) _time_no_signal = 36000;
+		if (_time_idle > 36000) _time_idle = 36000;
+		if (_time_scr_timeout > 36000) _time_scr_timeout = 36000;
 		if (_GPS_time_duty_cycle > 36000) _GPS_time_duty_cycle = 36000;
 		if (_altitude_duty_cycle > 36000) _altitude_duty_cycle = 36000;
 
-		if (_no_signal_time > NO_SIGNAL_TIME) {
-			CurData.Speed   = 0;
-			CurData.Cadence = 0;
-			_prev_cntr_SPD  = 0;
+		if (_time_no_signal > NO_SIGNAL_TIME) {
+			// Data packets did not received within desired time
+			CurData.Speed     = 0;
+			CurData.Cadence   = 0;
+			_prev_cntr_SPD    = 0;
 		}
-		if (_idle_time > GUI_SCREENSAVER_TIMEOUT) _screensaver = TRUE; else _screensaver = FALSE;
+
+		_screensaver = (_time_scr_timeout > GUI_SCREENSAVER_TIMEOUT) ? TRUE : FALSE;
 		if (!_screensaver) {
 			// The following procedures must be executed only when no screensaver active
-			if (_idle_time > Settings.LCD_timeout && Settings.LCD_timeout) UC1701_SetBacklight(0); else UC1701_SetBacklight(Settings.LCD_brightness);
-			// ATTENTION! BMP180 polling pretty slow!
-			// Execute it from this place is really a bad idea!
-//			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+			if (_time_scr_timeout > Settings.LCD_timeout && Settings.LCD_timeout) {
+				UC1701_SetBacklight(0);
+			} else {
+				UC1701_SetBacklight(Settings.LCD_brightness);
+			}
 		}
 
 		PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
@@ -387,35 +396,51 @@ void RTC_WKUP_IRQHandler(void) {
 // TIM7 IRQ handler
 void TIM7_IRQHandler(void) {
 	TIM7->SR &= ~TIM_SR_UIF; // Clear the TIM7's interrupt pending bit (TIM7 rises only UPDATE IT)
+
 	if (_DMA_cntr == (uint16_t)DMA1_Channel6->CNDTR) {
-		// DMA pointer unchanged from last IRQ -> UART timeout
+		// DMA pointer unchanged from last TIM IRQ -> UART timeout
 		TIM7->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN)); // Disable TIM7
 		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA
+		GPS_USART_PORT->CR3 &= ~USART_CR3_DMAR; // Disable DMA for USART RX
 		// Copy rest of data from the FIFO buffer to the GPS buffer
-		_DMA_cntr = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
-		// Cut data buffer to prevent overflow
+		_DMA_cntr = USART_FIFO_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
+		// Trim data buffer to prevent overflow
 		if (GPS_buf_cntr + _DMA_cntr >= GPS_BUFFER_SIZE) _DMA_cntr = GPS_BUFFER_SIZE - GPS_buf_cntr;
 		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,_DMA_cntr);
 		GPS_buf_cntr += _DMA_cntr;
 		_DMA_cntr = 0;
 		ParseGPS(); // About 3ms with full buffer
-		// Enable USART2 RX complete interrupt when GPS data is parsed (ready to get new)
-		UART_PORT->CR1 |= USART_CR1_RXNEIE;
+		// Enable the USART RX complete interrupt after the GPS data was parsed (ready to get new)
+		GPS_USART_PORT->CR1 |= USART_CR1_RXNEIE;
+		GPS_new_data = TRUE;
 	} else {
-		// Data still coming from USART
+		// Data is still coming from the USART
 		_DMA_cntr = (uint16_t)DMA1_Channel6->CNDTR;
 	}
 }
 
 // USART2 IRQ handler
 void USART2_IRQHandler(void) {
-	if (UART_PORT->SR & USART_SR_RXNE) {
+	if (GPS_USART_PORT->SR & USART_SR_RXNE) {
 		// Received data ready to be read
-		UART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART2 RX complete interrupt
-		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
-		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE;
-		DMA1_Channel6->CCR  |= DMA_CCR6_EN; // Enable DMA
+		GPS_USART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART RX complete interrupt
+		GPS_USART_PORT->CR3 |= USART_CR3_DMAR; // Enable DMA for USART RX
+		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (it should be disabled though)
+		DMA1->IFCR = DMA_IFCR_CTCIF6; // Clear the DMA1 channel6 transfer complete flag
+		DMA1_Channel6->CNDTR = USART_FIFO_SIZE;
+		DMA1_Channel6->CCR |= DMA_CCR6_EN; // Enable DMA
+		TIM7->CNT  = 0;
 		TIM7->CR1 |= TIM_CR1_CEN; // Enable TIM7
+	}
+
+	if (GPS_USART_PORT->SR & USART_SR_ORE) {
+		// Overrun error
+		(void)GPS_USART_PORT->DR; // Read the DR register to clear overrun flag
+		// Whereas GPS data is broken disable UART RX DMA
+		TIM7->CR1 &= ~TIM_CR1_CEN; // Disable TIM7
+		DMA1_Channel6->CCR &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA
+		GPS_USART_PORT->CR1 &= ~USART_CR1_RXNEIE; // Disable USART RX complete interrupt
+		GPS_buf_cntr = 0;
 	}
 }
 
@@ -424,18 +449,21 @@ void USART2_IRQHandler(void) {
 void DMA1_Channel6_IRQHandler() {
 	uint16_t b_rcvd;
 
+	// Channel 6 transfer complete
 	if (DMA1->ISR & DMA_ISR_TCIF6) {
-		// Channel 6 transfer complete
-		DMA1->IFCR = DMA_IFCR_CTCIF6; // Clear DMA1 channel6 transfer complete flag
-		// Amount of received data (in fact should be equal to FIFO_BUFFER_SIZE)
-		b_rcvd = FIFO_BUFFER_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
+		// Clear the DMA1 channel6 transfer complete flag
+		DMA1->IFCR = DMA_IFCR_CTCIF6;
+		// Amount of received data (in fact should be equal to USART_FIFO_SIZE)
+		b_rcvd = USART_FIFO_SIZE - (uint16_t)DMA1_Channel6->CNDTR;
+		// Disable DMA (to reload counter value)
+		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN);
 		// Prevent data buffer overflow
 		if (GPS_buf_cntr + b_rcvd >= GPS_BUFFER_SIZE) b_rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
 		memcpy(&GPS_buf[GPS_buf_cntr],USART_FIFO,b_rcvd); // Copy data to the GPS buffer
 		GPS_buf_cntr += b_rcvd;
-		DMA1_Channel6->CCR  &= (uint16_t)(~DMA_CCR6_EN); // Disable DMA (to reload counter value)
-		DMA1_Channel6->CNDTR = FIFO_BUFFER_SIZE; // Reload DMA counter
-		// If the data buffer is full the DMA should remain disabled until the buffer is processed.
+		// Reload DMA counter
+		DMA1_Channel6->CNDTR = USART_FIFO_SIZE;
+		// If the data buffer is full the DMA should be remain disabled until the buffer is processed.
 		if (GPS_buf_cntr <= GPS_BUFFER_SIZE) DMA1_Channel6->CCR |= DMA_CCR6_EN; // Enable DMA
 	};
 }
@@ -509,7 +537,7 @@ void ParsePacket(void) {
 		// TODO: filter some crazy high values
 	} else CurData.Cadence = 0;
 
-	// Average cadence from last five values
+	// Average cadence for last five values
 	memmove(&_cdc[1],&_cdc[0],sizeof(_cdc) - sizeof(*_cdc));
 	_cdc[0] = CurData.Cadence;
 	_cdc_avg = 0;
@@ -547,7 +575,7 @@ void ParsePacket(void) {
 			diff_SPD = 65535 - _prev_cntr_SPD + nRF24_Packet.cntr_SPD;
 		}
 		CurData.dbg_cntr_diff = diff_SPD;
-		if (diff_SPD > 1000) diff_SPD = 1; // FIXME: this is lame workaround for crazy values
+		if (diff_SPD > 1000) diff_SPD = 1; // FIXME: this is lame workaround for crazy high values
 		CurData.Odometer += Settings.WheelCircumference * diff_SPD;
 		CurData.TripDist += Settings.WheelCircumference * diff_SPD;
 	} else {
@@ -560,11 +588,11 @@ void ParsePacket(void) {
 	CurData.AvgSpeed = (uint32_t)((CurData.TripDist * 0.36) / CurData.TripTime);
 	if (CurData.Cadence > 0) {
 		// A simple calculation of the average cadence.
-		_cntr_cadence++;
+		_cadence_cntr++;
 		// At constant value of cadence 300RPM this accumulator will overflow
 		// after about 4000 hours of ride
 		_cadence_accum += CurData.Cadence;
-		CurData.AvgCadence = _cadence_accum / _cntr_cadence;
+		CurData.AvgCadence = _cadence_accum / _cadence_cntr;
 	}
 
 	_new_packet = TRUE;
@@ -572,6 +600,7 @@ void ParsePacket(void) {
 
 // Parse GPS data
 void ParseGPS(void) {
+//	BEEPER_Enable(222,1);
 	GPS_InitData(); // Clear previously parsed GPS data
 	while (GPS_msg.end < GPS_buf_cntr) {
 		GPS_FindSentence(&GPS_msg,GPS_buf,GPS_msg.end,GPS_buf_cntr);
@@ -594,7 +623,8 @@ void ParseGPS(void) {
 			CurData.GPSSpeed = GPSData.speed;
 			if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
 		}
-		GPS_new_data = TRUE;
+		GPS_new_data = FALSE;
+		GPS_parsed = TRUE;
 	}
 }
 
@@ -657,29 +687,34 @@ int main(void) {
 	memset(&nRF24_Packet,0,sizeof(nRF24_Packet));
 	memset(&CurData,0,sizeof(CurData));
 	memset(&altitude_history,0,sizeof(altitude_history));
-	memset(&GPS_buf,0,sizeof(GPS_buf));
-	memset(&USART_FIFO,0,FIFO_BUFFER_SIZE);
+	memset(&GPS_buf,'#',sizeof(GPS_buf));
+	memset(&USART_FIFO,0,USART_FIFO_SIZE);
 	memset(&_cdc,0,sizeof(_cdc));
 	GPS_InitData();
 
-	_new_packet     = FALSE;
-	_new_time       = FALSE;
-	_screensaver    = FALSE;
-	_bmp180_present = FALSE;
-	_SD_present     = FALSE;
-	_logging        = FALSE;
-	_RF_icon        = TRUE;
-	GPS_new_data    = FALSE;
-	GPS_buf_cntr    = 0;
-	_DMA_cntr       = 0;
-	_prev_cntr_SPD  = 0;
-	_prev_tim_SPD   = 0;
-	_tim_excess     = 0;
-	_cntr_cadence   = 0;
-	_cadence_accum  = 0;
-	_no_signal_time = 65535;
-	_idle_time      = 0;
-	_cdc_avg        = 0;
+	_new_packet        = FALSE;
+	_new_time          = FALSE;
+	_screensaver       = FALSE;
+	_bmp180_present    = FALSE;
+	_SD_present        = FALSE;
+	_logging           = FALSE;
+	_icon_RF           = TRUE;
+	_icon_LOG          = TRUE;
+	GPS_new_data       = FALSE;
+	GPS_parsed         = FALSE;
+	GPS_buf_cntr       = 0;
+	_DMA_cntr          = 0;
+	_prev_cntr_SPD     = 0;
+	_prev_tim_SPD      = 0;
+	_tim_excess        = 0;
+	_cadence_cntr      = 0;
+	_cadence_accum     = 0;
+	_time_no_signal    = 65535;
+	_time_idle         = 0;
+	_time_scr_timeout  = 0;
+	_cdc_avg           = 0;
+	_CRC_locl          = 0;
+	_CRC_rcvd          = 0;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
 	_GPS_time_duty_cycle = GPS_TIME_SYNC_DUTY_CYCLE + 1;
 	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
@@ -713,11 +748,6 @@ int main(void) {
 	UC1701_Fill(0x00);
 	GUI_DrawBitmap(98,39,30,25,&bmp_bike_man[0]);
 	PutStr(104,0,"WBC",fnt7x10);
-
-	i  = PutStr(0,scr_height - 15,"CPU:",fnt5x7) - 1;
-	i += PutIntF(i,scr_height - 15,SystemCoreClock / 1000,3,fnt5x7);
-	PutStr(i,scr_height - 15,"MHz",fnt5x7);
-	UC1701_Flush();
 
 	i = PutStr(0,scr_height - 7,"STAT:",fnt5x7) - 1;
 	PutStr(i,scr_height - 7,GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) == Bit_RESET ? "0" : "1",fnt5x7);
@@ -827,6 +857,10 @@ int main(void) {
 	// Configure wake-up timer to wake every second and enable it
 	RTC_SetWakeUp(1);
 
+	// Enable USART RX IRQ
+	GPS_USART_PORT->SR &= USART_SR_RXNE; // Clear RXNE flag
+	GPS_USART_PORT->CR1 |= USART_CR1_RXNEIE;
+
 	// Initialize GPS module
 	GPS_Init();
 
@@ -862,12 +896,46 @@ int main(void) {
 		if (_new_packet) {
 			// New packet received and parsed
 			_new_packet = FALSE;
-			_RF_icon = !_RF_icon; // Blink RF icon
+			_icon_RF = !_icon_RF; // Blink RF icon
+		}
 
-			// FIXME: it's a bad idea to do that in a place like this (IRQ handler)
+/*
+		if (GPS_new_data) {
+			// New GPS packets received
+			ParseGPS(); // About 3ms with full buffer
+			// Enable the USART2 RX complete interrupt when the GPS data was parsed (ready to get new)
+			GPS_USART_PORT->CR1 |= USART_CR1_RXNEIE;
+		}
+*/
+
+		if (GPS_parsed) {
+			// GPS data parsed
+			if (GPSData.datetime_valid && _GPS_time_duty_cycle > GPS_TIME_SYNC_DUTY_CYCLE) {
+				// Date and time obtained from GPS
+				_time.RTC_Hours   =  GPSData.time / 3600;
+				_time.RTC_Minutes = (GPSData.time / 60) % 60;
+				_time.RTC_Seconds =  GPSData.time % 60;
+				i = GPSData.date / 1000000;
+				_date.RTC_Date  = i;
+				_date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
+				_date.RTC_Year  = (GPSData.date % 10000) - 2000;
+				RTC_AdjustTimeZone(&_time,&_date,Settings.GMT_offset);
+				RTC_SetDateTime(&_time,&_date);
+				_GPS_time_duty_cycle = 0;
+			}
+			GPS_parsed = FALSE;
+		}
+
+		if (_new_time) {
+			// Time updated (every second)
+			_new_time = FALSE;
+			// ATTENTION! BMP180 polling is pretty slow!
+			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
+
 			// Write debug information to the log file
 			if (_logging) {
-//				__set_BASEPRI(6 << (8 - __NVIC_PRIO_BITS)); // Block interrupts with priority higher or equal to 6
+				_icon_LOG = !_icon_LOG; // Blink LOG icon
+
 				LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
 				LOG_WriteStr(";");
 				LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
@@ -905,22 +973,22 @@ int main(void) {
 				LOG_WriteIntF(CurData.Odometer,5);
 				LOG_WriteStr(";");
 				if (GPSData.valid) {
-					LOG_WriteIntF(GPSData.latitude,4);
+					LOG_WriteIntF(GPSData.latitude,6);
 					LOG_WriteStr(";");
-					LOG_WriteIntF(GPSData.longitude,4);
+					LOG_WriteIntF(GPSData.longitude,6);
 					LOG_WriteStr(";");
 					LOG_WriteInt(GPSData.altitude);
 					LOG_WriteStr(";");
 					LOG_WriteIntF(GPSData.speed,2);
 					LOG_WriteStr(";");
-					LOG_WriteInt(GPSData.course);
+					LOG_WriteIntF(GPSData.course,2);
 					LOG_WriteStr(";");
 					LOG_WriteIntF(GPSData.PDOP,2);
 					LOG_WriteStr(";");
 					LOG_WriteIntU(GPSData.fix_quality);
 					LOG_WriteStr(";");
 				} else {
-					LOG_WriteStr("XX.XXXX;XXX.XXXX;0;0.0;0.0;0;");
+					LOG_WriteStr("0.0;0.0;0;0.0;0.0;0;");
 				}
 				LOG_WriteIntU(CurData.dbg_cntr_diff);
 				LOG_WriteStr(";");
@@ -932,33 +1000,16 @@ int main(void) {
 				LOG_WriteStr(";");
 				LOG_WriteIntF(BMP180_hPa_to_mmHg(CurData.Pressure),1);
 				LOG_WriteStr("\r\n");
-//				__set_BASEPRI(0U); // Remove the BASEPRI masking
 			}
-		}
 
-		if (GPS_new_data) {
-			// GPS data parsed
-			if (GPSData.datetime_valid && _GPS_time_duty_cycle > GPS_TIME_SYNC_DUTY_CYCLE) {
-				// Date and time obtained from GPS
-				_time.RTC_Hours   =  GPSData.time / 3600;
-				_time.RTC_Minutes = (GPSData.time / 60) % 60;
-				_time.RTC_Seconds =  GPSData.time % 60;
-				i = GPSData.date / 1000000;
-				_date.RTC_Date  = i;
-				_date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
-				_date.RTC_Year  = (GPSData.date % 10000) - 2000;
-				RTC_AdjustTimeZone(&_time,&_date,Settings.GMT_offset);
-				RTC_SetDateTime(&_time,&_date);
-				_GPS_time_duty_cycle = 0;
+			// Check if the UART are disabled and enable it if so
+			if (!(TIM7->CR1 & TIM_CR1_CEN) &&
+					!(DMA1_Channel6->CCR & DMA_CCR6_EN) &&
+					!(GPS_USART_PORT->CR1 & USART_CR1_RXNEIE)) {
+				// Enable USART2 RX complete interrupt
+				GPS_USART_PORT->CR1 |= USART_CR1_RXNEIE;
+				GPS_buf_cntr = 0;
 			}
-			GPS_new_data = FALSE;
-		}
-
-		if (_new_time) {
-			// Time updated (every second)
-			_new_time = FALSE;
-			// ATTENTION! BMP180 polling is pretty slow!
-			if (_bmp180_present && _altitude_duty_cycle > ALT_MEASURE_DUTY_CYCLE) UpdateBMP180();
 		}
 
 		if (GUI_refresh) {
@@ -973,9 +1024,9 @@ int main(void) {
 			VLine(67,0,scr_height - 1,PSet);
 
 			// RF icon
-			if (_no_signal_time > NO_SIGNAL_TIME)
+			if (_time_no_signal > NO_SIGNAL_TIME)
 				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[65]);
-			else if (_RF_icon) {
+			else if (_icon_RF) {
 				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[39]);
 			} else {
 				GUI_DrawBitmap(0,0,13,7,&bmp_icon_13x7[52]);
@@ -993,13 +1044,14 @@ int main(void) {
 			else GUI_DrawBitmap(32,0,13,7,&bmp_icon_13x7[65]);
 
 			// LOG icon
-			if (_logging)
+			if (_logging) {
 				GUI_DrawBitmap(48,0,13,7,&bmp_icon_13x7[91]);
-			else GUI_DrawBitmap(48,0,13,7,&bmp_icon_13x7[65]);
+				if (_icon_LOG) InvertRect(48,0,13,7);
+			} else GUI_DrawBitmap(48,0,13,7,&bmp_icon_13x7[65]);
 
 			// FIXME: Hardcoded "cadence" value
 			PutStr(scr_width - 30,scr_height - 27,"CDC",fnt5x7);
-			if (_no_signal_time > NO_SIGNAL_TIME) {
+			if (_time_no_signal > NO_SIGNAL_TIME) {
 				for (i = 0; i < 3; i++)	FillRect(scr_width - (i * 10) - 15,scr_height - 3,scr_width - (i * 10) - 7,scr_height - 1,PSet);
 			} else {
 				GUI_DrawNumber(-scr_width + 7,-scr_height + 1,CurData.Cadence,0,DS_Small);

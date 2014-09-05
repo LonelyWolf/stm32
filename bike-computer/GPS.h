@@ -24,6 +24,9 @@
                                           // This very rough value representing GPS horizontal position accuracy
 
 
+#define GPS_USART_PORT                 USART2 // Port connected to the GPS
+
+
 typedef enum {
 	NMEA_BAD     = 0x00,
 	NMEA_GLL     = 0x01,
@@ -111,6 +114,7 @@ typedef struct {
 // Public variables
 extern GPS_Data_TypeDef GPSData;                   // Parsed GPS information
 extern bool GPS_new_data;                          // TRUE if received new GPS packet
+extern bool GPS_parsed;                            // TRUE if GPS packets was parsed
 extern uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
 extern NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
 extern uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter

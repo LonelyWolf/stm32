@@ -9,6 +9,7 @@
 
 GPS_Data_TypeDef GPSData;                   // Parsed GPS information
 bool GPS_new_data;                          // TRUE if received new GPS packet
+bool GPS_parsed;                            // TRUE if GPS packets was parsed
 uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
 NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
 uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter
@@ -54,11 +55,11 @@ void GPS_SendCommand(char *cmd) {
 	uint8_t cmd_CRC;
 
 	cmd_CRC = GPS_CRC(cmd);
-	UART_SendStr(cmd);
-	UART_SendChar(HEX_CHARS[cmd_CRC >> 4]);
-	UART_SendChar(HEX_CHARS[cmd_CRC & 0x0f]);
-	UART_SendChar('\r');
-	UART_SendChar('\n');
+	UART_SendStr(USART2,cmd);
+	UART_SendChar(USART2,HEX_CHARS[cmd_CRC >> 4]);
+	UART_SendChar(USART2,HEX_CHARS[cmd_CRC & 0x0f]);
+	UART_SendChar(USART2,'\r');
+	UART_SendChar(USART2,'\n');
 }
 
 // Find end of the GPS sentence
@@ -204,16 +205,16 @@ uint16_t GPS_ParseCoordinate(uint8_t *buf, uint8_t len, uint32_t *value, uint8_t
 
 	// Coordinate
 	if (buf[pos] != ',') {
-		// '10000' determines length of the fractional part in result
-		// e.g. 10000 means 4 fractional digits
-		*value = atos_len(&buf[pos],len) * 10000; // degrees
+		// '1000000' determines length of the fractional part in result
+		// e.g. 1000000 means 6 fractional digits
+		*value = atos_len(&buf[pos],len) * 1000000; // degrees
 		pos += len;
 		f_len = pos;
 		pos += GPS_ParseFloat(&buf[pos],&coord_minutes); // minutes
 		f_len = pos - f_len - 4; // fractional part length
 		if (f_len > 0) {
 			// Float calculations, slow
-			*value += (uint32_t)((coord_minutes / (pwr10(f_len) * 60.0)) * 10000);
+			*value += (uint32_t)((coord_minutes / (pwr10(f_len) * 60.0)) * 1000000);
 		} else {
 			// Are you serious? Floating part is mandatory!
 			*value += coord_minutes * 100;
@@ -683,16 +684,16 @@ void GPS_Init(void) {
 	memset(&GPS_PMTK,0,sizeof(GPS_PMTK));
 
 	// Assume what UART speed of GPS module is 9600bps after power-up
-	UART_SetSpeed(9600);
+	UARTx_SetSpeed(USART2,9600);
 	Delay_ms(500); // Give time for GPS to boot up
 	GPS_SendCommand(PMTK_SET_NMEA_BAUDRATE_115200); // Ask GPS chip to set 115200 baudrate
-	UART_SetSpeed(115200); // GPS must now working at higher speed
+	UARTx_SetSpeed(USART2,115200); // GPS must now working at higher speed
 	Delay_ms(50); // Wait some time
 
 	GPS_SendCommand(PMTK_CMD_HOT_START); // GPS hot start
 
 	// Wait for $PMTK010 sentence
-	wait = 0xffffff;
+	wait = 0x00ffffff;
 	while (GPS_PMTK.PMTK010 != 2 && --wait);
 
 	// Configure MTK chip if it responded correctly
