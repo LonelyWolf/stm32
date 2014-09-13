@@ -277,33 +277,18 @@ uint32_t LOG_WriteDate(uint8_t day, uint8_t month, uint8_t year) {
 	uint8_t txt[8];
 
 	// Day
-	if (day < 10) {
-		txt[0] = '0';
-		txt[1] = day + '0';
-	} else {
-		txt[0] = (day / 10) + '0';
-		txt[1] = (day % 10) + '0';
-	}
+	txt[0] = (day / 10) + '0';
+	txt[1] = (day % 10) + '0';
 	txt[2] = '.';
 
 	// Month
-	if (month < 10) {
-		txt[3] = '0';
-		txt[4] = month + '0';
-	} else {
-		txt[3] = (month / 10) + '0';
-		txt[4] = (month % 10) + '0';
-	}
+	txt[3] = (month / 10) + '0';
+	txt[4] = (month % 10) + '0';
 	txt[5] = '.';
 
 	// Year
-	if (year < 10) {
-		txt[6] = '0';
-		txt[7] = year + '0';
-	} else {
-		txt[6] = (year / 10) + '0';
-		txt[7] = (year % 10) + '0';
-	}
+	txt[6] = (year / 10) + '0';
+	txt[7] = (year % 10) + '0';
 
 	return LOG_WriteBin(txt,8);
 }
@@ -318,33 +303,92 @@ uint32_t LOG_WriteTime(uint8_t hours, uint8_t minutes, uint8_t seconds) {
 	uint8_t txt[8];
 
 	// Hours
-	if (hours < 10) {
-		txt[0] = '0';
-		txt[1] = hours + '0';
-	} else {
-		txt[0] = (hours / 10) + '0';
-		txt[1] = (hours % 10) + '0';
-	}
+	txt[0] = (hours / 10) + '0';
+	txt[1] = (hours % 10) + '0';
 	txt[2] = ':';
 
 	// Minutes
-	if (minutes < 10) {
-		txt[3] = '0';
-		txt[4] = minutes + '0';
-	} else {
-		txt[3] = (minutes / 10) + '0';
-		txt[4] = (minutes % 10) + '0';
-	}
+	txt[3] = (minutes / 10) + '0';
+	txt[4] = (minutes % 10) + '0';
 	txt[5] = ':';
 
 	// Seconds
-	if (seconds < 10) {
-		txt[6] = '0';
-		txt[7] = seconds + '0';
-	} else {
-		txt[6] = (seconds / 10) + '0';
-		txt[7] = (seconds % 10) + '0';
-	}
+	txt[6] = (seconds / 10) + '0';
+	txt[7] = (seconds % 10) + '0';
 
 	return LOG_WriteBin(txt,8);
+}
+
+// Write date and time to data buffer in TZ format
+// input:
+//   time - seconds from midnight
+//   date - date in format DDMMYYYY
+//   tz - time zone offset (hours)
+// return: number of bytes copied into data buffer
+// note: year must be greater than 1999
+//       result for zero tz (means UTC time): 2014-01-01T23:59:59Z
+//       result for non zero tz: 2014-01-01T23:59:59+0300
+uint32_t LOG_WriteDateTimeTZ(uint32_t time, uint32_t date, int8_t tz) {
+	uint8_t txt[24];
+	uint32_t i;
+
+	// Date
+	// Year
+	i = (date % 10000) - 2000;
+	txt[0] = '2';
+	txt[1] = '0';
+	txt[2] = (i / 10) + '0';
+	txt[3] = (i % 10) + '0';
+	txt[4] = '-';
+
+	// Month
+	i = (date - ((date / 1000000) * 1000000)) / 10000; // Ugly :(
+	txt[5] = (i / 10) + '0';
+	txt[6] = (i % 10) + '0';
+	txt[7] = '-';
+
+	// Day
+	i = date / 1000000;
+	txt[8]  = (i / 10) + '0';
+	txt[9]  = (i % 10) + '0';
+	txt[10] = 'T';
+
+	// Time
+	// Hours
+	i =  time / 3600;
+	txt[11] = (i / 10) + '0';
+	txt[12] = (i % 10) + '0';
+	txt[13] = ':';
+
+	// Minutes
+	i = (time / 60) % 60;
+	txt[14] = (i / 10) + '0';
+	txt[15] = (i % 10) + '0';
+	txt[16] = ':';
+
+	// Seconds
+	i = time % 60;
+	txt[17] = (i / 10) + '0';
+	txt[18] = (i % 10) + '0';
+
+	if (tz == 0) {
+		// This is UTC time
+		txt[19] = 'Z';
+
+		return LOG_WriteBin(txt,20);
+	} else {
+		// This is local time with time zone offset
+		if (tz > 0) {
+			txt[19] = '+';
+		} else {
+			txt[19] = '-';
+			tz *= -1;
+		}
+		txt[20] = (tz / 10) + '0';
+		txt[21] = (tz % 10) + '0';
+		txt[22] = '0';
+		txt[23] = '0';
+
+		return LOG_WriteBin(txt,24);
+	}
 }

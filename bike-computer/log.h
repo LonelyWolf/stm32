@@ -35,5 +35,6 @@ uint32_t LOG_WriteIntU(uint32_t num);
 uint32_t LOG_WriteIntF(uint32_t num, uint8_t decimals);
 uint32_t LOG_WriteDate(uint8_t day, uint8_t month, uint8_t year);
 uint32_t LOG_WriteTime(uint8_t hours, uint8_t minutes, uint8_t seconds);
+uint32_t LOG_WriteDateTimeTZ(uint32_t time, uint32_t date, int8_t tz);
 
 #endif // __LOG_H
