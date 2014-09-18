@@ -4,19 +4,18 @@
 
 
 // SDCARD SPI peripheral
-#define SDCARD_SPI_PORT    SPI1
+#define SDCARD_SPI_PORT      SPI1
 
 // SDCARD GPIO peripherals
-#define SDCARD_PORT_PERIPH RCC_AHBPeriph_GPIOB
+#define SDCARD_PORT_PERIPH   RCC_AHBPeriph_GPIOB
 
 // SDCARD CS (Chip Select) pin
-#define SDCARD_CS_PORT     GPIOB
-#define SDCARD_CS_PIN      GPIO_Pin_6    // PB6
+#define SDCARD_CS_PORT       GPIOB
+#define SDCARD_CS_PIN        GPIO_Pin_6    // PB6
 
 // SDCARD CS pin macros
-#define SDCARD_CS_L() GPIO_ResetBits(SDCARD_CS_PORT,SDCARD_CS_PIN)
-#define SDCARD_CS_H() GPIO_SetBits(SDCARD_CS_PORT,SDCARD_CS_PIN)
-
+#define SDCARD_CS_L()        SDCARD_CS_PORT->BSRRH = SDCARD_CS_PIN
+#define SDCARD_CS_H()        SDCARD_CS_PORT->BSRRL = SDCARD_CS_PIN
 
 // SD commands  index
 #define SD_CMD_GO_IDLE_STATE                       ((uint8_t)0)
@@ -67,15 +66,35 @@
 // SD_CMD_APP_CMD should be sent before sending these commands.
 #define SD_CMD_SD_APP_OP_COND                      ((uint8_t)41) // For SD Card only
 
-// Mask for R6 Response
-#define SD_CHECK_PATTERN                ((uint32_t)0x000001AA)
+// Mask for R6 response
+#define SD_CHECK_PATTERN                           ((uint32_t)0x000001AA)
 
 // Control tokens
 #define SD_TOKEN_START_BLOCK                       ((uint8_t)0xfe) // Start block
 #define SD_TOKEN_DATA_ACCEPTED                     ((uint8_t)0x05) // Data accepted
-#define SD_TOKEN_DATA_REJECTED                     ((uint8_t)0x0b) // Data rejected due to a CRC error
-#define SD_TOKEN_DATA_WRITE_ERROR                  ((uint8_t)0x0d) // Data rejected due to a write error
+#define SD_TOKEN_WRITE_CRC_ERROR                   ((uint8_t)0x0b) // Data rejected due to a CRC error
+#define SD_TOKEN_WRITE_ERROR                       ((uint8_t)0x0d) // Data rejected due to a write error
+#define SD_TOKEN_READ_ERROR                        ((uint8_t)0x01) // Data read error
+#define SD_TOKEN_READ_CC_ERROR                     ((uint8_t)0x02) // Internal card controller error
+#define SD_TOKEN_READ_ECC_ERROR                    ((uint8_t)0x04) // Card ECC failed
+#define SD_TOKEN_READ_RANGE_ERROR                  ((uint8_t)0x08) // Read address out of range
 
+// Masks for R1 response
+#define SD_R1_IDLE                                 ((uint8_t)0x01) // The card is in idle state
+#define SD_R1_ILLEGAL_CMD                          ((uint8_t)0x04) // Illegal command
+#define SD_R1_CRC_ERROR                            ((uint8_t)0x08) // The CRC check of the last command failed
+#define SD_R1_ADDR_ERROR                           ((uint8_t)0x20) // Incorrect address specified
+#define SD_R1_PARAM_ERROR                          ((uint8_t)0x40) // Parameter error
+
+
+// SD card response type
+typedef enum {
+	SD_R1                   = 0x01, // R1
+	SD_R1b                  = 0x02, // R1b
+	SD_R2                   = 0x03, // R2
+	SD_R3                   = 0x04, // R3
+	SD_R7                   = 0x05  // R7
+} SDCmdResp_TypeDef;
 
 typedef enum {
 	SDCT_UNKNOWN            = 0x00,
@@ -92,11 +111,13 @@ typedef enum {
 	SDR_ReadError           = 0x03,  // Read block error (response for CMD17)
 	SDR_WriteError          = 0x04,  // Write block error (response for CMD24)
 	SDR_WriteErrorInternal  = 0x05,  // Write block error due to internal card error
-	SDR_Unsupported         = 0x06,
+	SDR_Unsupported         = 0x06,  // Unsupported card found
 	SDR_BadResponse         = 0x07,
-	SDR_SetBlockSizeFailed  = 0x08,
+	SDR_SetBlockSizeFailed  = 0x08,  // Set block size command failed (response for CMD16)
 	SDR_UnknownCard         = 0x09,
-	SDR_NoResponse          = 0x0a
+	SDR_NoResponse          = 0x0a,
+	SDR_AddrError           = 0x0b,  // Address error (misaligned or out of bounds)
+	SDR_WriteCRCError       = 0x0c   // Data write rejected due to a CRC error
 } SDResult_TypeDef;
 
 typedef struct {
