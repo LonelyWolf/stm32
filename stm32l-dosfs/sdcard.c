@@ -87,44 +87,87 @@ void SD_ReadBuf(uint8_t *pBuf, uint16_t len) {
 	while (len--) *pBuf++ = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
 }
 
-// Send command to the SD card
+// Send command to the SD card and get response
 // input:
 //   cmd - SD card command
 //   arg - 32-bit argument for SD card command
-// return: SD card response (0xff if it was a timeout)
-uint8_t SD_Cmd(uint8_t cmd, uint32_t arg) {
+// return: SDR_xxx
+SDResult_TypeDef SD_Cmd(uint8_t cmd, uint32_t arg, SDCmdResp_TypeDef resp_type, uint8_t *resp) {
 	uint8_t buf[6];
-	uint32_t wait = 2000;
+	uint32_t wait = 2000; // response timeout
+	uint8_t rdLen = 0; // response length
 	uint8_t response;
 
+	// Determine response length
+	switch (resp_type) {
+		case SD_R1:
+		case SD_R1b:
+			rdLen = 1;
+			break;
+		case SD_R2:
+			rdLen = 2;
+			break;
+		case SD_R3:
+		case SD_R7:
+			rdLen = 5;
+			break;
+		default:
+			return SDR_BadResponse;
+			break;
+	}
+
+	// '01' start bits -> [6b]command -> [32b]argument -> [7b]CRC -> '1' end bit
 	buf[0] =  cmd | 0x40; // command
 	buf[1] = (arg >> 24); // argument is packed big-endian
 	buf[2] = (arg >> 16) & 0xff;
 	buf[3] = (arg >>  8) & 0xff;
 	buf[4] =  arg & 0xff;
-	buf[5] = CRC7_buf(&buf[0],5) | 0x01; // CRC (end bit always '1')
+	buf[5] = CRC7_buf(&buf[0],5) | 0x01; // CRC (last bit always '1')
 
-	// Dummy read is necessary for some cards
-	SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+	// Select SD card
+	SDCARD_CS_L();
 
-	// Send: '01' start bits -> [6b]command -> [32b]argument -> [7b]CRC -> '1' end bit
+	// Send CMD#
 	SD_WriteBuf(&buf[0],6);
 
-	// Wait for response from SD card
+	// Wait for a valid response
 	do {
 		response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-	} while (((response & 0x80) != 0) && --wait);
+	} while ((response & 0x80) && --wait);
 
-	return response;
+	// Timeout
+	if (wait == 0) {
+		SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		SDCARD_CS_H();
+		return SDR_Timeout;
+	}
+
+	// Read the response
+	while (rdLen--) {
+		*resp++ = response;
+		response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+	}
+
+	// Release SD card
+	SDCARD_CS_H();
+
+	return SDR_Success;
 }
 
-// Initialize SD card
-// note: SPI peripheral must initialized before
+// Initialize the SD card
+// return: SDR_xxx
+// note: SPI peripheral must be initialized before
 SDResult_TypeDef SD_Init(void) {
 	uint32_t wait;
-	uint8_t response;
-	uint32_t long_response;
+	uint8_t resp[5]; // buffer for card response
 	GPIO_InitTypeDef PORT;
+
+	// Populate SDCard structure with default values
+	SDCard.CardCapacity = 0;
+	SDCard.CardMaxBusClkFreq = 0;
+	SDCard.CardBlockSize = 0;
+	SDCard.CardCSDVer = 0;
+	SDCard.CardType = SDCT_UNKNOWN;
 
 	// Configure SDCARD CS control line as push-pull output with pullup
 	RCC_AHBPeriphClockCmd(SDCARD_PORT_PERIPH,ENABLE);
@@ -138,9 +181,6 @@ SDResult_TypeDef SD_Init(void) {
 	// Set low SPI speed (32MHz -> 125kHz)
 	SPIx_SetSpeed(SDCARD_SPI_PORT,SPI_BR_256);
 
-	// Pull CS low - select SD card
-	SDCARD_CS_L();
-
 	SDCard.CardType = SDCT_UNKNOWN;
 
 	// Must wait at least 74 clock ticks after reset
@@ -149,38 +189,36 @@ SDResult_TypeDef SD_Init(void) {
 
 	// Software SD card reset (wait for SD card to enter IDLE state)
 	// Some cards requires many IDLE commands, so do it several times
-	wait = 50;
-	while (SD_Cmd(SD_CMD_GO_IDLE_STATE,0x00) != 0x01 && --wait);
-	if (!wait) {
-		SDCARD_CS_H();
-		return SDR_NoResponse;
-	}
+	wait = 100;
+	do {
+		SD_Cmd(SD_CMD_GO_IDLE_STATE,0x00,SD_R1,resp);
+	} while (!(resp[0] & SD_R1_IDLE) && --wait);
+	if (!wait) return SDR_NoResponse;
 
 	// CMD8: SEND_IF_COND. Send this command to verify SD card interface operating condition
     // Argument: - [31:12]: Reserved (shall be set to '0')
 	//           - [11:8]: Supply Voltage (VHS) 0x1 (Range: 2.7-3.6 V)
 	//           - [7:0]: Check Pattern (recommended 0xAA)
-	response = SD_Cmd(SD_CMD_HS_SEND_EXT_CSD,SD_CHECK_PATTERN); // CMD8
-	if (response == 0x05) {
+	SD_Cmd(SD_CMD_HS_SEND_EXT_CSD,SD_CHECK_PATTERN,SD_R7,resp); // CMD8
+	if (resp[0] == 0x05) {
 		// SDv1 or MMC
 
 		// Issue ACMD41 with zero argument while card returns idle state
 		wait = 100;
 		do {
-			response = SD_Cmd(SD_CMD_APP_CMD,0); // CMD55
-			if (response & 0x04) break; // MMC will respond with R1 'illegal command'
-			response = SD_Cmd(SD_CMD_SD_APP_OP_COND,0); // ACMD41
-		} while (response != 0 && --wait);
+			SD_Cmd(SD_CMD_APP_CMD,0,SD_R1,resp); // CMD55
+			if (resp[0] & SD_R1_ILLEGAL_CMD) break; // MMC will respond with R1 'illegal command'
+			SD_Cmd(SD_CMD_SD_APP_OP_COND,0,SD_R3,resp); // ACMD41
+		} while (resp[0] != 0 && --wait);
 
-		if (!wait || response & 0x04) {
+		if (!wait || resp[0] & SD_R1_ILLEGAL_CMD) {
 			// MMC or bad card
 			// Issue CMD1: initiate initialization process.
 			wait = 20;
 			do {
-				response = SD_Cmd(SD_CMD_SEND_OP_COND,0); // CMD1
-			} while (response != 0 && --wait);
+				SD_Cmd(SD_CMD_SEND_OP_COND,0,SD_R1,resp); // CMD1
+			} while (resp[0] != 0 && --wait);
 			if (!wait) {
-				SDCARD_CS_H();
 				return SDR_UnknownCard;
 			} else {
 				SDCard.CardType = SDCT_MMC; // MMC
@@ -192,135 +230,133 @@ SDResult_TypeDef SD_Init(void) {
 	} else {
 		// SDv2 or later
 
-		// R7 response
-		long_response  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 24;
-		long_response |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 16;
-		long_response |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff) <<  8;
-		long_response |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-
-		// SDv2 pattern mismatch -> unsupported SD card
-		if ((long_response & 0x01ff) != (SD_CHECK_PATTERN & 0x01ff)) {
-			SDCARD_CS_H();
-			return SDR_Unsupported;
-		}
+		// Check for SDv2 pattern
+		wait  = resp[1] << 24;
+		wait |= resp[2] << 16;
+		wait |= resp[3] << 8;
+		wait |= resp[4];
+		if ((wait & 0x01ff) != (SD_CHECK_PATTERN & 0x01ff)) return SDR_Unsupported;
 
 		// Issue ACMD41 (this can be up to one second long)
 		wait = 0x2710;
 		do {
 			// CMD55: Send leading command for ACMD<n> command.
-			SD_Cmd(SD_CMD_APP_CMD,0); // CMD55
+			SD_Cmd(SD_CMD_APP_CMD,0,SD_R1,resp); // CMD55
 			// ACMD41 - initiate initialization process.
 			// Set HCS bit (Host Capacity Support) to inform card what
 			// host support high capacity
-			response = SD_Cmd(SD_CMD_SD_APP_OP_COND,1 << 30); // ACMD41
-		} while (response && --wait);
-		if (!wait) {
-			SDCARD_CS_H();
-			return SDR_Timeout;
-		}
+			SD_Cmd(SD_CMD_SD_APP_OP_COND,1 << 30,SD_R3,resp); // ACMD41
+		} while (resp[0] && --wait);
+		if (!wait) return SDR_Timeout;
 
-		SDCard.CardType = SDCT_SDSC_V2; // SDv2
+		// This is SDv2
+		SDCard.CardType = SDCT_SDSC_V2;
 
 		// Read the OCR register
-		response = SD_Cmd(SD_CMD_READ_OCR,0); // CMD58
-		if (response == 0x00) {
+		SD_Cmd(SD_CMD_READ_OCR,0,SD_R3,resp); // CMD58
+		if (resp[0] == 0x00) {
 			// R3 response
-			long_response  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 24;
-			long_response |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 16;
-			long_response |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff) <<  8;
-			long_response |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+			wait  = resp[1] << 24;
+			wait |= resp[2] << 16;
+			wait |= resp[3] << 8;
+			wait |= resp[4];
 		} else {
 			SDCard.CardType = SDCT_UNKNOWN;
-			SDCARD_CS_H();
 			return SDR_BadResponse; // bad CMD58 response
 		}
 		// If CCS (Card Capacity Status) bit set -> this is SDHC or SDXC card
-		if (long_response & (1 << 30)) SDCard.CardType = SDCT_SDHC; // SDHC or SDXC
+		if (wait & (1 << 30)) SDCard.CardType = SDCT_SDHC; // SDHC or SDXC
 	}
 
 	// Unknown or bad card
-	if (SDCard.CardType == SDCT_UNKNOWN) {
-		SDCARD_CS_H();
-		return SDR_UnknownCard;
-	}
+	if (SDCard.CardType == SDCT_UNKNOWN) return SDR_UnknownCard;
 
 	// Set SPI to higher speed (32MHz -> 16MHz)
 	SPIx_SetSpeed(SDCARD_SPI_PORT,SPI_BR_2);
 
 	// Turn off CRC checks
-	//SD_Cmd(SD_CMD_CRC_ON_OFF,0x00000001); // CMD59
+//	SD_Cmd(SD_CMD_CRC_ON_OFF,0,SD_R1,resp); // CMD59
+	// Turn on CRC checks
+//	SD_Cmd(SD_CMD_CRC_ON_OFF,1,SD_R1,resp); // CMD59
 
-	// For SDv2,SDv1,MMC must set block size
-	// SDHC and SDXC have fixed size 512
-	if ((SDCard.CardType == SDCT_SDSC_V1) || (SDCard.CardType == SDCT_SDSC_V2) || (SDCard.CardType == SDCT_MMC)) {
-		// CMD16: block size = 512 bytes
-		if (SD_Cmd(SD_CMD_SET_BLOCKLEN,512) != 0x00) {
-			SDCARD_CS_H();
-			return SDR_SetBlockSizeFailed;
-		}
+	// Must set block size for SDv1,SDv2 and MMC
+	// SDHC and SDXC always have fixed size 512
+	if ((SDCard.CardType == SDCT_SDSC_V1) || (SDCard.CardType == SDCT_SDSC_V2) ||
+			(SDCard.CardType == SDCT_MMC)) {
+		SD_Cmd(SD_CMD_SET_BLOCKLEN,512,SD_R1,resp); // CMD16
+		if (resp[0] != 0x00) return SDR_SetBlockSizeFailed;
 	}
+
+	return SDR_Success;
+}
+
+// Read register data after sending register read request
+// input:
+//   buf - pointer to the buffer to store the register value
+//   length - length of the register (bytes)
+// return: SDR_xxx
+SDResult_TypeDef SD_ReadReg(uint8_t *buf, uint16_t length) {
+	uint32_t wait;
+	uint8_t cmdres;
+	uint16_t CRC_rcv; // Received CRC16 value of the register
+//	uint16_t CRC_loc; // Calculated CRC16 value of the register
+
+	// Select SD card
+	SDCARD_CS_L();
+
+	// Waiting for a start block token
+	wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
+	do {
+		cmdres = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+	} while (cmdres == 0xff && --wait);
+
+	if (!wait) {
+		// It was timeout
+		SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		SDCARD_CS_H();
+		return SDR_Timeout;
+	}
+
+	if (cmdres != SD_TOKEN_START_BLOCK)	{
+		// The card respond is not a start token
+		SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		SDCARD_CS_H();
+		return SDR_ReadError;
+	}
+
+	// Receive the register value
+	SD_ReadBuf(buf,length);
+
+	// 16-bit CRC (some cards demand to receive this)
+	// Since some SD cards give wrong CRC values, we don't check if they are correct
+	CRC_rcv  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 8;
+	CRC_rcv |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+//	CRC_loc  = CRC16_buf(buf,16);
+//	if (CRC_rcv != CRC_loc) return SD_CRCErorr;
+
+	// Provide extra 8 clocks for the card (from SanDisk specification)
+	SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
 
 	// Release SD card
 	SDCARD_CS_H();
-
-	// Read and parse card information
-	SD_ReadCSD();
-	SD_ReadCID();
 
 	return SDR_Success;
 }
 
 // Read the CSD register from the SD card
-// return:
-//   SD_Success - CSD register received and parsed
-//   SD_Timeout - it was a timeout
-//   SD_BadResponse - it was bad response for CMD9 command
+// return: SDR_xxx
 SDResult_TypeDef SD_ReadCSD(void) {
-	uint32_t wait;
-	uint8_t response;
-	uint16_t CSD_CRC_rcv; // Received CRC16 value of a CSD
-//	uint16_t CSD_CRC;     // Calculated CRC16 value of a CSD
+	uint8_t cmdres; // result of SD_Cmd
+	uint8_t resp[5]; // buffer for card response
 	uint32_t dev_size, dev_size_mul, rd_block_len;
 
-	// Select SD card
-	SDCARD_CS_L();
+	cmdres = SD_Cmd(SD_CMD_SEND_CSD,0,SD_R1,resp); // CMD9
+	if (cmdres != SDR_Success) return cmdres;
+	if (resp[0] != 0x00) return SDR_BadResponse;
+	cmdres = SD_ReadReg(SDCard.CSD,16);
+	if (cmdres != SDR_Success) return cmdres;
 
-	response = SD_Cmd(SD_CMD_SEND_CSD,0); // CMD9
-	if (response != 0x00) {
-		// Something wrong happened
-		SDCARD_CS_H();
-		return SDR_BadResponse;
-	} else {
-		// Wait start block token
-		wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
-		do response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff); while (response == 0xff && --wait);
-		if (!wait) {
-			// Timeout occurred
-			SDCARD_CS_H();
-			return SDR_Timeout;
-		}
-		if (response != SD_TOKEN_START_BLOCK) {
-			// Card responded but it was not the start block token
-			SDCARD_CS_H();
-			return SDR_ReadError;
-		}
-		// Receive block
-		SD_ReadBuf(&SDCard.CSD[0],16);
-	}
-
-	// 16-bit CRC (some cards demand to receive this)
-	// But some cards are not able to calculate a valid CRC16 value
-	// of CID and CSD reads.
-	CSD_CRC_rcv  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 8;
-	CSD_CRC_rcv |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-//	CSD_CRC      = CRC16_buf(&SDCard.CSD[0],16);
-
-	// Release SD card
-	SDCARD_CS_H();
-
-//	if (CSD_CRC_rcv != CSD_CRC) return SD_CRCErorr;
-
-	// Parse CSD register
+	// Parse the CSD register
 	SDCard.CardCSDVer = SDCard.CSD[0] >> 6; // CSD version
 	if (SDCard.CardType != SDCT_MMC) {
 		// SD
@@ -361,51 +397,16 @@ SDResult_TypeDef SD_ReadCSD(void) {
 }
 
 // Read the CID register from the SD card
-// return:
-//   SD_Success - CID register received and parsed
-//   SD_Timeout - it was a timeout
-//   SD_BadResponse - it was bad response for CMD10 command
+// return: SDR_xxx
 SDResult_TypeDef SD_ReadCID(void) {
-	uint32_t wait;
-	uint8_t response;
-	uint16_t CID_CRC_rcv; // Received CRC16 value of a CID
-//	uint16_t CID_CRC;     // Calculated CRC16 value of a CID
+	uint8_t cmdres; // result of SD_Cmd
+	uint8_t resp[5]; // buffer for card response
 
-	// Select SD card
-	SDCARD_CS_L();
-
-	response = SD_Cmd(SD_CMD_SEND_CID,0); // CMD10
-	if (response != 0x00) {
-		// Something wrong happened
-		SDCARD_CS_H();
-		return SDR_BadResponse;
-	} else {
-		// Wait start block token
-		wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
-		do response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff); while (response == 0xff && --wait);
-		if (!wait) {
-			// Timeout occurred
-			SDCARD_CS_H();
-			return SDR_Timeout;
-		}
-		if (response != SD_TOKEN_START_BLOCK) {
-			// Card responded but it was not the start block token
-			SDCARD_CS_H();
-			return SDR_ReadError;
-		}
-		// Receive block
-		SD_ReadBuf(&SDCard.CSD[0],16);
-	}
-
-	// 16-bit CRC (some cards demand to receive this)
-	CID_CRC_rcv  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 8;
-	CID_CRC_rcv |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-//	CID_CRC      = CRC16_buf(&SDCard.CID[0],16);
-
-	// Release SD card
-	SDCARD_CS_H();
-
-//	if (CID_CRC_rcv != CID_CRC) return SD_CRCErorr;
+	cmdres = SD_Cmd(SD_CMD_SEND_CID,0,SD_R1,resp); // CMD10
+	if (cmdres != SDR_Success) return cmdres;
+	if (resp[0] != 0x00) return SDR_BadResponse;
+	cmdres = SD_ReadReg(SDCard.CID,16);
+	if (cmdres != SDR_Success) return cmdres;
 
 	// Parse CID register
 	// ...
@@ -418,119 +419,145 @@ SDResult_TypeDef SD_ReadCID(void) {
 //   addr - start address of the block (must be power of two)
 //   pBuf - pointer to the buffer for received data
 //   len - buffer length
-// return:
-//   SD_Success - block of data received and stored in the buffer
-//   SD_Timeout - it was a timeout
-//   SD_ReadError - it was bad response for CMD17 command
-//   SD_CRCErorr - in case of mismatch computed CRC and received
+// return: SDR_xxx
 SDResult_TypeDef SD_ReadBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 	uint32_t wait;
-	uint8_t response;
-	uint16_t Blk_CRC_rcv; // Received CRC16 of the block
-	uint16_t Blk_CRC;     // Calculated CRC16 of the block
+	uint8_t cmdres;
+	uint8_t resp[5];
+	uint16_t CRC_rcv; // Received CRC16 of the block
+	uint16_t CRC_loc; // Calculated CRC16 of the block
 
-	// Select SD card
-	SDCARD_CS_L();
-
-	// SD card accepts byte address while SDHC accepts block address in multiples of 512
-	// so for SD card block address must be converted into corresponding byte address
+	// SDSC card uses byte unit address and
+	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
+	// For SDSC card addr must be converted to byte address
 	if (SDCard.CardType != SDCT_SDHC) addr <<= 9;
-	response = SD_Cmd(SD_CMD_READ_SINGLE_BLOCK,addr); // CMD17
-	if (response == 0x00) {
-		// Wait for start block token
+	cmdres = SD_Cmd(SD_CMD_READ_SINGLE_BLOCK,addr,SD_R1,resp); // CMD17
+	if (cmdres != SDR_Success) return cmdres;
+	if (resp[0] == 0x00) {
+		// Select SD card
+		SDCARD_CS_L();
+
+		// Waiting for a start block token
 		wait = 0xfff; // Recommended timeout is 100ms FIXME: 0xfff is set by sight, need calculate more adequate value
-		do response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff); while (response == 0xff && --wait);
+		do {
+			cmdres = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		} while (cmdres == 0xff && --wait);
+
 		if (!wait) {
-			// Timeout occurred
+			// It was timeout
+			SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
 			SDCARD_CS_H();
 			return SDR_Timeout;
 		}
-		if (response != SD_TOKEN_START_BLOCK) {
-			// Card responded but it was not the start block token
+
+		if (cmdres != SD_TOKEN_START_BLOCK)	{
+			// The card respond is not a start token
+			SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
 			SDCARD_CS_H();
-			return SDR_ReadError; // READ_SINGLE_BLOCK failed
+
+			if (cmdres & SD_TOKEN_READ_RANGE_ERROR) {
+				// Specified address out of range
+				return SDR_AddrError;
+			}
+
+			return SDR_ReadError;
 		}
+
 		// Receive data block
 		SD_ReadBuf(pBuf,len);
-	} else {
-		// Card rejected CMD17
-		// TODO: check for address error
+
+		// 16-bit CRC (it must be received even if CRC is off)
+		CRC_rcv  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 8;
+		CRC_rcv |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		CRC_loc  = CRC16_buf(pBuf,len);
+
+		// Provide extra 8 clocks for the card (from SanDisk specification)
+		SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+
+		// Release SD card
 		SDCARD_CS_H();
-		return SDR_ReadError; // READ_SINGLE_BLOCK failed
+	} else {
+		// CMD17 has been rejected
+		if (resp[0] & SD_R1_ADDR_ERROR) {
+			// Given address is misaligned
+			return SDR_AddrError;
+		}
+		if (resp[0] & SD_R1_PARAM_ERROR) {
+			// Given address out of bounds
+			return SDR_AddrError;
+		}
+		// Some unknown error
+		return SDR_ReadError;
 	}
 
-	// 16-bit CRC (some cards demand to receive this even if CRC is off)
-	Blk_CRC_rcv  = SPIx_SendRecv(SDCARD_SPI_PORT,0xff) << 8;
-	Blk_CRC_rcv |= SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-	Blk_CRC = CRC16_buf(pBuf,len);
-
-	// Release SD card
-	SDCARD_CS_H();
-
-	return (Blk_CRC_rcv == Blk_CRC) ? SDR_Success : SDR_CRCError;
+	return (CRC_rcv == CRC_loc) ? SDR_Success : SDR_CRCError;
 }
+
 
 // Write block of data to the SD card
 // input:
 //   addr - start address of the block (must be power of two)
 //   pBuf - pointer to the buffer with data
 //   len - buffer length
-// return:
-//   SD_Success - block of data received and stored in the buffer
-//   SD_Timeout - it was a timeout
-//   SD_WriteError - it was bad response for CMD24 command
-//   SD_CRCErorr - in case of mismatch computed CRC and received
+// return: SDR_xxx
 SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 	uint32_t wait;
-	uint8_t response;
-	uint16_t Blk_CRC; // Calculated CRC16 of the block
+	uint8_t cmdres;
+	uint8_t resp[5];
+	uint16_t CRC_loc; // Calculated CRC16 of the block
 
 	// Calculate 16-bit CRC
-	Blk_CRC = CRC16_buf(pBuf,len);
+	CRC_loc = CRC16_buf(pBuf,len);
 
-	// Select SD card
-	SDCARD_CS_L();
-
-	// SD card accepts byte address while SDHC accepts block address in multiples of 512
-	// so for SD card block address must be converted into corresponding byte address
+	// SDSC card uses byte unit address and
+	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
+	// For SDSC card addr must be converted to byte address
 	if (SDCard.CardType != SDCT_SDHC) addr <<= 9;
-	response = SD_Cmd(SD_CMD_WRITE_SINGLE_BLOCK,addr); // CMD24
-	if (response == 0x00) {
-		SPIx_SendRecv(SDCARD_SPI_PORT,SD_TOKEN_START_BLOCK); // Send start block token
-		SD_WriteBuf(pBuf,len); // Send data block
+	cmdres = SD_Cmd(SD_CMD_WRITE_SINGLE_BLOCK,addr,SD_R1,resp); // CMD24
+	if (cmdres != SDR_Success) return cmdres;
+	if (resp[0] == 0x00) {
+		// Select SD card
+		SDCARD_CS_L();
+
+		// Send start block token
+		SPIx_SendRecv(SDCARD_SPI_PORT,SD_TOKEN_START_BLOCK);
+
+		// Send data block
+		SD_WriteBuf(pBuf,len);
+
 		// Send CRC
-		SPIx_SendRecv(SDCARD_SPI_PORT,Blk_CRC >> 8);
-		SPIx_SendRecv(SDCARD_SPI_PORT,(uint8_t)Blk_CRC);
-		// Get data response from SD card
-		response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-		if ((response & 0x1f) != SD_TOKEN_DATA_ACCEPTED) {
+		SPIx_SendRecv(SDCARD_SPI_PORT,CRC_loc >> 8);
+		SPIx_SendRecv(SDCARD_SPI_PORT,(uint8_t)CRC_loc);
+
+		// Get response from the SD card
+		cmdres = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		cmdres &= 0x1f;
+		if (cmdres != SD_TOKEN_DATA_ACCEPTED) {
 			// Data block rejected by SD card for some reason
+			// Release SD card
+			SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
 			SDCARD_CS_H();
-			if ((response & 0x1f) == SD_TOKEN_DATA_WRITE_ERROR) {
-				// Data rejected due to a write error (internal SD card error)
-				return SDR_WriteErrorInternal;
-			} else {
-				// Data rejected due to a CRC error
-				// Actually this should not happen, one reason
-			    // is noise on SPI lines
-				return SDR_CRCError;
-			}
+
+			if (cmdres & SD_TOKEN_WRITE_CRC_ERROR) return SDR_WriteCRCError;
+			if (cmdres & SD_TOKEN_WRITE_ERROR) return SDR_WriteErrorInternal;
+			return SDR_WriteError;
 		}
+
 		// Wait while the SD card is busy by data programming
 		wait = 0x7fff; // Recommended timeout is 250ms (500ms for SDXC) FIXME: 0x7fff is set by sight, need calculate more adequate value
 		do {
-			response = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
-		} while (!response && --wait);
+			cmdres = SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
+		} while (cmdres == 0 && --wait);
+
+		// Provide extra 8 clocks for the card (from SanDisk specification)
+		SPIx_SendRecv(SDCARD_SPI_PORT,0xff);
 
 		// Release SD card
 		SDCARD_CS_H();
-
-		if (!wait) return SDR_Timeout; // Timeout occurred
 	} else {
 		// Card rejected CMD24
-		// TODO: check for address error
-		SDCARD_CS_H();
-		return SDR_WriteError; // WRITE_SINGLE_BLOCK failed
+		if ((resp[0] & SD_R1_ADDR_ERROR) || (resp[0] & SD_R1_PARAM_ERROR)) return SDR_AddrError;
+		return SDR_WriteError;
 	}
 
 	return SDR_Success;

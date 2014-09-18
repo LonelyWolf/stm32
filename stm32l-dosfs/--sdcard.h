@@ -72,12 +72,8 @@
 // Control tokens
 #define SD_TOKEN_START_BLOCK                       ((uint8_t)0xfe) // Start block
 #define SD_TOKEN_DATA_ACCEPTED                     ((uint8_t)0x05) // Data accepted
-#define SD_TOKEN_WRITE_CRC_ERROR                   ((uint8_t)0x0b) // Data rejected due to a CRC error
-#define SD_TOKEN_WRITE_ERROR                       ((uint8_t)0x0d) // Data rejected due to a write error
-#define SD_TOKEN_READ_ERROR                        ((uint8_t)0x01) // Data read error
-#define SD_TOKEN_READ_CC_ERROR                     ((uint8_t)0x02) // Internal card controller error
-#define SD_TOKEN_READ_ECC_ERROR                    ((uint8_t)0x04) // Card ECC failed
-#define SD_TOKEN_READ_RANGE_ERROR                  ((uint8_t)0x08) // Read address out of range
+#define SD_TOKEN_DATA_REJECTED                     ((uint8_t)0x0b) // Data rejected due to a CRC error
+#define SD_TOKEN_DATA_WRITE_ERROR                  ((uint8_t)0x0d) // Data rejected due to a write error
 
 // Masks for R1 response
 #define SD_R1_IDLE                                 ((uint8_t)0x01) // The card is in idle state
@@ -116,8 +112,7 @@ typedef enum {
 	SDR_SetBlockSizeFailed  = 0x08,  // Set block size command failed (response for CMD16)
 	SDR_UnknownCard         = 0x09,
 	SDR_NoResponse          = 0x0a,
-	SDR_AddrError           = 0x0b,  // Address error (misaligned or out of bounds)
-	SDR_WriteCRCError       = 0x0c   // Data write rejected due to a CRC error
+	SDR_AddrError           = 0x0b   // Address error
 } SDResult_TypeDef;
 
 typedef struct {
