@@ -80,9 +80,6 @@ uint16_t _DMA_cntr;                         // Last value of UART RX DMA counter
 uint32_t i,j;                               // THIS IS UNIVERSAL VARIABLES
 uint32_t ccc;                               // Wake-ups count, for debug purposes
 
-uint8_t _CRC_rcvd;                          // FIXME: last received CRC for debug
-uint8_t _CRC_locl;                          // FIXME: last computed CRC for debug
-
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -501,16 +498,9 @@ void ParsePacket(void) {
 	uint32_t i;
 	uint8_t CRC_local;
 
-	// Check CRC of the packet
+	// Check CRC of the packet and ignore it if CRC did not match
 	CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
-	// FIXME: for debug begin
-	_CRC_rcvd = nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1];
-	_CRC_locl = CRC_local;
-	// FIXME: for debug end
-	if (CRC_local != nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) {
-		_new_packet = TRUE; // FIXME: for debug
-		return;
-	}
+	if (CRC_local != nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) return;
 
 	// memcpy doesn't work here due to struct alignments
 	nRF24_Packet.cntr_SPD  = (nRF24_RX_Buf[0] << 8) + nRF24_RX_Buf[1];
@@ -522,18 +512,18 @@ void ParsePacket(void) {
 	// Convert SPD impulses period into speed
 	if (nRF24_Packet.tim_SPD > 0) {
 //		CurData.Speed = Settings.WheelCircumference * (992.9696969 * 0.36) / nRF24_Packet.tim_SPD;
-//		CurData.Speed = (Settings.WheelCircumference * 357.469090884) / nRF24_Packet.tim_SPD;
+		CurData.Speed = (Settings.WheelCircumference * 357.469090884) / nRF24_Packet.tim_SPD;
 //		CurData.Speed = Settings.WheelCircumference * (1007.08 * 0.36) / nRF24_Packet.tim_SPD;
-		CurData.Speed = (Settings.WheelCircumference * 362.5488) / nRF24_Packet.tim_SPD;
+//		CurData.Speed = (Settings.WheelCircumference * 362.5488) / nRF24_Packet.tim_SPD;
 		if (CurData.Speed > 999) CurData.Speed = 999; // Maximum 99.9km/h can be displayed
 	} else CurData.Speed = 0;
 
 	// Convert CDC impulses period into cadence
 	if (nRF24_Packet.tim_CDC > 0) {
 //		CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 992.9696969);
-//		CurData.Cadence = (uint32_t)(59578.181814 / nRF24_Packet.tim_CDC);
+		CurData.Cadence = (uint32_t)(59578.181814 / nRF24_Packet.tim_CDC);
 //		CurData.Cadence = (uint32_t)((60.0 / nRF24_Packet.tim_CDC) * 1007.08);
-		CurData.Cadence = (uint32_t)(60424.8 / nRF24_Packet.tim_CDC);
+//		CurData.Cadence = (uint32_t)(60424.8 / nRF24_Packet.tim_CDC);
 		// TODO: filter some crazy high values
 	} else CurData.Cadence = 0;
 
@@ -713,8 +703,6 @@ int main(void) {
 	_time_idle         = 0;
 	_time_scr_timeout  = 0;
 	_cdc_avg           = 0;
-	_CRC_locl          = 0;
-	_CRC_rcvd          = 0;
 	_altitude_duty_cycle = ALT_MEASURE_DUTY_CYCLE + 1;
 	_GPS_time_duty_cycle = GPS_TIME_SYNC_DUTY_CYCLE + 1;
 	CurData.MinGPSAlt = 0x7FFFFFFF; // LONG_MAX - first time when altitude will be acquired it becomes normal value
@@ -811,6 +799,7 @@ int main(void) {
 	UC1701_Flush();
 	j = (uint32_t)SD_Init();
 	if (j == SDR_Success) {
+		SD_ReadCSD();
 		_SD_present = TRUE;
 		i += PutChar(i,32,'v',fnt5x7);
 		i += PutInt(i,32,SDCard.CardType,fnt5x7) + 5;
@@ -940,19 +929,15 @@ int main(void) {
 				LOG_WriteStr(";");
 				LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
 				LOG_WriteStr(";");
-				LOG_WriteIntU(_CRC_rcvd);
-				LOG_WriteStr(";");
-				LOG_WriteIntU(_CRC_locl);
-				LOG_WriteStr(";");
 				LOG_WriteIntU(nRF24_Packet.cntr_wake);
 				LOG_WriteStr(";");
 				LOG_WriteIntU(nRF24_Packet.cntr_SPD);
 				LOG_WriteStr(";");
 				LOG_WriteIntU(_prev_cntr_SPD);
 				LOG_WriteStr(";");
-				LOG_WriteIntU(nRF24_Packet.tim_SPD);
+				LOG_WriteIntU(CurData.dbg_cntr_diff);
 				LOG_WriteStr(";");
-				LOG_WriteIntU(nRF24_Packet.tim_CDC);
+				LOG_WriteIntU(CurData.dbg_prev_cntr);
 				LOG_WriteStr(";");
 				LOG_WriteIntF(CurData.Speed,1);
 				LOG_WriteStr(";");
@@ -973,6 +958,12 @@ int main(void) {
 				LOG_WriteIntF(CurData.Odometer,5);
 				LOG_WriteStr(";");
 				if (GPSData.valid) {
+					if (GPSData.datetime_valid) {
+						LOG_WriteDateTimeTZ(GPSData.time,GPSData.date,0);
+						LOG_WriteStr(";");
+					} else {
+						LOG_WriteStr(";;");
+					}
 					LOG_WriteIntF(GPSData.latitude,6);
 					LOG_WriteStr(";");
 					LOG_WriteIntF(GPSData.longitude,6);
@@ -985,15 +976,26 @@ int main(void) {
 					LOG_WriteStr(";");
 					LOG_WriteIntF(GPSData.PDOP,2);
 					LOG_WriteStr(";");
-					LOG_WriteIntU(GPSData.fix_quality);
+					LOG_WriteIntF(GPSData.VDOP,2);
+					LOG_WriteStr(";");
+					LOG_WriteIntF(GPSData.HDOP,2);
+					LOG_WriteStr(";");
+					if (GPSData.fix_quality == 2) {
+						LOG_WriteStr("dgps;");
+					} else if (GPSData.fix_quality == 3) {
+						LOG_WriteStr("pps;"); // it's unlikely that it will occur (PPS - military signal)
+					} else {
+						if (GPSData.fix == 2) {
+							LOG_WriteStr("2d;");
+						} else {
+							LOG_WriteStr("3d;");
+						}
+					}
+					LOG_WriteIntU(GPSData.sats_used);
 					LOG_WriteStr(";");
 				} else {
-					LOG_WriteStr("0.0;0.0;0;0.0;0.0;0;");
+					LOG_WriteStr(";;;;;;;;;none;0;");
 				}
-				LOG_WriteIntU(CurData.dbg_cntr_diff);
-				LOG_WriteStr(";");
-				LOG_WriteIntU(CurData.dbg_prev_cntr);
-				LOG_WriteStr(";");
 				LOG_WriteIntF(nRF24_Packet.vrefint,2);
 				LOG_WriteStr(";");
 				LOG_WriteIntF(CurData.Temperature,1);

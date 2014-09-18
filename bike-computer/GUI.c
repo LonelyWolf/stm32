@@ -1378,9 +1378,8 @@ void GUI_MainMenu(void) {
 									LOG_WriteDate(RTC_Date.RTC_Date,RTC_Date.RTC_Month,RTC_Date.RTC_Year);
 									LOG_WriteStr(" ");
 									LOG_WriteTime(RTC_Time.RTC_Hours,RTC_Time.RTC_Minutes,RTC_Time.RTC_Seconds);
-	//								LOG_WriteStr(")\r\n");
-									LOG_WriteStr(")\r\nDate;Time;CRC_R;CRC_L;Wake;SPD.c;_prev_cntr_SPD;SPD.t;CDC.t;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;");
-									LOG_WriteStr("Latitude;Longitude;Altitude;GPS_spd;Course;PDOP;Qlty;dbg_cntr_diff;dbg_prev_cntr;Vref;Temperature;Pressure\r\n");
+									LOG_WriteStr(")\r\nDate;Time;Wake;SPD.c;_prev_cntr_SPD;dbg_cntr_diff;dbg_prev_cntr;Speed;Cadence;_cdc0;_cdc1;_cdc2;_cdc3;_cdc4;_cdc_avg;Odometer;");
+									LOG_WriteStr("DateTime;lat;lon;ele;GPS_spd;Course;pdop;vdop;hdop;fix;sat;Vref;Temperature;Pressure\r\n");
 								}
 								UC1701_Fill(0x00);
 								PutStr(0,0,"RES:",fnt7x10);

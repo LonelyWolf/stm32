@@ -71,14 +71,14 @@ typedef struct {
                                   //   0 = invalid
                                   //   1 = GPS fix (SPS)
                                   //   2 = DGPS fix
-                                  //   3 = PPS fix
+                                  //   3 = PPS fix (Encrypted military signal)
                                   //   4 = Real Time Kinematic
-                                  //   5 = Float RTK
-                                  //   6 = estimated (dead reckoning) (2.3 feature)
+                                  //   5 = Floating RTK
+                                  //   6 = Estimated (dead reckoning) (2.3 feature)
                                   //   7 = Manual input mode
                                   //   8 = Simulation mode
 	uint32_t time;                // UTC Time (seconds from midnight)
-	uint32_t date;                // Date (DDMMYYYY)
+	uint32_t date;                // UTC Date (DDMMYYYY)
 	uint8_t  mode;                // Mode indicator (A=Autonomous, D=Differential(DGPS), E=Estimated(DR),
 	                              // R=Coarse pos., S=Simulator, N=Data not valid)
 	uint32_t dgps_age;            // Time since last DGPS update (seconds)
