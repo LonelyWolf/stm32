@@ -40,10 +40,13 @@
 #endif
 
 // Just boolean
+#ifndef BOOL
+#define BOOL
 typedef enum {
 	FALSE = 0,
 	TRUE  = !FALSE
 } bool;
+#endif
 
 // Button state
 typedef enum {

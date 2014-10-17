@@ -174,7 +174,7 @@ void UART_SendInt(USART_TypeDef* USARTx, int32_t num) {
 		num *= -1;
 	}
 	do str[i++] = num % 10 + '0'; while ((num /= 10) > 0);
-	while (--i) UART_SendChar(USARTx,str[i]);
+	while (i) UART_SendChar(USARTx,str[--i]);
 }
 
 // Send signed integer value with leading zero as text to UART
@@ -190,7 +190,7 @@ void UART_SendInt0(USART_TypeDef* USARTx, int32_t num) {
 	}
 	if ((num < 10) && (num >= 0)) UART_SendChar(USARTx,'0');
 	do str[i++] = num % 10 + '0'; while ((num /= 10) > 0);
-	while (--i) UART_SendChar(USARTx,str[i]);
+	while (i) UART_SendChar(USARTx,str[--i]);
 }
 
 // Send byte in HEX format to USART

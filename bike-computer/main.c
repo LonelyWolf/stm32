@@ -240,7 +240,7 @@ void InitPeripherals(void) {
 
 	// SPI1 port initialization (SD card)
 	SPIx_Init(SPI1);
-	SPIx_SetSpeed(SPI2,SPI_BR_256); // Lowest SPI1 speed
+	SPIx_SetSpeed(SPI1,SPI_BR_256); // Lowest SPI1 speed
 
 	// SPI2 port initialization (display and nRF24)
 	SPIx_Init(SPI2);
