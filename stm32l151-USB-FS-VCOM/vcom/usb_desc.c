@@ -40,10 +40,10 @@ const uint8_t Virtual_Com_Port_DeviceDescriptor[] = {
 		0x00,                           // bDeviceSubClass
 		0x00,                           // bDeviceProtocol
 		0x40,                           // bMaxPacketSize0
-		0x83,
-		0x04,                           // idVendor = 0x0483
-		0x40,
-		0x57,                           // idProduct = 0x7540
+		0x83,                           // idVendor = 0x0483 (STMicroelectronics)
+		0x04,
+		0x40,                           // idProduct = 0x5740 (STM32F407)
+		0x57,
 		0x00,
 		0x02,                           // bcdDevice = 2.00
 		   1,                           // Index of string descriptor describing manufacturer
@@ -54,15 +54,17 @@ const uint8_t Virtual_Com_Port_DeviceDescriptor[] = {
 
 const uint8_t Virtual_Com_Port_ConfigDescriptor[] = {
 		// Configuration Descriptor
-		0x09,                           // bLength: Configuration Descriptor size
+		0x09,                              // bLength: Configuration Descriptor size
 		USB_CONFIGURATION_DESCRIPTOR_TYPE, // bDescriptorType: Configuration
-		VIRTUAL_COM_PORT_SIZ_CONFIG_DESC, // wTotalLength:no of returned bytes
+		VIRTUAL_COM_PORT_SIZ_CONFIG_DESC,  // wTotalLength: no of returned bytes
 		0x00,
 		0x02,                           // bNumInterfaces: 2 interface
 		0x01,                           // bConfigurationValue: Configuration value
 		0x00,                           // iConfiguration: Index of string descriptor describing the configuration
 		0xC0,                           // bmAttributes: self powered
-		0x32,                           // MaxPower 0 mA
+//		0x80,                           // bmAttributes: bus powered
+//		0x32,                           // MaxPower 100mA
+		0x7D,                           // MaxPower 250mA
 		// Interface Descriptor
 		0x09,                           // bLength: Interface Descriptor size
 		USB_INTERFACE_DESCRIPTOR_TYPE,  // bDescriptorType: Interface
