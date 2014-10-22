@@ -156,7 +156,7 @@ void Speaker_Reset() {
 
 	bDeviceState = ATTACHED;
 
-	In_Data_Offset = 0;
+	In_Data_Offset  = 0;
 	Out_Data_Offset = 0;
 }
 
@@ -243,7 +243,7 @@ RESULT Speaker_NoData_Setup(uint8_t RequestNo) {
     Return         : The address of the device descriptor.
 *******************************************************************************/
 uint8_t *Speaker_GetDeviceDescriptor(uint16_t Length) {
-	return Standard_GetDescriptorData(Length, &Device_Descriptor);
+	return Standard_GetDescriptorData(Length,&Device_Descriptor);
 }
 
 /*******************************************************************************
@@ -254,7 +254,7 @@ uint8_t *Speaker_GetDeviceDescriptor(uint16_t Length) {
     Return         : The address of the configuration descriptor.
 *******************************************************************************/
 uint8_t *Speaker_GetConfigDescriptor(uint16_t Length) {
-	return Standard_GetDescriptorData(Length, &Config_Descriptor);
+	return Standard_GetDescriptorData(Length,&Config_Descriptor);
 }
 
 /*******************************************************************************
@@ -300,10 +300,11 @@ RESULT Speaker_Get_Interface_Setting(uint8_t Interface, uint8_t AlternateSetting
     Return         : The address of the string descriptors.
 *******************************************************************************/
 uint8_t *Mute_Command(uint16_t Length) {
-	if (Length == 0) {
-		pInformation->Ctrl_Info.Usb_wLength = pInformation->USBwLengths.w;
-		return NULL;
-	} else {
+	if (Length) {
 		return ((uint8_t *)(&MUTE_DATA));
+	} else {
+		pInformation->Ctrl_Info.Usb_wLength = pInformation->USBwLengths.w;
+
+		return NULL;
 	}
 }

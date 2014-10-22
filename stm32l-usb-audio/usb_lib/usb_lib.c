@@ -55,6 +55,7 @@ void USB_Init(void) {
 *******************************************************************************/
 void CTR_LP(void) {
 	__IO uint16_t wEPVal = 0;
+
 	// stay in loop while pending interrupts
 	while ((wIstr = *ISTR) & ISTR_CTR) {
 		// extract highest priority endpoint number
@@ -162,7 +163,7 @@ void CTR_HP(void) {
 *******************************************************************************/
 void UserToPMABufferCopy(uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wNBytes) {
 	uint32_t n = (wNBytes + 1) >> 1;   /* n = (wNBytes + 1) / 2 */
-	uint32_t i, temp1, temp2;
+	uint32_t i,temp1,temp2;
 	uint16_t *pdwVal;
 
 	pdwVal = (uint16_t *)(wPMABufAddr * 2 + PMAAddr);

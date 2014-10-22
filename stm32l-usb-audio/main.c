@@ -36,6 +36,7 @@ extern uint32_t MUTE_DATA;
 
 
 
+/*
 
 //       Sound with DAC
 
@@ -100,6 +101,7 @@ int main(void) {
     while(1);
 }
 
+*/
 
 
 
@@ -192,11 +194,11 @@ int main(void) {
     while(1);
 }
 
- */
+*/
 
 
 
-/*
+///*
 
 //               Sound with two timers, no SPL
 
@@ -272,7 +274,7 @@ int main(void) {
     while(1);
 }
 
-*/
+//*/
 
 
 
