@@ -7,7 +7,7 @@
 #define _DOSFS_H
 
 #include <stdint.h>
-#include <sdcard.h>
+#include "sdcard.h"
 
 //===================================================================
 // User-supplied functions
@@ -236,22 +236,25 @@ typedef struct _tagVOLINFO {
 // filesystem type - that decision is made entirely on the basis of how many clusters
 // the drive contains. DOSFS works the same way).
 // See tag: OEMID in dosfs.c
-//	uint8_t oemid[9];			// OEM ID ASCIIZ
-//	uint8_t system[9];			// system ID ASCIIZ
-	uint8_t label[12];			// volume label ASCIIZ
-	uint32_t startsector;		// starting sector of filesystem
-	uint8_t secperclus;			// sectors per cluster
-	uint16_t reservedsecs;		// reserved sectors
-	uint32_t numsecs;			// number of sectors in volume
-	uint32_t secperfat;			// sectors per FAT
-	uint16_t rootentries;		// number of root dir entries
+//	uint8_t  oemid[9];          // OEM ID ASCIIZ
+//	uint8_t  system[9];         // system ID ASCIIZ
+	uint8_t  label[12];         // volume label ASCIIZ
+	uint32_t startsector;       // starting sector of filesystem
+	uint8_t  secperclus;        // sectors per cluster
+	uint16_t reservedsecs;      // reserved sectors
+	uint32_t numsecs;           // number of sectors in volume
+	uint32_t secperfat;         // sectors per FAT
+	uint16_t rootentries;       // number of root dir entries
 
-	uint32_t numclusters;		// number of clusters on drive
+	uint32_t numclusters;       // number of clusters on drive
+
+	uint16_t sectorsize;        // sector size (in bytes)   // SDA 16.01.2015
+	uint32_t clustersize;       // cluster size (in bytes)  // SDA 16.01.2015
 
 	// The fields below are PHYSICAL SECTOR NUMBERS.
-	uint32_t fat1;				// starting sector# of FAT copy 1
-	uint32_t rootdir;			// starting sector# of root directory (FAT12/FAT16) or cluster (FAT32)
-	uint32_t dataarea;			// starting sector# of data area (cluster #2)
+	uint32_t fat1;              // starting sector# of FAT copy 1
+	uint32_t rootdir;           // starting sector# of root directory (FAT12/FAT16) or cluster (FAT32)
+	uint32_t dataarea;          // starting sector# of data area (cluster #2)
 } VOLINFO, *PVOLINFO;
 
 /*
@@ -379,6 +382,15 @@ void DFS_Seek(PFILEINFO fileinfo, uint32_t offset, uint8_t *scratch);
 	scratch must point to a sector-sized buffer
 */
 uint32_t DFS_UnlinkFile(PVOLINFO volinfo, uint8_t *path, uint8_t *scratch);
+
+/*
+	Get number of free clusters
+	you must supply a prepopulated VOLUMEINFO as provided by DFS_GetVolInfo, and a
+	pointer to a SECTOR_SIZE scratch buffer.
+	cfree - pointer to the variable for number of free clusters
+	Returns 0 OK, nonzero for any error.
+*/
+uint32_t DFS_GetFree(PVOLINFO volinfo, uint8_t *scratch, uint32_t *cfree);
 
 // If we are building a host-emulation version, include host support
 #ifdef HOSTVER

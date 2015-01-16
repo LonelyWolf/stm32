@@ -196,7 +196,7 @@ SDResult_TypeDef SD_Init(void) {
 	if (!wait) return SDR_NoResponse;
 
 	// CMD8: SEND_IF_COND. Send this command to verify SD card interface operating condition
-    // Argument: - [31:12]: Reserved (shall be set to '0')
+	// Argument: - [31:12]: Reserved (shall be set to '0')
 	//           - [11:8]: Supply Voltage (VHS) 0x1 (Range: 2.7-3.6 V)
 	//           - [7:0]: Check Pattern (recommended 0xAA)
 	SD_Cmd(SD_CMD_HS_SEND_EXT_CSD,SD_CHECK_PATTERN,SD_R7,resp); // CMD8
@@ -429,8 +429,8 @@ SDResult_TypeDef SD_ReadBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
-	// For SDSC card addr must be converted to byte address
-	if (SDCard.CardType != SDCT_SDHC) addr <<= 9;
+	// For SDHC/SDXC card addr must be converted to block address
+	if (SDCard.CardType == SDCT_SDHC) addr >>= 9;
 	cmdres = SD_Cmd(SD_CMD_READ_SINGLE_BLOCK,addr,SD_R1,resp); // CMD17
 	if (cmdres != SDR_Success) return cmdres;
 	if (resp[0] == 0x00) {
@@ -511,8 +511,8 @@ SDResult_TypeDef SD_WriteBlock(uint32_t addr, uint8_t *pBuf, uint32_t len) {
 
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
-	// For SDSC card addr must be converted to byte address
-	if (SDCard.CardType != SDCT_SDHC) addr <<= 9;
+	// For SDHC/SDXC card addr must be converted to block address
+	if (SDCard.CardType == SDCT_SDHC) addr >>= 9;
 	cmdres = SD_Cmd(SD_CMD_WRITE_SINGLE_BLOCK,addr,SD_R1,resp); // CMD24
 	if (cmdres != SDR_Success) return cmdres;
 	if (resp[0] == 0x00) {

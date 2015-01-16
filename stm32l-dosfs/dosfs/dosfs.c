@@ -84,9 +84,9 @@ uint32_t DFS_GetPtnStart(uint8_t unit, uint8_t *scratchsector, uint8_t pnum, uin
 	} else {
 		// Sector 0 is MBR, get start of the partition
 		result = (uint32_t) mbr->ptable[pnum].start_0 |
-		  (((uint32_t) mbr->ptable[pnum].start_1) << 8) |
-		  (((uint32_t) mbr->ptable[pnum].start_2) << 16) |
-		  (((uint32_t) mbr->ptable[pnum].start_3) << 24);
+				(((uint32_t) mbr->ptable[pnum].start_1) << 8) |
+				(((uint32_t) mbr->ptable[pnum].start_2) << 16) |
+				(((uint32_t) mbr->ptable[pnum].start_3) << 24);
 
 		if (pactive)
 			*pactive = mbr->ptable[pnum].active;
@@ -206,6 +206,10 @@ uint32_t DFS_GetVolInfo(uint8_t unit, uint8_t *scratchsector, uint32_t startsect
 		volinfo->filesystem = FAT16;
 	else
 		volinfo->filesystem = FAT32;
+
+	// Calculate additional information (SDA 16.01.2015)
+	volinfo->sectorsize = (lbr->bpb.bytepersec_h << 8) | (lbr->bpb.bytepersec_l);
+	volinfo->clustersize = volinfo->sectorsize * volinfo->secperclus;
 
 	return DFS_OK;
 }
@@ -1429,32 +1433,91 @@ uint32_t DFS_WriteFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, ui
 	return result;
 }
 
-// Read one sector from SD card
+
+/*
+	SDA 16.01.2015
+	Get number of free clusters
+	you must supply a prepopulated VOLUMEINFO as provided by DFS_GetVolInfo, and a
+	pointer to a SECTOR_SIZE scratch buffer.
+	cfree - pointer to the variable for number of free clusters
+	Returns 0 OK, nonzero for any error.
+	Note: on big volumes with large number of clusters this procedure will be really slow
+*/
+uint32_t DFS_GetFree(PVOLINFO volinfo, uint8_t *scratch, uint32_t *cfree) {
+	uint32_t cluster;
+	uint32_t sector;
+	uint32_t free_clusters = 0; // counter
+	uint32_t fat_val;
+	uint32_t tempint; // required by DFS_GetFAT
+	uint32_t spos = 0; // offset in sector
+	uint32_t *fval32;
+	uint16_t *fval16;
+
+	if (volinfo->filesystem == FAT12) {
+		// Compute number free clusters for FAT12
+		cluster = 2;
+		do {
+			fat_val = DFS_GetFAT(volinfo,scratch,&tempint,cluster);
+			if (fat_val == 0x0ffffff7) return fat_val;
+			if (!fat_val) free_clusters++;
+		} while (++cluster < volinfo->numclusters);
+	} else {
+		// For FAT16/FAT32 will read FAT sectors directly
+		cluster = volinfo->numclusters;
+		sector  = volinfo->fat1; // FAT table first sector
+		do {
+			if (!spos) {
+				spos = volinfo->sectorsize;
+				tempint = DFS_ReadSector(0,scratch,sector++,spos);
+				if (tempint) return 0x0ffffff7;
+				fval32 = (uint32_t *)scratch;
+				fval16 = (uint16_t *)scratch;
+			}
+			if (volinfo->filesystem == FAT16) {
+				if (!*fval16) free_clusters++;
+				fval16++;
+				spos -= 2;
+			} else {
+				if (!(*fval32 & 0x0fffffff)) free_clusters++;
+				fval32++;
+				spos -= 4;
+			}
+		} while (--cluster);
+		free_clusters += 2;
+	}
+	*cfree = free_clusters;
+
+	return 0;
+}
+
+
+// Read sector from the SD card
 // input:
 //   unit - device number (ignored)
 //   buffer - pointer to the data buffer (one sector sized)
 //   sector - sector address
 //   count - number of sectors to read (ignored, one sector always)
-// return: SD_ReadBlock result code
+// return: 0 OK, nonzero for any error
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
-	SDResult_TypeDef Status = SDR_Success;
+	SDResult Status = SDR_Success;
 
-    Status = SD_ReadBlock(sector,buffer,SECTOR_SIZE);
+    Status = SD_ReadBlock(sector << 9,(uint32_t *)buffer,SECTOR_SIZE);
 
     return (Status == SDR_Success) ? 0 : 1;
 }
 
-// Write one sector to SD card
+
+// Write sector to the SD card
 // input:
 //   unit - device number (ignored)
 //   buffer - pointer to the data buffer (one sector sized)
 //   sector - sector address
 //   count - number of sectors to read (ignored, one sector always)
-// return: SD_ReadBlock result code
+// return: 0 OK, nonzero for any error
 uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
-	SDResult_TypeDef Status = SDR_Success;
+	SDResult Status = SDR_Success;
 
-    Status = SD_WriteBlock(sector,buffer,SECTOR_SIZE);
+    Status = SD_WriteBlock(sector << 9,(uint32_t *)buffer,SECTOR_SIZE);
 
     return (Status == SDR_Success) ? 0 : 1;
 }
