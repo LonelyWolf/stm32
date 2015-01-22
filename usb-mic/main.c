@@ -29,7 +29,10 @@ NVIC_InitTypeDef NVICInit;
 extern uint8_t packet_send;
 // <--- usb_endp.c
 
-#define ADC_BUF_SIZE 1024
+
+#define ADC_BUF_SIZE    1024 // ADC buffer size
+#define OVS_COUNT       32   // Oversampling count
+
 
 uint8_t ADC_buffer[ADC_BUF_SIZE];
 
@@ -37,6 +40,8 @@ uint32_t buf_pos;
 uint32_t ADC_buf_pos;
 uint32_t USB_buf_pos;
 uint32_t i;
+uint32_t ovs_accu;
+uint32_t ovs_cntr;
 
 
 void TIM9_IRQHandler(void) {
@@ -55,10 +60,20 @@ void TIM9_IRQHandler(void) {
 //		while (!(ADC1->SR & ADC_SR_EOC)); // Wait until ADC conversion end
 		if (ADC1->SR & ADC_SR_EOC) ADC_val = ADC1->DR; else ADC_val = 0x0800; // Get ADC value
 
-		PCM_val.PCM16 = (ADC_val * 16) - 32768 - 340; // Convert ADC value to PCM (340 - dummy bias offset)
-		ADC_buffer[ADC_buf_pos++] = PCM_val.BPCM16.B1;
-		ADC_buffer[ADC_buf_pos++] = PCM_val.BPCM16.B0;
-		if (ADC_buf_pos > ADC_BUF_SIZE - 1) ADC_buf_pos = 0;
+		ovs_accu += ADC_val;
+		ovs_cntr++;
+		if (ovs_cntr >= OVS_COUNT) {
+			ADC_val = ovs_accu / ovs_cntr;
+			ovs_accu = 0;
+			ovs_cntr = 0;
+
+//			PCM_val.PCM16 = (ADC_val * 16) - 32768; // Convert ADC value to PCM
+			PCM_val.PCM16 = (ADC_val * 16) - 32768 - 60; // Convert ADC value to PCM
+//			PCM_val.PCM16 = (ADC_val * 16) - 32768 - 340; // Convert ADC value to PCM (340 - dummy bias offset)
+			ADC_buffer[ADC_buf_pos++] = PCM_val.BPCM16.B1;
+			ADC_buffer[ADC_buf_pos++] = PCM_val.BPCM16.B0;
+			if (ADC_buf_pos > ADC_BUF_SIZE - 1) ADC_buf_pos = 0;
+		}
 
 /*
 		// Put test sample values
@@ -75,24 +90,6 @@ void TIM9_IRQHandler(void) {
 
 
 int main(void) {
-/*
-	union {
-		int16_t PCM16;
-		struct BPCM16 {
-			uint8_t B1;
-			uint8_t B0;
-		} BPCM16;
-	} PCM_val;
-	uint8_t ar[2];
-
-	int16_t ppp = 2038;
-	PCM_val.PCM16 = ppp - 2048;
-	ar[0] = PCM_val.BPCM16.B1;
-	ar[1] = PCM_val.BPCM16.B0;
-
-	while (1);
-*/
-
 	// Initialize delay without callback
 	Delay_Init(NULL);
 
@@ -115,12 +112,12 @@ int main(void) {
 
 	// Initialize the ADC
 	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; // Enable ADC1 peripheral clock
-	ADC->CCR   = 0; // Disable temperature sensor, Vrefint, ADC prescaler = HSI/1
+	ADC->CCR = 0; // Disable temperature sensor, Vrefint, ADC prescaler = HSI/1
 	ADC1->SQR5 |= ADC_SQR5_SQ1_2; // 1st conversion in regular sequence will be from ADC_IN4
-	ADC1->CR1  &= ~ADC_CR1_RES; // 12-bit resolution (Tconv = 12 ADCCLK cycles)
-//	ADC1->CR1  |= ADC_CR1_RES_0; // 10-bit resolution (Tconv = 11 ADCCLK cycles)
-//	ADC1->CR1  |= ADC_CR1_RES_1; // 8-bit resolution (Tconv =  9 ADCCLK cycles)
-	ADC1->CR2  &= ~ADC_CR2_ALIGN; // Right alignment
+	ADC1->CR1 &= ~ADC_CR1_RES; // 12-bit resolution (Tconv = 12 ADCCLK cycles)
+//	ADC1->CR1 |= ADC_CR1_RES_0; // 10-bit resolution (Tconv = 11 ADCCLK cycles)
+//	ADC1->CR1 |= ADC_CR1_RES_1; // 8-bit resolution (Tconv =  9 ADCCLK cycles)
+	ADC1->CR2 &= ~ADC_CR2_ALIGN; // Right alignment
 //	ADC1->SMPR3 &= ~ADC_SMPR3_SMP4; // Channel4 sample rate: 4 cycles
 	ADC1->SMPR3 |= ADC_SMPR3_SMP4; // Channel4 sample rate: 384 cycles
 	ADC1->CR2 |= ADC_CR2_ADON; // Enable the ADC
@@ -128,7 +125,7 @@ int main(void) {
 
 	// Configure TIM9 (trigger for ADC)
 	RCC->APB2ENR |= RCC_APB2Periph_TIM9; // Enable the TIMx peripheral
-	TIM9->ARR   =  SystemCoreClock/8000; // Sample rate 8kHz
+	TIM9->ARR   =  SystemCoreClock / (8000 * OVS_COUNT); // Sample rate 8kHz
 	TIM9->CR2  &= ~TIM_CR2_MMS; // Master mode selection reset
 	TIM9->CR2  |=  TIM_CR2_MMS_1; // The update event is selected as trigger output (TRGO)
 	TIM9->DIER |=  TIM_DIER_UIE; // ÒIMx update interrupt enable
@@ -168,6 +165,8 @@ int main(void) {
 	buf_pos = 0;
 	USB_buf_pos = 0;
 	ADC_buf_pos = 0;
+	ovs_accu = 0;
+	ovs_cntr = 0;
 
 	TIM9->CR1 |= TIM_CR1_CEN; // Enable TIM9
 
