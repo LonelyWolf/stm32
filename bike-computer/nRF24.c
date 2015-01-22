@@ -31,6 +31,7 @@ void nRF24_Init() {
 	PORT.GPIO_Pin = nRF24_CE_PIN;
 	GPIO_Init(nRF24_CE_PORT,&PORT);
 	// Configure IRQ pin as input with Pull-Up
+//#WARNING Do not enable Pull-UP for IRQ, this increase power consumption for 80uA. nRF24L01 already have the pull-up!
 	PORT.GPIO_Pin  = nRF24_IRQ_PIN;
 	PORT.GPIO_Mode = GPIO_Mode_IN;
 	PORT.GPIO_PuPd = GPIO_PuPd_UP;
