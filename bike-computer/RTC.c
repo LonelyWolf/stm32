@@ -1,6 +1,5 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_rtc.h>
-#include <stm32l1xx_exti.h>
 #include <misc.h>
 
 #include <RTC.h>
@@ -14,7 +13,6 @@ RTC_DateTypeDef RTC_Date;                   // Current RTC date
 void RTC_Config(void) {
 	RTC_InitTypeDef RTCInit;
 	NVIC_InitTypeDef NVICInit;
-	EXTI_InitTypeDef EXTIInit;
 
 	RCC->APB1ENR |= RCC_APB1Periph_PWR; // Enable the PWR peripheral
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
@@ -33,13 +31,12 @@ void RTC_Config(void) {
 	RTCInit.RTC_HourFormat   = RTC_HourFormat_24;
 	RTC_Init(&RTCInit);
 
-	// RTC wake-up -> EXTI line 20
-	EXTI_ClearITPendingBit(EXTI_Line20);
-	EXTIInit.EXTI_Line = EXTI_Line20;
-	EXTIInit.EXTI_Mode = EXTI_Mode_Interrupt;
-	EXTIInit.EXTI_Trigger = EXTI_Trigger_Rising; // Must be rising edge
-	EXTIInit.EXTI_LineCmd = ENABLE;
-	EXTI_Init(&EXTIInit);
+	// Configure the EXTI line connected internally to the RTC
+	EXTI->PR    =  RTC_EXTI_LINE; // Clear IT pending bit
+	EXTI->IMR  |=  RTC_EXTI_LINE; // Enable interrupt request from EXTI line
+	EXTI->EMR  &= ~RTC_EXTI_LINE; // Disable event on EXTI line
+	EXTI->RTSR |=  RTC_EXTI_LINE; // Trigger rising edge enabled
+	EXTI->FTSR &= ~RTC_EXTI_LINE; // Trigger falling edge disabled
 
 	// Enable the RTC wake-up interrupt
 	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
