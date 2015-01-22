@@ -37,6 +37,9 @@ void SleepStop(void) {
 	// Voltage regulator on during sleep mode
 	PWR->CR &= (uint32_t)~((uint32_t)~PWR_CR_LPSDSR);
 
+	// Clear the wake-up flag (WUF)
+	PWR->CR |= PWR_CR_CWUF;
+
 	// Disable sleep-on-exit
 	SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 
@@ -71,6 +74,29 @@ void SleepStop(void) {
 		// Update SystemCoreClock according to Clock Register Values (for any case)
 		SystemCoreClockUpdate();
 	}
+}
+
+// Put MCU into Standby mode
+void SleepStandby(void) {
+	// Clear the wake-up and standby flags
+	PWR->CR |= (PWR_CR_CWUF | PWR_CR_CSBF);
+
+	// Enter STANDBY mode when the CPU enters deepsleep
+	PWR->CR |= PWR_CR_PDDS;
+
+	// Disable sleep-on-exit
+	SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+
+	// Set SLEEPDEEP bit of Cortex-M System Control Register
+	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+
+	// Ensure effect of last store takes effect
+	__DSB();
+
+	// Enter STANDBY mode
+	__WFI();
+
+	// After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
 }
 
 // Convert characters to number with fixed length

@@ -40,13 +40,10 @@
 #endif
 
 // Just boolean
-#ifndef BOOL
-#define BOOL
 typedef enum {
 	FALSE = 0,
 	TRUE  = !FALSE
 } bool;
-#endif
 
 // Button state
 typedef enum {
@@ -130,6 +127,7 @@ extern uint32_t _time_idle;                        // Time from last user event 
 // Function prototypes
 void SleepWait(void);
 void SleepStop(void);
+void SleepStandby(void);
 
 uint32_t atos_len(uint8_t *buf, uint8_t len);
 int32_t atos_char(uint8_t *buf, uint16_t *pos);
