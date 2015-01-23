@@ -71,13 +71,16 @@
 #define SD_DETECT_PORT            GPIOB
 #define SD_DETECT_PIN             GPIO_IDR_IDR_3
 #define SD_DETECT_PERIPH          RCC_AHBPeriph_GPIOB
-
+#define SD_DETECT_EXTI            (1 << 3)
 
 
 
 GPIO_InitTypeDef PORT;
 volatile uint32_t _USB_int_cntr = 0;
 volatile uint32_t _USB_connected = 0;
+volatile uint32_t _SD_int_cntr = 0;
+volatile uint32_t _SD_connected = 0;
+volatile uint32_t _SD_last_state = 0;
 uint32_t i,j,k;
 uint8_t sector[2048];
 
@@ -112,6 +115,20 @@ void RTC_WKUP_IRQHandler(void) {
 	}
 }
 
+// EXTI3 line IRQ handler
+void EXTI3_IRQHandler(void) {
+	if (EXTI->PR & SD_DETECT_EXTI) {
+		_SD_int_cntr++;
+		_SD_connected = (SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? 0 : 1;
+		if (_SD_connected) {
+			BEEPER_PlayTones(tones_USB_con);
+		} else {
+			BEEPER_PlayTones(tones_USB_dis);
+		}
+		EXTI->PR = SD_DETECT_EXTI; // Clear IT bit for EXTI_Line
+	}
+}
+
 // EXTI[10..15] lines IRQ handler
 void EXTI15_10_IRQHandler(void) {
 	if (EXTI->PR & USB_SENS_EXTI) {
@@ -122,7 +139,7 @@ void EXTI15_10_IRQHandler(void) {
 		} else {
 			BEEPER_PlayTones(tones_USB_dis);
 		}
-		EXTI->PR = USB_SENS_EXTI; // Clear IT bit for EXTI_Line10
+		EXTI->PR = USB_SENS_EXTI; // Clear IT bit for EXTI_Line
 	}
 }
 
@@ -243,12 +260,17 @@ int main(void) {
 //	USB_SENS_PORT->PUPDR |=  GPIO_PUPDR_PUPDR10_0; // Pull-up
 	USB_SENS_PORT->PUPDR |=  GPIO_PUPDR_PUPDR10_1; // Pull-down
 
-	// Configure the EXTI line 10 (USB sense pin)
+	// Configure the EXTI line (USB sense pin)
 	EXTI->PR    =  USB_SENS_EXTI; // Clear IT pending bit for EXTI
 	EXTI->IMR  |=  USB_SENS_EXTI; // Enable interrupt request from EXTI
 	EXTI->EMR  &= ~USB_SENS_EXTI; // Disable event on EXTI
 	EXTI->RTSR |=  USB_SENS_EXTI; // Trigger rising edge enabled
 	EXTI->FTSR |=  USB_SENS_EXTI; // Trigger falling edge enabled
+
+	// PA10 as source input for EXTI10
+	// In fact this is not necessary because it is the default condition after reset
+	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI10; // Clear bits (Set PA10 pin as input source)
+	SYSCFG->EXTICR[2] |=  SYSCFG_EXTICR3_EXTI10_PA; // Set PA10 pin as input source
 
 /*
 	// 2 bit for pre-emption priority, 2 bits for subpriority
@@ -270,9 +292,9 @@ int main(void) {
 
 
 	if (_USB_connected) {
-//		Configure the USB peripheral
+		// Configure the USB peripheral
 		USB_HWConfig();
-//		Initialize the USB device
+		// Initialize the USB device
 		USB_Init();
 	}
 
@@ -291,19 +313,11 @@ int main(void) {
 
 
 	// Configure SD detect pin
-	RCC->AHBENR |= SD_DETECT_PERIPH; // Enable charger STAT pin port peripheral
+	RCC->AHBENR |= SD_DETECT_PERIPH; // Enable SD detect pin port peripheral
 
 	// ------------ WARNING -------------
 	// PB3 mapped as JTDO after reset, it must be switched to GPIO function here!
 	// ------------ WARNING -------------
-
-	// Configure GPIO pin as input with pull-up
-	SD_DETECT_PORT->MODER &= ~GPIO_MODER_MODER3; // Input mode (reset state)
-	SD_DETECT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR3; // Floating (clear bits)
-//	SD_DETECT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR3_0; // Pull-up
-
-
-
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	// To use the serial wire DP to release some GPIOs, the user software must change the GPIO //
@@ -311,6 +325,36 @@ int main(void) {
 	// PA15, PB3 and PB4 which now become available as GPIOs.                                  //
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
+	// Configure GPIO pin as input with pull-up
+	SD_DETECT_PORT->MODER &= ~GPIO_MODER_MODER3; // Input mode (reset state)
+	SD_DETECT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR3; // Floating (clear bits)
+
+	// Configure the EXTI line (SD detect pin)
+	EXTI->PR    =  SD_DETECT_EXTI; // Clear IT pending bit for EXTI
+	EXTI->IMR  |=  SD_DETECT_EXTI; // Enable interrupt request from EXTI
+	EXTI->EMR  &= ~SD_DETECT_EXTI; // Disable event on EXTI
+	EXTI->RTSR |=  SD_DETECT_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR |=  SD_DETECT_EXTI; // Trigger falling edge enabled
+
+	// PB3 as source input for EXTI3
+	SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI3; // Clear bits (Set PA3 pin as input source)
+	SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI3_PB; // Set PB3 pin as input source
+
+/*
+	// 2 bit for pre-emption priority, 2 bits for subpriority
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+
+	// Enable the USB sense pin interrupt
+	NVICInit.NVIC_IRQChannel = EXTI3_IRQn;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
+	NVICInit.NVIC_IRQChannelSubPriority = 0;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVICInit);
+*/
+
+	NVIC_EnableIRQ(EXTI3_IRQn);
+
+	_SD_connected = (SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? 0 : 1;
 
 
 
@@ -434,9 +478,12 @@ int main(void) {
 	// Enable the SDIO interrupt
 //	NVIC_EnableIRQ(SDIO_IRQn);
 
-	SD_SDIO_GPIO_Init();
-	j = SD_Init();
-	printf("SD_Init: %X\r\n",j);
+//	if (!(SD_DETECT_PORT->IDR & SD_DETECT_PIN)) {
+	if (_SD_connected) {
+		SD_SDIO_GPIO_Init();
+		j = SD_Init();
+		printf("SD_Init: %X\r\n",j);
+	} else j = SDR_NoResponse;
 
 	if (j == SDR_Success) {
 		if (SDCard.Type != SDCT_MMC) {
@@ -457,46 +504,32 @@ int main(void) {
 			// Wait till data transfered by DMA
 			j = SD_CheckRead(i);
 			printf("SD_CheckRead = %X\r\n",j);
-			if (j == SDR_Success) VCP_SendBufPrintable(sector,i,'.');
-			printf("\r\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n");
+//			if (j == SDR_Success) VCP_SendBufPrintable(sector,i,'.');
+//			printf("\r\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n");
 		}
 //*/
 
-///*
-		SD_SetBusWidth(SD_BUS_1BIT);
+/*
 		// DMA write block test
 		for (i = 0; i < 512; i++) {
+			sector[i] = sector[i + 1024] - 1;
+			if (sector[i] < 33) sector[i] = 127;
+			if (sector[i] > 127) sector[i] = 33;
+		}
+		for (i = 512; i < 1024; i++) {
 			sector[i] = sector[i + 1024] + 1;
 			if (sector[i] < 33) sector[i] = 127;
 			if (sector[i] > 127) sector[i] = 33;
 		}
-		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,512);
+		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,1024);
 		printf("SD_WriteBlock_DMA = %X\r\n",j);
 		if (j == SDR_Success) {
 			// Wait till data transfered by DMA
-			j = SD_CheckWrite(512);
+			j = SD_CheckWrite(1024);
 			printf("SD_CheckWrite = %X\r\n",j);
 		}
 		printf("---------------------------------------------\r\n");
-//*/
-
-///*
-		SD_SetBusWidth(SD_BUS_4BIT);
-		// DMA write block test
-		for (i = 0; i < 512; i++) {
-			sector[i] = sector[i + 1536] + 1;
-			if (sector[i] < 33) sector[i] = 127;
-			if (sector[i] > 127) sector[i] = 33;
-		}
-		j = SD_WriteBlock_DMA(1536,(uint32_t *)sector,512);
-		printf("SD_WriteBlock_DMA = %X\r\n",j);
-		if (j == SDR_Success) {
-			// Wait till data transfered by DMA
-			j = SD_CheckWrite(512);
-			printf("SD_CheckWrite = %X\r\n",j);
-		}
-		printf("---------------------------------------------\r\n");
-//*/
+*/
 
 /*
 		// Write block test
@@ -515,8 +548,8 @@ int main(void) {
 			// Wait till data transfered by DMA
 			j = SD_CheckRead(i);
 			printf("SD_CheckRead = %X\r\n",j);
-			if (j == SDR_Success) VCP_SendBufPrintable(sector,i,'.');
-			printf("\r\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n");
+//			if (j == SDR_Success) VCP_SendBufPrintable(sector,i,'.');
+//			printf("\r\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n");
 		}
 //*/
 
@@ -581,6 +614,11 @@ int main(void) {
 			if (j == LOG_OK) {
 				LOG_WriteStr("WBC!\r\n");
 				LOG_WriteStr("Shoop da whoop!\r\n");
+				for (i = 0; i < 10000; i++) {
+					LOG_WriteStr("CNTR=");
+					LOG_WriteIntU(i);
+					LOG_WriteStr("\r\n");
+				}
 				LOG_WriteStr("!WBC\r\n");
 				LOG_FileSync();
 			}
@@ -744,11 +782,8 @@ int main(void) {
 			printf("BAR: failed\r\n");
 		}
 
-		// Get USB sense pin state
+		// USB sense pin state
 		printf("USB: %s (%d)\r\n",_USB_connected ? "connected" : "disconnected",(unsigned int)_USB_int_cntr);
-
-		// Get SD detect pin state
-		printf("SDC: %s\r\n",(SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? "no card" : "present");
 
 		// Get charger STAT pin state
 		i = 0;
@@ -770,8 +805,47 @@ int main(void) {
 
 		CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
 
-		j = SD_ReadBlock(0,(uint32_t *)sector,2048);
-		printf("SD_ReadBlock = %2X\r\n",j);
+		// Get state of SD detect pin
+//		printf("SDP: %s\r\n",(SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? "no card" : "present");
+
+		// SD card state
+		printf("SDC: %s (%d)\r\n",_SD_connected ? "present" : "no card",(unsigned int)_SD_int_cntr);
+
+		if (_SD_last_state != _SD_connected) {
+			if (_SD_connected) {
+				// The SD card was inserted, need to initialize it
+				j = SD_Init();
+				printf("SD_Init: %X\r\n",j);
+			}
+		}
+		_SD_last_state = _SD_connected;
+
+		// Read some blocks from the SD card
+//		if (!(SD_DETECT_PORT->IDR & SD_DETECT_PIN)) {
+		if (_SD_connected) {
+/*
+			for (i = 0; i < 2048; ) sector[i++] = '#';
+			j = SD_ReadBlock(0,(uint32_t *)sector,2048);
+			printf("SD_ReadBlock = %02X, ",j);
+			if (j != SDR_Success) BEEPER_Enable(1111,1);
+			j = SD_GetCardState(&sector[0]);
+			printf("SD_GetCardState = %02X [%X]\r\n",j,sector[0]);
+			VCP_SendBufPrintable(sector,128,'.');
+			VCP_SendStr("\r\n");
+*/
+			for (i = 0; i < 2048; ) sector[i++] = '#';
+			j = SD_ReadBlock_DMA(0,(uint32_t *)sector,2048);
+			printf("SD_ReadBlock_DMA = %02X, ",j);
+			if (j == SDR_Success) {
+				j = SD_CheckRead(2048);
+				printf("SD_CheckRead = %02X, ",j);
+			}
+			if (j != SDR_Success) BEEPER_Enable(4444,1);
+			j = SD_GetCardState(&sector[0]);
+			printf("SD_GetCardState = %02X [%X]\r\n",j,sector[0]);
+			VCP_SendBufPrintable(sector,128,'.');
+			VCP_SendStr("\r\n");
+		}
 
 		printf("------------------\r\n");
 

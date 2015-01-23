@@ -1507,8 +1507,6 @@ uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t
 	Status = SD_ReadBlock_DMA(sector << 9,(uint32_t *)buffer,SECTOR_SIZE);
 	if (Status == SDR_Success) {
 		Status = SD_CheckRead(SECTOR_SIZE);
-	} else {
-		// SDIO DMA should be disabled here!
 	}
 
     return (Status == SDR_Success) ? 0 : 1;
@@ -1532,8 +1530,6 @@ uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_
 	Status = SD_WriteBlock_DMA(sector << 9,(uint32_t *)buffer,SECTOR_SIZE);
 	if (Status == SDR_Success) {
 		Status = SD_CheckWrite(SECTOR_SIZE);
-	} else {
-		// SDIO DMA should be disabled here!
 	}
 
 	return (Status == SDR_Success) ? 0 : 1;

@@ -626,13 +626,29 @@ SDResult SD_ReadBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// <---- TIME CRITICAL SECTION END ---->
 
 	// Send stop transmission command in case of multiblock transfer
-	if ((STA & SDIO_STA_DATAEND) && (SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
+	if ((SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
 
 	// Check for errors
-	if (STA & SDIO_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
-	if (STA & SDIO_STA_DCRCFAIL) cmd_res = SDR_DataCRCFail;
-	if (STA & SDIO_STA_RXOVERR)  cmd_res = SDR_RXOverrun;
-	if (STA & SDIO_STA_STBITERR) cmd_res = SDR_StartBitError;
+	if (STA & SDIO_STA_DTIMEOUT) {
+		SDIO->ICR = SDIO_ICR_DTIMEOUTC;
+
+		return SDR_DataTimeout;
+	}
+	if (STA & SDIO_STA_DCRCFAIL) {
+		SDIO->ICR = SDIO_ICR_DCRCFAILC;
+
+		return SDR_DataCRCFail;
+	}
+	if (STA & SDIO_STA_RXOVERR)  {
+		SDIO->ICR = SDIO_ICR_RXOVERRC;
+
+		return SDR_RXOverrun;
+	}
+	if (STA & SDIO_STA_STBITERR) {
+		SDIO->ICR = SDIO_ICR_STBITERRC;
+
+		return SDR_StartBitError;
+	}
 
 	// Read data remnant from RX FIFO (if there is still any data)
 	while (SDIO->STA & SDIO_STA_RXDAVL) *pBuf++ = SDIO->FIFO;
@@ -742,9 +758,7 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	__enable_irq();
 	// <---- TIME CRITICAL SECTION END ---->
 
-	// Send stop transmission command in case of multiblock transfer
-	if ((STA & SDIO_STA_DATAEND) && (SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
-
+/*
 	printf("SD_WriteBlock: #%u [res=%X] {STA=%X DCOUNT=%u} blk=%d sent=%d",addr,cmd_res,STA,SDIO->DCOUNT,blk_count,bsent);
 	printf(" [%s%s%s%s]\r\n", \
 			(STA & SDIO_STA_DTIMEOUT) ? "DTIMEOUT " : "", \
@@ -752,12 +766,32 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 			(STA & SDIO_STA_TXUNDERR) ? "TXUNDERR " : "", \
 			(STA & SDIO_STA_STBITERR) ? "STBITERR"  : ""  \
 					);
+*/
+
+	// Send stop transmission command in case of multiple block transfer
+	if ((SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
 
 	// Check for errors
-	if (STA & SDIO_STA_DTIMEOUT) return SDR_DataTimeout;
-	if (STA & SDIO_STA_DCRCFAIL) return SDR_DataCRCFail;
-	if (STA & SDIO_STA_TXUNDERR) return SDR_TXUnderrun;
-	if (STA & SDIO_STA_STBITERR) return SDR_StartBitError;
+	if (STA & SDIO_STA_DTIMEOUT) {
+		SDIO->ICR = SDIO_ICR_DTIMEOUTC;
+
+		return SDR_DataTimeout;
+	}
+	if (STA & SDIO_STA_DCRCFAIL) {
+		SDIO->ICR = SDIO_ICR_DCRCFAILC;
+
+		return SDR_DataCRCFail;
+	}
+	if (STA & SDIO_STA_TXUNDERR)  {
+		SDIO->ICR = SDIO_ICR_TXUNDERRC;
+
+		return SDR_TXUnderrun;
+	}
+	if (STA & SDIO_STA_STBITERR) {
+		SDIO->ICR = SDIO_ICR_STBITERRC;
+
+		return SDR_StartBitError;
+	}
 
 	// Wait till the card is in programming state
 	do {
@@ -951,13 +985,14 @@ SDResult SD_CheckWrite(uint32_t length) {
 	uint8_t card_state; // Card state
 
 	// Wait for DMA/SDIO transfer end or error occurred
-	wait = 100;
-	printf("DMA write: ");
+//	wait = 100;
+//	printf("DMA write: ");
 	do {
 		STA = SDIO->STA;
 		SDIO_active = (STA & SDIO_STA_TXACT) ? 1 : 0;
-		printf("[%X %u %u %X] ",STA,DMA2_Channel4->CNDTR,SDIO->DCOUNT,DMA2->ISR);
+//		printf("[%X %u %u %X] ",STA,DMA2_Channel4->CNDTR,SDIO->DCOUNT,DMA2->ISR);
 	} while (SDIO_active && --wait);
+/*
 	printf("\r\nCheckWrite: STA=%X DCOUNT=%u DMA=%u DMA2=%X wait=%u",STA,SDIO->DCOUNT,SDIO_DMA_CH->CNDTR,DMA2->ISR,wait);
 
 	printf(" [%s%s%s%s]\r\n", \
@@ -966,6 +1001,7 @@ SDResult SD_CheckWrite(uint32_t length) {
 			(STA & SDIO_STA_TXUNDERR) ? "TXUNDERR " : "", \
 			(STA & SDIO_STA_STBITERR) ? "STBITERR"  : ""  \
 					);
+*/
 
 	// Disable the DMA channel
 	SDIO_DMA_CH->CCR &= ~DMA_CCR1_EN;
