@@ -60,10 +60,10 @@ ONE_DESCRIPTOR Config_Descriptor = {
 };
 
 ONE_DESCRIPTOR String_Descriptor[5] = {
-		{(uint8_t *)USB_StringLangID,    USB_STRING_SIZE_LANGID},
-		{(uint8_t *)USB_StringVendor,    USB_STRING_SIZE_VENDOR},
-		{(uint8_t *)USB_StringProduct,   USB_STRING_SIZE_PRODUCT},
-		{(uint8_t *)USB_StringSerial,    USB_STRING_SIZE_SERIAL}
+		{(uint8_t *)USB_StringLangID,  USB_STRING_SIZE_LANGID},
+		{(uint8_t *)USB_StringVendor,  USB_STRING_SIZE_VENDOR},
+		{(uint8_t *)USB_StringProduct, USB_STRING_SIZE_PRODUCT},
+		{(uint8_t *)USB_StringSerial,  USB_STRING_SIZE_SERIAL}
 };
 
 
@@ -71,7 +71,7 @@ ONE_DESCRIPTOR String_Descriptor[5] = {
 
 /*******************************************************************************
     Function Name  : USBdev_Init.
-    Description    : Mic init routine.
+    Description    : USB device init routine.
     Input          : None.
     Output         : None.
     Return         : None.
@@ -90,7 +90,7 @@ void USBdev_Init() {
 
 /*******************************************************************************
     Function Name  : USBdev_Reset.
-    Description    : Mic reset routine.
+    Description    : USB device reset routine.
     Input          : None.
     Output         : None.
     Return         : None.

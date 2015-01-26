@@ -68,3 +68,33 @@
 ~2.00MB/s
 
 ---------------------------------
+
+16MHz, 4-bit bus, 10Mb (128Mb card), DMA
+2:18:01.151> Started------>
+2:18:07.142> <--------Ended
+2:18:07.142> Failed: 0[0] from 20480
+~1.66MB/s
+
+24MHz, 1-bit bus, 10Mb (128Mb card), DMA
+2:20:43.095> Started------>
+2:20:51.147> <--------Ended
+2:20:51.147> Failed: 0[0] from 20480
+~1.25MB/s
+
+---------------------------------
+
+??? ---> WTF <--- ???
+24MHz, 1-bit bus, 10Mb (128Mb card), DMA, SDIO CLK BYPASS
+2:00:00.549> Started------>
+2:00:06.850> <--------Ended
+2:00:06.850> Failed: 0[0] from 20480
+
+24MHz, 1-bit bus, 100Mb (128Mb card), DMA, SDIO CLK BYPASS
+2:01:49.545> Started------>
+2:02:52.570> <--------Ended
+2:02:52.570> Failed: 0[0] from 204800
+
+1-bit bus, 100Mb (128Mb card), DMA, SDIO CLK BYPASS
+2:06:04.469> Started------>
+2:07:07.493> <--------Ended
+2:07:07.493> Failed: 0[0] from 204800

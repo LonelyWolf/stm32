@@ -111,16 +111,16 @@
 #define SD_CS_AKE_SEQ_ERROR           ((uint32_t)0x00000008) // Error in the sequence of the authentication process
 
 // Card state (OCR[12:9] bits CURRENT_STATE)
-#define SD_STATE_IDLE                    ((uint8_t)0x00) // Idle
-#define SD_STATE_READY                   ((uint8_t)0x01) // Ready
-#define SD_STATE_IDENT                   ((uint8_t)0x02) // Identification
-#define SD_STATE_STBY                    ((uint8_t)0x03) // Stand-by
-#define SD_STATE_TRAN                    ((uint8_t)0x04) // Transfer
-#define SD_STATE_DATA                    ((uint8_t)0x05) // Sending data
-#define SD_STATE_RCV                     ((uint8_t)0x06) // Receive data
-#define SD_STATE_PRG                     ((uint8_t)0x07) // Programming
-#define SD_STATE_DIS                     ((uint8_t)0x08) // Disconnect
-#define SD_STATE_ERROR                   ((uint8_t)0xFF) // Error or unknown state
+#define SD_STATE_IDLE                 ((uint8_t)0x00) // Idle
+#define SD_STATE_READY                ((uint8_t)0x01) // Ready
+#define SD_STATE_IDENT                ((uint8_t)0x02) // Identification
+#define SD_STATE_STBY                 ((uint8_t)0x03) // Stand-by
+#define SD_STATE_TRAN                 ((uint8_t)0x04) // Transfer
+#define SD_STATE_DATA                 ((uint8_t)0x05) // Sending data
+#define SD_STATE_RCV                  ((uint8_t)0x06) // Receive data
+#define SD_STATE_PRG                  ((uint8_t)0x07) // Programming
+#define SD_STATE_DIS                  ((uint8_t)0x08) // Disconnect
+#define SD_STATE_ERROR                ((uint8_t)0xFF) // Error or unknown state
 
 // Mask for ACMD41
 #define SD_STD_CAPACITY               ((uint32_t)0x00000000)
@@ -129,8 +129,11 @@
 // Timeout for CMD0 or CMD8
 #define SDIO_CMD_TIMEOUT              ((uint32_t)0x00010000)
 
-// SDIO timeout for data transfer
-#define SDIO_DATA_TIMEOUT             ((uint32_t)0xFFFFFFFF)
+// SDIO timeout for data transfer ((48MHz / CLKDIV / 1000) * timeout_ms)
+#define SDIO_DATA_R_TIMEOUT           ((uint32_t)((48000000 / (SDIO_CLK_DIV_TRAN + 2) / 1000) * 100)) // Data read timeout is 100ms
+#define SDIO_DATA_W_TIMEOUT           ((uint32_t)((48000000 / (SDIO_CLK_DIV_TRAN + 2) / 1000) * 250)) // Date write timeout is 250ms
+//#define SDIO_DATA_R_TIMEOUT           ((uint32_t)0x00249F00) // Data read timeout is 100ms (24MHz SDIO)
+//#define SDIO_DATA_W_TIMEOUT           ((uint32_t)0x005B8D80) // Date write timeout is 250ms (24MHz SDIO)
 
 // Trials count for ACMD41
 #define SDIO_ACMD41_TRIALS            ((uint32_t)0x0000FFFF)
@@ -248,6 +251,7 @@ extern SDCard_TypeDef SDCard;        // SD card parameters
 void SD_SDIO_GPIO_Init(void);
 SDResult SD_Init(void);
 SDResult SD_SetBusWidth(uint32_t BW);
+void SD_SetBusClock(uint32_t clk_div);
 void SD_GetCardInfo(void);
 
 SDResult SD_StopTransfer(void);

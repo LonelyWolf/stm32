@@ -82,7 +82,8 @@ volatile uint32_t _SD_int_cntr = 0;
 volatile uint32_t _SD_connected = 0;
 volatile uint32_t _SD_last_state = 0;
 uint32_t i,j,k;
-uint8_t sector[2048];
+//uint8_t sector[2048]; __attribute__ ((aligned (4)))
+uint8_t __attribute__((aligned(4))) sector[2048];
 
 uint16_t d0,d1;
 BMP180_RESULT BR;
@@ -239,6 +240,7 @@ int main(void) {
 
 
 
+/*
 	// Configure MCO out
 	PORT.GPIO_Pin = GPIO_Pin_8;
 	PORT.GPIO_Mode = GPIO_Mode_AF;
@@ -247,6 +249,7 @@ int main(void) {
 	PORT.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA,&PORT);
 	RCC_MCOConfig(RCC_MCOSource_PLLCLK,RCC_MCODiv_16);
+*/
 
 
 
@@ -291,9 +294,9 @@ int main(void) {
 
 
 
+	// Configure the USB peripheral
+	USB_HWConfig();
 	if (_USB_connected) {
-		// Configure the USB peripheral
-		USB_HWConfig();
 		// Initialize the USB device
 		USB_Init();
 	}
@@ -494,7 +497,6 @@ int main(void) {
 			}
 		}
 
-///*
 		// DMA read block test
 		for (i = 0; i < 2048; i++) sector[i] = '#';
 		i = 2048; // block size
@@ -507,9 +509,8 @@ int main(void) {
 //			if (j == SDR_Success) VCP_SendBufPrintable(sector,i,'.');
 //			printf("\r\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n");
 		}
-//*/
 
-/*
+///*
 		// DMA write block test
 		for (i = 0; i < 512; i++) {
 			sector[i] = sector[i + 1024] - 1;
@@ -522,14 +523,20 @@ int main(void) {
 			if (sector[i] > 127) sector[i] = 33;
 		}
 		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,1024);
+//		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,512);
 		printf("SD_WriteBlock_DMA = %X\r\n",j);
 		if (j == SDR_Success) {
 			// Wait till data transfered by DMA
 			j = SD_CheckWrite(1024);
+//			j = SD_CheckWrite(512);
 			printf("SD_CheckWrite = %X\r\n",j);
-		}
+			if (j == SDR_Success) d0++; else d1++;
+		} else d1++;
+		j = SD_GetCardState(&sector[0]);
+		printf("CardState = %X [%X]\r\n",sector[0],j);
 		printf("---------------------------------------------\r\n");
-*/
+
+//*/
 
 /*
 		// Write block test
@@ -572,7 +579,6 @@ int main(void) {
 		printf("---------------------------------\r\n");
 */
 
-		BEEPER_PlayTones(tones_USB_con);
 //		while(1);
 
 /*
@@ -709,7 +715,7 @@ int main(void) {
 
 
 
-	BEEPER_PlayTones(tones_USB_dis);
+	BEEPER_Enable(2500,1);
 
 
 
@@ -784,6 +790,24 @@ int main(void) {
 
 		// USB sense pin state
 		printf("USB: %s (%d)\r\n",_USB_connected ? "connected" : "disconnected",(unsigned int)_USB_int_cntr);
+/*
+		if (_USB_connected) {
+			BEEPER_Enable(4444,1);
+			// USB cable plugged
+			if (bDeviceState != CONFIGURED) {
+				// USB device is not configured, try to initialize it
+				USBdev_Init();
+			}
+		} else {
+			// USB cable unplugged
+			if (bDeviceState == CONFIGURED) {
+				// USB device is configured, deinitialize it
+				PowerOff();
+				bDeviceState = UNCONNECTED;
+				pInformation->Current_Configuration = 0;
+			}
+		}
+*/
 
 		// Get charger STAT pin state
 		i = 0;
@@ -830,8 +854,6 @@ int main(void) {
 			if (j != SDR_Success) BEEPER_Enable(1111,1);
 			j = SD_GetCardState(&sector[0]);
 			printf("SD_GetCardState = %02X [%X]\r\n",j,sector[0]);
-			VCP_SendBufPrintable(sector,128,'.');
-			VCP_SendStr("\r\n");
 */
 			for (i = 0; i < 2048; ) sector[i++] = '#';
 			j = SD_ReadBlock_DMA(0,(uint32_t *)sector,2048);
@@ -843,12 +865,11 @@ int main(void) {
 			if (j != SDR_Success) BEEPER_Enable(4444,1);
 			j = SD_GetCardState(&sector[0]);
 			printf("SD_GetCardState = %02X [%X]\r\n",j,sector[0]);
-			VCP_SendBufPrintable(sector,128,'.');
-			VCP_SendStr("\r\n");
 		}
 
 		printf("------------------\r\n");
 
+//		BEEPER_Enable(111,1);
 		Delay_ms(2000);
 	}
 

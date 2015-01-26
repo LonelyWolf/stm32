@@ -29,8 +29,8 @@ typedef enum _DEVICE_STATE {
 
 
 // External variables
-extern __IO uint32_t bDeviceState;    // USB device status
-extern __IO bool     fSuspendEnabled; // true when suspend is possible
+extern __IO DEVICE_STATE bDeviceState; // USB device status
+extern __IO bool fSuspendEnabled; // true when suspend is possible
 
 
 // Exported functions

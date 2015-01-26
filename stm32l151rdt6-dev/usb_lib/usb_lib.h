@@ -7,6 +7,7 @@
 #include "usb_type.h"
 #include "usb_core.h"
 #include "usb_regs.h"
+#include "usb_pwr.h"
 
 
 // Public defines
@@ -40,6 +41,7 @@ extern uint16_t wInterrupt_Mask; // Contains interrupt mask
 extern USER_STANDARD_REQUESTS *pUser_Standard_Requests;
 extern __IO uint16_t SaveRState; // cells saving status during interrupt servicing
 extern __IO uint16_t SaveTState; // cells saving status during interrupt servicing
+extern __IO DEVICE_STATE bDeviceState; // USB device status
 
 
 // Function prototypes

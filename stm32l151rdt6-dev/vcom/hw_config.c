@@ -106,6 +106,7 @@ void Get_SerialNum(void) {
 	devSerial0  = *(__I uint32_t*)(0x1FF800D0); // STM32 DevID (for STM32L Cat.3,4,5 devices)
 	devSerial1  = *(__I uint32_t*)(0x1FF800D4);
 	devSerial2  = *(__I uint32_t*)(0x1FF800D8);
+
 	devSerial0 += devSerial2;
 
 	if (devSerial0) {

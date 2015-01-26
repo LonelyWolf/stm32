@@ -64,8 +64,8 @@ void SD_SDIO_GPIO_Init(void) {
 	RCC->APB2ENR |= RCC_APB2ENR_SDIOEN;
 
 	// Configure SDIO peripheral clock
-	// HW flow control disabled, Rising edge of SDIOCLK, 1-bit bus, Power saving disabled, SDIOCLK bypass disabled
-	SDIO->CLKCR = SD_BUS_1BIT | SDIO_CLK_DIV_INIT | SDIO_CLKCR_CLKEN; // 400MHz speed, clock enabled
+	// HW flow control disabled, Rising edge of SDIOCLK, 1-bit bus, Power saving enabled, SDIOCLK bypass disabled
+	SDIO->CLKCR = SD_BUS_1BIT | SDIO_CLK_DIV_INIT | SDIO_CLKCR_CLKEN | SDIO_CLKCR_PWRSAV; // 400MHz speed, clock enabled
 
 	// Disable SDIO clock
 	SDIO->POWER = SDIO_PWR_OFF;
@@ -105,26 +105,58 @@ SDResult SD_Cmd(uint8_t cmd, uint32_t arg, uint16_t resp_type) {
 	return SDR_Success;
 }
 
+// Get SDResult code from card status information
+// input:
+//   cs - card status (32-bit value)
+// return: SDResult code
+SDResult SD_GetError(uint32_t cs) {
+	SDResult result = SDR_Success;
+
+	if (cs & SD_CS_ERROR_BITS) {
+		if (cs & SD_CS_OUT_OF_RANGE)       result = SDR_AddrOutOfRange;
+		if (cs & SD_CS_ADDRESS_ERROR)      result = SDR_AddrMisaligned;
+		if (cs & SD_CS_BLOCK_LEN_ERROR)    result = SDR_BlockLenError;
+		if (cs & SD_CS_ERASE_SEQ_ERROR)    result = SDR_EraseSeqError;
+		if (cs & SD_CS_ERASE_PARAM)        result = SDR_EraseParam;
+		if (cs & SD_CS_WP_VIOLATION)       result = SDR_WPViolation;
+		if (cs & SD_CS_LOCK_UNLOCK_FAILED) result = SDR_LockUnlockFailed;
+		if (cs & SD_CS_COM_CRC_ERROR)      result = SDR_ComCRCError;
+		if (cs & SD_CS_ILLEGAL_COMMAND)    result = SDR_IllegalCommand;
+		if (cs & SD_CS_CARD_ECC_FAILED)    result = SDR_CardECCFailed;
+		if (cs & SD_CS_CC_ERROR)           result = SDR_CCError;
+		if (cs & SD_CS_ERROR)              result = SDR_GeneralError;
+		if (cs & SD_CS_STREAM_R_UNDERRUN)  result = SDR_StreamUnderrun;
+		if (cs & SD_CS_STREAM_W_OVERRUN)   result = SDR_StreamOverrun;
+		if (cs & SD_CS_CSD_OVERWRITE)      result = SDR_CSDOverwrite;
+		if (cs & SD_CS_WP_ERASE_SKIP)      result = SDR_WPEraseSkip;
+		if (cs & SD_CS_CARD_ECC_DISABLED)  result = SDR_ECCDisabled;
+		if (cs & SD_CS_ERASE_RESET)        result = SDR_EraseReset;
+		if (cs & SD_CS_AKE_SEQ_ERROR)      result = SDR_AKESeqError;
+	}
+
+	return result;
+}
+
 // Get response from the SD card
 // input:
 //   resp_type - response type (SD_Rxx values)
 //   pResp - pointer to the array for response (1..4 32-bit values)
 // return:
 //   for R1 or R1b responses:
-//     SDR_Success if no error or SDR_BadResponse in case of some error bits set
-//     response points to card status value
+//     SDR_Success if no error or SDR_XXX in case of some error bits set
+//     pResp contains a card status value
 //   for R2 response:
 //     result always is SDR_Success
-//     response points to 128-bit CSD or CID register value
+//     pResp contains a 128-bit CSD or CID register value
 //   for R3 response:
 //     SDR_Success if no error or SDR_BadResponse in case of bad OCR register header
-//     response points to 32-bit OCR register value
+//     pResp contains a 32-bit OCR register value
 //   for R6 response:
 //     SDR_Success if no error or SDR_BadResponse in case of bad RCA response
-//     response points to 32-bit RCA value
+//     pResp contains a 32-bit RCA value
 //   for R7 response:
 //     SDR_Success if no error or SDR_BadResponse in case of bad R7 response header
-//     response points to 32-bit value of R7 response
+//     pResp contains a 32-bit value of R7 response
 SDResult SD_Response(uint16_t resp_type, uint32_t *pResp) {
 	SDResult result = SDR_Success;
 
@@ -136,7 +168,7 @@ SDResult SD_Response(uint16_t resp_type, uint32_t *pResp) {
 		case SD_R1b:
 			// RESP1 contains card status information
 			// Check for error bits in card status
-			if (*pResp & SD_CS_ERROR_BITS) result = SDR_BadResponse;
+			result = SD_GetError(*pResp);
 			break;
 		case SD_R2:
 			// RESP1..4 registers contain the CID/CSD register value
@@ -206,7 +238,7 @@ SDResult SD_GetSCR(uint32_t *pSCR) {
 	SDIO->ICR = SDIO_ICR_RXOVERRC | SDIO_ICR_DCRCFAILC | SDIO_ICR_DTIMEOUTC | SDIO_ICR_DBCKENDC | SDIO_ICR_STBITERRC;
 
 	// Configure the SDIO data transfer
-	SDIO->DTIMER = SDIO_DATA_TIMEOUT; // Timeout
+	SDIO->DTIMER = SDIO_DATA_R_TIMEOUT; // Data read timeout
 	SDIO->DLEN   = 8; // Data length in bytes
 	// Data transfer: block, card -> controller, size: 2^3 = 8bytes, enable data transfer
 	SDIO->DCTRL  = SDIO_DCTRL_DTDIR | (3 << 4) | SDIO_DCTRL_DTEN;
@@ -331,7 +363,7 @@ SDResult SD_Init(void) {
 		}
 	} else return cmd_res;
 
-	// CMD2 and CMD3 commands should be issued in cycle until timeout to enumerate all cards on the bus.
+	// Now the CMD2 and CMD3 commands should be issued in cycle until timeout to enumerate all cards on the bus.
 	// Since this module suitable to work with single card, issue this commands one time only.
 
 	// Send ALL_SEND_CID command
@@ -366,7 +398,9 @@ SDResult SD_Init(void) {
 
 	// Configure SDIO peripheral clock
 	// HW flow control disabled, Rising edge of SDIOCLK, 1-bit bus, Power saving disabled, SDIOCLK bypass disabled
-	SDIO->CLKCR = SD_BUS_1BIT | SDIO_CLK_DIV_TRAN | SDIO_CLKCR_CLKEN; // Data transfer speed, clock enabled
+//	SDIO->CLKCR = SD_BUS_1BIT | SDIO_CLK_DIV_TRAN | SDIO_CLKCR_CLKEN; // 1-bit bus, data transfer speed, clock enabled
+	// HW flow control disabled, Rising edge of SDIOCLK, 1-bit bus, Power saving enabled, SDIOCLK bypass disabled
+	SDIO->CLKCR = SD_BUS_1BIT | SDIO_CLK_DIV_TRAN | SDIO_CLKCR_CLKEN | SDIO_CLKCR_PWRSAV;
 
 	// Put the SD card in transfer mode
 	SD_Cmd(SD_CMD_SEL_DESEL_CARD,SDCard.RCA << 16,SDIO_RESP_SHORT); // CMD7
@@ -435,9 +469,22 @@ SDResult SD_SetBusWidth(uint32_t BW) {
 	// Configure bus width
 	SDIO->CLKCR = reg | BW;
 
-	printf("------> BUS WIDTH %s-BIT <------\r\n",BW == SD_BUS_1BIT ? "1" : "4");
+//	printf("------> BUS WIDTH %s-BIT <------\r\n",BW == SD_BUS_1BIT ? "1" : "4");
 
 	return cmd_res;
+}
+
+// Set SDIO bus clock
+// input:
+//   clk_div - bus clock divider (0x00..0xff -> bus_clock = SDIOCLK / (clk_div + 2))
+void SD_SetBusClock(uint32_t clk_div) {
+	uint32_t reg;
+
+	// Clear clock divider
+	reg = SDIO->CLKCR & 0xffffff00;
+
+	// Set new clock divider
+	SDIO->CLKCR = reg | clk_div;
 }
 
 // Parse information about specific card
@@ -527,39 +574,16 @@ SDResult SD_StopTransfer(void) {
 // return: SDResult value
 SDResult SD_GetCardState(uint8_t *pStatus) {
 	uint32_t response;
-	SDResult cmd_res;
 
 	// Send SEND_STATUS command
 	SD_Cmd(SD_CMD_SEND_STATUS,SDCard.RCA << 16,SDIO_RESP_SHORT); // CMD13
-	cmd_res = SD_Response(SD_R1,&response);
+	SD_Response(SD_R1,&response);
 
 	// Find out card status
 	*pStatus = (response & 0x1e00) >> 9;
 
 	// Check for errors
-	if (response & SD_CS_ERROR_BITS) {
-		if (response & SD_CS_OUT_OF_RANGE)       return SDR_AddrOutOfRange;
-		if (response & SD_CS_ADDRESS_ERROR)      return SDR_AddrMisaligned;
-		if (response & SD_CS_BLOCK_LEN_ERROR)    return SDR_BlockLenError;
-		if (response & SD_CS_ERASE_SEQ_ERROR)    return SDR_EraseSeqError;
-		if (response & SD_CS_ERASE_PARAM)        return SDR_EraseParam;
-		if (response & SD_CS_WP_VIOLATION)       return SDR_WPViolation;
-		if (response & SD_CS_LOCK_UNLOCK_FAILED) return SDR_LockUnlockFailed;
-		if (response & SD_CS_COM_CRC_ERROR)      return SDR_ComCRCError;
-		if (response & SD_CS_ILLEGAL_COMMAND)    return SDR_IllegalCommand;
-		if (response & SD_CS_CARD_ECC_FAILED)    return SDR_CardECCFailed;
-		if (response & SD_CS_CC_ERROR)           return SDR_CCError;
-		if (response & SD_CS_ERROR)              return SDR_GeneralError;
-		if (response & SD_CS_STREAM_R_UNDERRUN)  return SDR_StreamUnderrun;
-		if (response & SD_CS_STREAM_W_OVERRUN)   return SDR_StreamOverrun;
-		if (response & SD_CS_CSD_OVERWRITE)      return SDR_CSDOverwrite;
-		if (response & SD_CS_WP_ERASE_SKIP)      return SDR_WPEraseSkip;
-		if (response & SD_CS_CARD_ECC_DISABLED)  return SDR_ECCDisabled;
-		if (response & SD_CS_ERASE_RESET)        return SDR_EraseReset;
-		if (response & SD_CS_AKE_SEQ_ERROR)      return SDR_AKESeqError;
-	}
-
-	return cmd_res;
+	return SD_GetError(response);
 }
 
 // Read block of data from the SD card
@@ -601,7 +625,7 @@ SDResult SD_ReadBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	if (cmd_res != SDR_Success) return cmd_res;
 
 	// Configure the SDIO data transfer
-	SDIO->DTIMER = SDIO_DATA_TIMEOUT; // Data timeout
+	SDIO->DTIMER = SDIO_DATA_R_TIMEOUT; // Data read timeout
 	SDIO->DLEN   = length; // Data length
 	// Data transfer: block, card -> controller, size: 2^9 = 512bytes, enable transfer
 	SDIO->DCTRL  = SDIO_DCTRL_DTDIR | (9 << 4) | SDIO_DCTRL_DTEN;
@@ -625,35 +649,17 @@ SDResult SD_ReadBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	} while (!(STA & STA_mask));
 	// <---- TIME CRITICAL SECTION END ---->
 
-	// Send stop transmission command in case of multiblock transfer
+	// Send stop transmission command in case of multiple block transfer
 	if ((SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
 
 	// Check for errors
-	if (STA & SDIO_STA_DTIMEOUT) {
-		SDIO->ICR = SDIO_ICR_DTIMEOUTC;
-
-		return SDR_DataTimeout;
-	}
-	if (STA & SDIO_STA_DCRCFAIL) {
-		SDIO->ICR = SDIO_ICR_DCRCFAILC;
-
-		return SDR_DataCRCFail;
-	}
-	if (STA & SDIO_STA_RXOVERR)  {
-		SDIO->ICR = SDIO_ICR_RXOVERRC;
-
-		return SDR_RXOverrun;
-	}
-	if (STA & SDIO_STA_STBITERR) {
-		SDIO->ICR = SDIO_ICR_STBITERRC;
-
-		return SDR_StartBitError;
-	}
+	if (STA & SDIO_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
+	if (STA & SDIO_STA_DCRCFAIL) cmd_res = SDR_DataCRCFail;
+	if (STA & SDIO_STA_RXOVERR)  cmd_res = SDR_RXOverrun;
+	if (STA & SDIO_STA_STBITERR) cmd_res = SDR_StartBitError;
 
 	// Read data remnant from RX FIFO (if there is still any data)
 	while (SDIO->STA & SDIO_STA_RXDAVL) *pBuf++ = SDIO->FIFO;
-
-//	printf("SD_ReadBlock: #%d [res=%2X] {STA=%8X}\r\n",addr,cmd_res,STA);
 
 	// Clear the static SDIO flags
 	SDIO->ICR = SDIO_ICR_STATIC;
@@ -704,14 +710,13 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDIO->ICR = SDIO_ICR_STATIC;
 
 	// Configure the SDIO data transfer
-	SDIO->DTIMER = SDIO_DATA_TIMEOUT; // Data timeout
+	SDIO->DTIMER = SDIO_DATA_W_TIMEOUT; // Data write timeout
 	SDIO->DLEN   = length; // Data length
 	// Data transfer: block, controller -> card, size: 2^9 = 512bytes, enable transfer
 	SDIO->DCTRL  = (9 << 4) | SDIO_DCTRL_DTEN;
 
 	// Transfer data block to the SDIO
 	// ----> TIME CRITICAL SECTION BEGIN <----
-	__disable_irq();
 	if (!(length % 32)) {
 		// The block length is multiple of 32, use simplified and faster transfer
 		do {
@@ -755,48 +760,21 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 			}
 		} while (!(STA & STA_mask));
 	}
-	__enable_irq();
 	// <---- TIME CRITICAL SECTION END ---->
-
-/*
-	printf("SD_WriteBlock: #%u [res=%X] {STA=%X DCOUNT=%u} blk=%d sent=%d",addr,cmd_res,STA,SDIO->DCOUNT,blk_count,bsent);
-	printf(" [%s%s%s%s]\r\n", \
-			(STA & SDIO_STA_DTIMEOUT) ? "DTIMEOUT " : "", \
-			(STA & SDIO_STA_DCRCFAIL) ? "DCRCFAIL " : "", \
-			(STA & SDIO_STA_TXUNDERR) ? "TXUNDERR " : "", \
-			(STA & SDIO_STA_STBITERR) ? "STBITERR"  : ""  \
-					);
-*/
 
 	// Send stop transmission command in case of multiple block transfer
 	if ((SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
 
 	// Check for errors
-	if (STA & SDIO_STA_DTIMEOUT) {
-		SDIO->ICR = SDIO_ICR_DTIMEOUTC;
-
-		return SDR_DataTimeout;
-	}
-	if (STA & SDIO_STA_DCRCFAIL) {
-		SDIO->ICR = SDIO_ICR_DCRCFAILC;
-
-		return SDR_DataCRCFail;
-	}
-	if (STA & SDIO_STA_TXUNDERR)  {
-		SDIO->ICR = SDIO_ICR_TXUNDERRC;
-
-		return SDR_TXUnderrun;
-	}
-	if (STA & SDIO_STA_STBITERR) {
-		SDIO->ICR = SDIO_ICR_STBITERRC;
-
-		return SDR_StartBitError;
-	}
+	if (STA & SDIO_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
+	if (STA & SDIO_STA_DCRCFAIL) cmd_res = SDR_DataCRCFail;
+	if (STA & SDIO_STA_TXUNDERR) cmd_res = SDR_TXUnderrun;
+	if (STA & SDIO_STA_STBITERR) cmd_res = SDR_StartBitError;
 
 	// Wait till the card is in programming state
 	do {
-		cmd_res = SD_GetCardState(&card_state);
-	} while ((cmd_res == SDR_Success) && ((card_state == SD_STATE_PRG) || (card_state == SD_STATE_RCV)));
+		if (SD_GetCardState(&card_state) != SDR_Success) break;
+	} while ((card_state == SD_STATE_PRG) || (card_state == SD_STATE_RCV));
 
 	// Clear the static SDIO flags
 	SDIO->ICR = SDIO_ICR_STATIC;
@@ -814,8 +792,8 @@ void SD_Cofigure_DMA(uint8_t direction, uint32_t *pBuf, uint32_t length) {
 	uint32_t reg;
 
 	// Clear DMA configuration bits
-	reg = SDIO_DMA_CH->CCR & ((uint32_t)~(DMA_CCR1_MEM2MEM | DMA_CCR1_PL | DMA_CCR1_MSIZE | \
-			DMA_CCR1_PSIZE | DMA_CCR1_MINC | DMA_CCR1_PINC | DMA_CCR1_CIRC | DMA_CCR1_DIR | DMA_CCR1_EN));
+	reg = SDIO_DMA_CH->CCR & ((uint32_t)~(DMA_CCR4_MEM2MEM | DMA_CCR4_PL | DMA_CCR4_MSIZE | \
+			DMA_CCR4_PSIZE | DMA_CCR4_MINC | DMA_CCR4_PINC | DMA_CCR4_CIRC | DMA_CCR4_DIR | DMA_CCR4_EN));
 	SDIO_DMA_CH->CCR = reg; // Disable DMA channel in case if it enabled
 
 	// Address of the peripheral data register
@@ -828,14 +806,14 @@ void SD_Cofigure_DMA(uint8_t direction, uint32_t *pBuf, uint32_t length) {
 	SDIO_DMA_CH->CNDTR = length >> 2; // SDIO operates with 32-bit words
 
 	// Clear DMA2 interrupt flags
-//	DMA2->IFCR = (DMA_IFCR_CGIF4 | DMA_IFCR_CHTIF4 | DMA_IFCR_CTCIF4 | DMA_IFCR_CTEIF4);
+	DMA2->IFCR = (DMA_IFCR_CGIF4 | DMA_IFCR_CHTIF4 | DMA_IFCR_CTCIF4 | DMA_IFCR_CTEIF4);
 
-	// DMA: no circular mode, 32-bits, memory increment, very high channel priority, channel enabled
-	reg |= (DMA_CCR1_MINC | DMA_CCR1_PL | DMA_CCR1_MSIZE_1 | DMA_CCR1_PSIZE_1 | DMA_CCR1_EN);
-	if (direction != SD_DMA_RX) reg |= DMA_CCR1_DIR; // DMA will read from memory
+	// DMA: no circular mode, 32-bit transfer, memory increment, very high channel priority, channel enabled
+	reg |= (DMA_CCR4_MINC | DMA_CCR4_PL | DMA_CCR4_MSIZE_1 | DMA_CCR4_PSIZE_1 | DMA_CCR4_EN);
+	if (direction != SD_DMA_RX) reg |= DMA_CCR4_DIR; // DMA will read from memory
 
 	// Enable IRQ
-//	reg |= (DMA_CCR1_TCIE | DMA_CCR1_TEIE);
+//	reg |= (DMA_CCR4_TCIE | DMA_CCR4_TEIE);
 
 	SDIO_DMA_CH->CCR = reg;
 }
@@ -854,6 +832,13 @@ SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// Initialize the data control register
 	SDIO->DCTRL = 0;
 
+	// Clear the static SDIO flags
+	SDIO->ICR = SDIO_ICR_STATIC;
+
+	// Configure the SDIO data transfer
+	SDIO->DTIMER = SDIO_DATA_R_TIMEOUT; // Data read timeout
+	SDIO->DLEN   = length; // Data length
+
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
 	// For SDHC card addr must be converted to block unit address
@@ -869,15 +854,9 @@ SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	cmd_res = SD_Response(SD_R1,&response);
 	if (cmd_res != SDR_Success) return cmd_res;
 
-	// Clear the static SDIO flags
-	SDIO->ICR = SDIO_ICR_STATIC;
-
 	// Configure the DMA to receive data from SDIO
 	SD_Cofigure_DMA(SD_DMA_RX,pBuf,length);
 
-	// Configure the SDIO data transfer
-	SDIO->DTIMER = SDIO_DATA_TIMEOUT; // Data timeout
-	SDIO->DLEN   = length; // Data length
 	// Data transfer: DMA enable, block, card -> controller, size: 2^9 = 512bytes, enable transfer
 	SDIO->DCTRL  = SDIO_DCTRL_DMAEN | SDIO_DCTRL_DTDIR | (9 << 4) | SDIO_DCTRL_DTEN;
 
@@ -898,6 +877,13 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// Initialize the data control register
 	SDIO->DCTRL = 0;
 
+	// Clear the static SDIO flags
+	SDIO->ICR = SDIO_ICR_STATIC;
+
+	// Configure the SDIO data transfer
+	SDIO->DTIMER = SDIO_DATA_W_TIMEOUT; // Data write timeout
+	SDIO->DLEN   = length; // Data length
+
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
 	// For SDHC card addr must be converted to block unit address
@@ -913,17 +899,13 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	cmd_res = SD_Response(SD_R1,&response);
 	if (cmd_res != SDR_Success) return cmd_res;
 
-	// Clear the static SDIO flags
-	SDIO->ICR = SDIO_ICR_STATIC;
-
 	// Configure the DMA to send data to SDIO
 	SD_Cofigure_DMA(SD_DMA_TX,pBuf,length);
 
-	// Configure the SDIO data transfer
-	SDIO->DTIMER = SDIO_DATA_TIMEOUT; // Data timeout
-	SDIO->DLEN   = length; // Data length
 	// Data transfer: DMA enable, block, controller -> card, size: 2^9 = 512bytes, enable transfer
 	SDIO->DCTRL  = SDIO_DCTRL_DMAEN | (9 << 4) | SDIO_DCTRL_DTEN;
+
+//	printf("INB4: STA=%X DCOUNT=%u FIFOCNT=%u DMA=%u DMA2=%X\r\n",SDIO->STA,SDIO->DCOUNT,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,DMA2->ISR);
 
 	return cmd_res;
 }
@@ -931,14 +913,14 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 // This function waits until the SDIO DMA data read transfer is finished
 // It must be called after SD_ReadBlock_DMA() function to ensure that all
 // data sent by the SD card is already transfered by the DMA and send STOP
-// command in case of multiblock transfer
+// command in case of multiple block transfer
 // input:
 //   length - buffer length (must be multiple of 512)
-// note: length passed here to determine if it was mutliblock transfer
+// note: length passed here to determine if it was mutliple block transfer
 SDResult SD_CheckRead(uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length / 512; // Sectors in block
-	uint32_t wait = SDIO_DATA_TIMEOUT;
+	uint32_t wait = SDIO_DATA_R_TIMEOUT;
 	uint32_t SDIO_active;
 	uint32_t STA;
 
@@ -949,10 +931,13 @@ SDResult SD_CheckRead(uint32_t length) {
 	} while (SDIO_active && --wait);
 
 	// Disable the DMA channel
-	SDIO_DMA_CH->CCR &= ~DMA_CCR1_EN;
+	SDIO_DMA_CH->CCR &= ~DMA_CCR4_EN;
 
-	// Send stop transmission command in case of multiblock transfer
+	// Send stop transmission command in case of multiple block transfer
 	if ((SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
+
+	// Check for timeout
+	if (!wait && (cmd_res == SDR_Success)) return SDR_Timeout; // Wait loop timeout
 
 	// Check for errors
 	if (STA & SDIO_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
@@ -963,38 +948,34 @@ SDResult SD_CheckRead(uint32_t length) {
 	// Clear the static SDIO flags
 	SDIO->ICR = SDIO_ICR_STATIC;
 
-	// Check for timeout
-	if (!wait) cmd_res = SDR_Timeout;
-
 	return cmd_res;
 }
 
 // This function waits until the SDIO DMA data write transfer is finished
 // It must be called after SD_WriteBlock_DMA() function to ensure that all
 // data is already transfered by the DMA to SD card and send STOP command
-// in case of multiblock transfer
+// in case of multiple block transfer
 // input:
 //   length - buffer length (must be multiple of 512)
-// note: length passed here to determine if it was mutliblock transfer
+// note: length passed here to determine if it was multiple block transfer
 SDResult SD_CheckWrite(uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length / 512; // Sectors in block
-	uint32_t wait = SDIO_DATA_TIMEOUT >> 10;
+	uint32_t wait = SDIO_DATA_W_TIMEOUT;
 	uint32_t SDIO_active;
 	uint32_t STA;
 	uint8_t card_state; // Card state
 
 	// Wait for DMA/SDIO transfer end or error occurred
 //	wait = 100;
-//	printf("DMA write: ");
 	do {
 		STA = SDIO->STA;
 		SDIO_active = (STA & SDIO_STA_TXACT) ? 1 : 0;
-//		printf("[%X %u %u %X] ",STA,DMA2_Channel4->CNDTR,SDIO->DCOUNT,DMA2->ISR);
+//		printf("[%X %u %u %u %X] ",STA,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,SDIO->DCOUNT,DMA2->ISR);
 	} while (SDIO_active && --wait);
-/*
-	printf("\r\nCheckWrite: STA=%X DCOUNT=%u DMA=%u DMA2=%X wait=%u",STA,SDIO->DCOUNT,SDIO_DMA_CH->CNDTR,DMA2->ISR,wait);
 
+/*
+	printf("\r\nCheckWrite: STA=%X DCOUNT=%u FIFOCNT=%u DMA=%u DMA2=%X wait=%u",STA,SDIO->DCOUNT,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,DMA2->ISR,wait);
 	printf(" [%s%s%s%s]\r\n", \
 			(STA & SDIO_STA_DTIMEOUT) ? "DTIMEOUT " : "", \
 			(STA & SDIO_STA_DCRCFAIL) ? "DCRCFAIL " : "", \
@@ -1004,22 +985,24 @@ SDResult SD_CheckWrite(uint32_t length) {
 */
 
 	// Disable the DMA channel
-	SDIO_DMA_CH->CCR &= ~DMA_CCR1_EN;
+	SDIO_DMA_CH->CCR &= ~DMA_CCR4_EN;
 
-	// Send stop transmission command in case of multiblock transfer
+	// Send stop transmission command in case of multiple block transfer
 	if ((SDCard.Type != SDCT_MMC) && (blk_count > 1)) cmd_res = SD_StopTransfer();
 
-	// Check for errors
+	// Check for timeout
 	if (!wait && (cmd_res == SDR_Success)) return SDR_Timeout; // Wait loop timeout
-	if (STA & SDIO_STA_DTIMEOUT) return SDR_DataTimeout;
-	if (STA & SDIO_STA_DCRCFAIL) return SDR_DataCRCFail;
-	if (STA & SDIO_STA_TXUNDERR) return SDR_TXUnderrun;
-	if (STA & SDIO_STA_STBITERR) return SDR_StartBitError;
+
+	// Check for errors
+	if (STA & SDIO_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
+	if (STA & SDIO_STA_DCRCFAIL) cmd_res = SDR_DataCRCFail;
+	if (STA & SDIO_STA_TXUNDERR) cmd_res = SDR_TXUnderrun;
+	if (STA & SDIO_STA_STBITERR) cmd_res = SDR_StartBitError;
 
 	// Wait till the card is in programming state
 	do {
-		cmd_res = SD_GetCardState(&card_state);
-	} while ((cmd_res == SDR_Success) && ((card_state == SD_STATE_PRG) || (card_state == SD_STATE_RCV)));
+		if (SD_GetCardState(&card_state) != SDR_Success) break;
+	} while ((card_state == SD_STATE_PRG) || (card_state == SD_STATE_RCV));
 
 	// Clear the static SDIO flags
 	SDIO->ICR = SDIO_ICR_STATIC;

@@ -3,10 +3,10 @@
 
 
 // Private variables
-__IO uint32_t bDeviceState   = UNCONNECTED; // USB device status
-__IO bool fSuspendEnabled    = TRUE;        // true when suspend is possible
-__IO uint32_t remotewakeupon = 0;           // Remote wake-up state machine
-__IO uint32_t EP[8];                        // Array to store endpoint registers
+__IO DEVICE_STATE bDeviceState = UNCONNECTED; // USB device status
+__IO bool fSuspendEnabled = TRUE; // true when suspend is possible
+__IO uint32_t remotewakeupon = 0; // Remote wake-up state machine
+__IO uint32_t EP[8]; // Array to store endpoint registers
 
 
 // Private structures
