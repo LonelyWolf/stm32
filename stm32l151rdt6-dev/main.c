@@ -17,6 +17,8 @@
 #include "wolk.h"
 #include "sdcard-sdio.h"
 #include "log.h"
+#include "spi.h"
+#include "nRF24.h"
 
 // USB stuff
 #include "usb_lib.h"
@@ -61,6 +63,7 @@
 #define USB_SENS_PIN              GPIO_IDR_IDR_10
 #define USB_SENS_PERIPH           RCC_AHBPeriph_GPIOA
 #define USB_SENS_EXTI             (1 << 10)
+#define USB_SENS_EXTI_N           EXTI15_10_IRQn
 
 // Charger STAT pin (PC2)
 #define CHRG_STAT_PORT            GPIOC
@@ -72,30 +75,54 @@
 #define SD_DETECT_PIN             GPIO_IDR_IDR_3
 #define SD_DETECT_PERIPH          RCC_AHBPeriph_GPIOB
 #define SD_DETECT_EXTI            (1 << 3)
+#define SD_DETECT_EXTI_N          EXTI3_IRQn
 
 
+// It's obvious!
+uint32_t i,j,k;
 
-GPIO_InitTypeDef PORT;
+// USB
 volatile uint32_t _USB_int_cntr = 0;
 volatile uint32_t _USB_connected = 0;
+
+// SD
 volatile uint32_t _SD_int_cntr = 0;
 volatile uint32_t _SD_connected = 0;
 volatile uint32_t _SD_last_state = 0;
-uint32_t i,j,k;
-//uint8_t sector[2048]; __attribute__ ((aligned (4)))
 uint8_t __attribute__((aligned(4))) sector[2048];
 
+// ALS variables
 uint16_t d0,d1;
+
+// BMP180 variables
 BMP180_RESULT BR;
 int16_t RT;
 int32_t RP;
 int16_t X,Y,Z,ACCT;
 
+// ADC variables
 uint16_t ADC1_raws[16],Vrefint_raws[16];
 uint32_t ADC1_raw,Vrefint_raw;
 uint32_t Vbat,Vrefint,Vcpu;
 
+// nRF24 variables
+#define NRF24_SOLAR // if defined - receive solar powered temperature sensor, WBC otherwise
+#ifdef NRF24_SOLAR
+// Yes, this is redefinition from wolk.h (must be warn from compiler for the following lines)
+#define nRF24_RX_Addr               "WolkT" // RX address for nRF24L01
+#define nRF24_RX_Addr_Size                5 // RX address size
+#define nRF24_RF_CHANNEL                110 // nRF24L01 channel (110CH = 2510MHz)
+#define nRF24_RX_PAYLOAD                 18 // nRF24L01 payload length
+uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD]; // nRF24L01 payload buffer
+bool _logging = FALSE;
+#else
+uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD]; // nRF24L01 payload buffer for WBC
+#endif
+volatile bool _new_packet = FALSE;
+uint32_t _packets_rcvd = 0; // Received packets counter
 
+// SPL
+GPIO_InitTypeDef PORT;
 NVIC_InitTypeDef NVICInit;
 
 
@@ -116,6 +143,28 @@ void RTC_WKUP_IRQHandler(void) {
 	}
 }
 
+// EXTI1 line IRQ handler
+void EXTI1_IRQHandler(void) {
+	nRF24_RX_PCKT_TypeDef RX_status;
+
+	if (EXTI->PR & nRF24_IRQ_EXTI) {
+		RX_status = nRF24_RXPacket(nRF24_RX_Buf,nRF24_RX_PAYLOAD);
+		nRF24_ClearIRQFlags();
+		if (RX_status == nRF24_RX_PCKT_PIPE0) {
+			_packets_rcvd++;
+			_new_packet = TRUE;
+		}
+
+//		BEEPER_Enable(700,2);
+
+		// Disable sleep-on-exit (return to main loop from IRQ)
+		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+
+		// Clear IT bit for EXTI_Line
+		EXTI->PR = nRF24_IRQ_EXTI;
+	}
+}
+
 // EXTI3 line IRQ handler
 void EXTI3_IRQHandler(void) {
 	if (EXTI->PR & SD_DETECT_EXTI) {
@@ -126,7 +175,9 @@ void EXTI3_IRQHandler(void) {
 		} else {
 			BEEPER_PlayTones(tones_USB_dis);
 		}
-		EXTI->PR = SD_DETECT_EXTI; // Clear IT bit for EXTI_Line
+
+		// Clear IT bit for EXTI_Line
+		EXTI->PR = SD_DETECT_EXTI;
 	}
 }
 
@@ -188,6 +239,15 @@ int main(void) {
 
 
 
+/*
+	// NVIC: 2 bit for pre-emption priority, 2 bits for subpriority
+	// WARNING: this stuff will be re-setup in USB init routine
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+*/
+
+
+
+
 	// Enable the system configuration controller
 	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
 
@@ -195,8 +255,11 @@ int main(void) {
 
 
 	// Enable and configure RTC
-//	RTC_Config();
-//	RTC_SetWakeUp(10);
+	RTC_Config();
+//	RTC_SetWakeUp(10); // Wake every 10 seconds
+//	RTC_SetWakeUp(30); // Wake every 30 seconds
+	RTC_SetWakeUp(60); // Wake every minute
+//	RTC_SetWakeUp(120); // Wake every 2 minutes
 
 
 
@@ -241,7 +304,7 @@ int main(void) {
 
 
 /*
-	// Configure MCO out
+	// Configure the MCO out
 	PORT.GPIO_Pin = GPIO_Pin_8;
 	PORT.GPIO_Mode = GPIO_Mode_AF;
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
@@ -276,27 +339,22 @@ int main(void) {
 	SYSCFG->EXTICR[2] |=  SYSCFG_EXTICR3_EXTI10_PA; // Set PA10 pin as input source
 
 /*
-	// 2 bit for pre-emption priority, 2 bits for subpriority
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
-
 	// Enable the USB sense pin interrupt
-	NVICInit.NVIC_IRQChannel = EXTI15_10_IRQn;
+	NVICInit.NVIC_IRQChannel = USB_SENS_EXTI_N;
 	NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
 	NVICInit.NVIC_IRQChannelSubPriority = 0;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVICInit);
 */
 
-	NVIC_EnableIRQ(EXTI15_10_IRQn);
+	// Simple enable the USB sense pin interrupt
+	NVIC_EnableIRQ(USB_SENS_EXTI_N);
 
 	_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 
-
-
-
-	// Configure the USB peripheral
-	USB_HWConfig();
 	if (_USB_connected) {
+		// Configure the USB peripheral
+		USB_HWConfig();
 		// Initialize the USB device
 		USB_Init();
 	}
@@ -340,28 +398,27 @@ int main(void) {
 	EXTI->FTSR |=  SD_DETECT_EXTI; // Trigger falling edge enabled
 
 	// PB3 as source input for EXTI3
-	SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI3; // Clear bits (Set PA3 pin as input source)
-	SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI3_PB; // Set PB3 pin as input source
+	SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI3; // Clear bits (PA[x] pin as input source)
+	SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI3_PB; // Set PB[x] pin as input source
 
 /*
-	// 2 bit for pre-emption priority, 2 bits for subpriority
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
-
-	// Enable the USB sense pin interrupt
-	NVICInit.NVIC_IRQChannel = EXTI3_IRQn;
+	// Enable the SD detect pin interrupt
+	NVICInit.NVIC_IRQChannel = SD_DETECT_EXTI_N;
 	NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
 	NVICInit.NVIC_IRQChannelSubPriority = 0;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVICInit);
 */
 
-	NVIC_EnableIRQ(EXTI3_IRQn);
+	// Simple enable the SD detect pin interrupt
+	NVIC_EnableIRQ(SD_DETECT_EXTI_N);
 
 	_SD_connected = (SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? 0 : 1;
 
 
 
 
+	// For debug purposes
 	if (CoreDebug->DHCSR & (1 << CoreDebug_DHCSR_C_DEBUGEN_Pos)) {
 		// Application executed under debugger control
 		BEEPER_Enable(333,3);
@@ -377,6 +434,86 @@ int main(void) {
 			BEEPER_Enable(1000,3);
 			Delay_ms(1500);
 		}
+	}
+
+
+
+
+	// nRF24 SPI port initialization
+	SPIx_Init(nRF24_SPI_PORT);
+	SPIx_SetSpeed(nRF24_SPI_PORT,SPI_BR_2); // Highest speed (16MHz with 32MHz CPU)
+
+	// Initialize and configure nRF24
+	nRF24_Init();
+	j = nRF24_Check();
+	printf("nRF24L01+: %s\r\n",(j) ? "PRESENT" : "FAIL");
+
+	// Dump nRF24L01+ registers
+	if (j) {
+		printf("nRF24L01+ registers:\r\n");
+		for (i = 0; i < 0x1d; i++) {
+			j = nRF24_ReadReg(i);
+			printf("R%02X=0x%02X%s",i,j,((i + 1) % 8) ? " " : "\r\n");
+		}
+
+		// Configure nRF24 IRQ EXTI line
+		EXTI->PR    =  nRF24_IRQ_EXTI; // Clear IT pending bit for EXTI
+		EXTI->IMR  |=  nRF24_IRQ_EXTI; // Enable interrupt request from EXTI
+		EXTI->EMR  &= ~nRF24_IRQ_EXTI; // Disable event on EXTI
+		EXTI->RTSR &= ~nRF24_IRQ_EXTI; // Trigger rising edge disabled
+		EXTI->FTSR |=  nRF24_IRQ_EXTI; // Trigger falling edge enabled
+
+		// PB1 as source input for EXTI1
+		SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI1; // Clear bits (PA[x] pin as input source)
+		SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI1_PB; // Set PB[x] pin as input source
+
+		SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB,EXTI_PinSource1);
+
+/*
+		// Enable the nRF24 IRQ pin interrupt
+		NVICInit.NVIC_IRQChannel = nRF24_IRQ_EXTI_N;
+		NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
+		NVICInit.NVIC_IRQChannelSubPriority = 0;
+		NVICInit.NVIC_IRQChannelCmd = ENABLE;
+		NVIC_Init(&NVICInit);
+*/
+
+		// Simple enable the nRF24 IRQ pin interrupt
+		NVIC_EnableIRQ(nRF24_IRQ_EXTI_N);
+
+		// Configure nRF24 receive mode
+		nRF24_Wake();
+#ifdef NRF24_SOLAR
+		// Solar powered temperature sensor
+		nRF24_RXMode(
+				nRF24_RX_PIPE0,           // RX on PIPE#0
+				nRF24_ENAA_P0,            // Auto acknowledgment enabled for PIPE#0
+				nRF24_RF_CHANNEL,         // RF Channel
+				nRF24_DataRate_1Mbps,     // Data rate
+				nRF24_CRC_2byte,          // CRC scheme
+				(uint8_t *)nRF24_RX_Addr, // RX address
+				nRF24_RX_Addr_Size,       // RX address size
+				nRF24_RX_PAYLOAD,         // Payload length
+				nRF24_TXPower_0dBm        // TX power for auto acknowledgment
+				);
+#else
+		// WBC
+		nRF24_RXMode(
+				nRF24_RX_PIPE0,           // RX on PIPE#0
+				nRF24_ENAA_OFF,           // Auto acknowledgment
+				nRF24_RF_CHANNEL,         // RF Channel
+				nRF24_DataRate_250kbps,   // Data rate
+				nRF24_CRC_2byte,          // CRC scheme
+				(uint8_t *)nRF24_RX_Addr, // RX address
+				nRF24_RX_Addr_Size,       // RX address size
+				nRF24_RX_PAYLOAD,         // Payload length
+				nRF24_TXPower_0dBm        // TX power for auto acknowledgment
+				);
+#endif
+	    nRF24_ClearIRQFlags();
+	    nRF24_FlushRX();
+
+	    printf("\r\n---------------------------------------------\r\n");
 	}
 
 
@@ -510,7 +647,7 @@ int main(void) {
 //			printf("\r\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n");
 		}
 
-///*
+/*
 		// DMA write block test
 		for (i = 0; i < 512; i++) {
 			sector[i] = sector[i + 1024] - 1;
@@ -534,9 +671,9 @@ int main(void) {
 		} else d1++;
 		j = SD_GetCardState(&sector[0]);
 		printf("CardState = %X [%X]\r\n",sector[0],j);
-		printf("---------------------------------------------\r\n");
+	    printf("---------------------------------------------\r\n");
 
-//*/
+*/
 
 /*
 		// Write block test
@@ -576,7 +713,7 @@ int main(void) {
 //		} while (k < 104857600); // 100MB read
 		printf("<--------Ended\r\n");
 		printf("Failed: %u[%u] from %u\r\n",d0,d1,i);
-		printf("---------------------------------\r\n");
+	    printf("---------------------------------------------\r\n");
 */
 
 //		while(1);
@@ -601,7 +738,7 @@ int main(void) {
 		} while (k < 10485760);
 		printf("<--------Ended\r\n");
 		printf("Failed: %u from %u\r\n",d0,i);
-		printf("---------------------------------\r\n");
+	    printf("---------------------------------------------\r\n");
 */
 
 
@@ -631,6 +768,24 @@ int main(void) {
 		}
 */
 
+#ifdef NRF24_SOLAR
+		// Log file create test
+		j = LOG_Init();
+		printf("LOG_Init: #%u\r\n",j);
+		if (j == LOG_OK) {
+			i = 0;
+			j = LOG_NewFile(&i);
+
+			printf("LOG_NewFile: %X [#%u]\r\n",(unsigned int)j,i);
+
+			if (j == LOG_OK) {
+				LOG_WriteStr("Solar temperature sensor\r\n");
+				LOG_WriteStr("SENSOR_DATE;SENSOR_TIME;PACKET_NUM;TEMPERATURE;SENSOR_VBAT;SENSOR_LSI;SENSOR_OTX_LOST;SENSOR_OTX_RETRIES\r\n");
+				LOG_FileSync();
+				_logging = TRUE;
+			}
+		}
+#endif
 
 
 		// DOSFS test
@@ -681,6 +836,8 @@ int main(void) {
 			printf("Capacity  : %10ub [%uMB]\r\n",total_space,total_space / 1048576);
 
 			di.scratch = sector;
+
+			// List files in root directory of SD card
 			if (DFS_OpenDir(&vi,(uint8_t *)"",&di)) {
 				printf("Error opening root directory.\r\n");
 			} else {
@@ -692,6 +849,7 @@ int main(void) {
 				}
 			}
 
+			// List files in LOG directory
 			if (DFS_OpenDir(&vi,(uint8_t *)LOG_DIR_LOGS,&di)) {
 				printf("Error opening \".\\%s\" directory.\r\n",LOG_DIR_LOGS);
 			} else {
@@ -710,7 +868,7 @@ int main(void) {
 
 
 
-	printf("-----------------------\r\n");
+    printf("---------------------------------------------\r\n");
 
 
 
@@ -723,6 +881,7 @@ int main(void) {
 	while(1) {
 		// Measure Vbat
 /*
+		// Do 16 ADC measurements and calculate rough average
 		ADC1_raw = 0;
 		Vrefint_raw = 0;
 		for (i = 0; i < 16; i++) {
@@ -738,31 +897,21 @@ int main(void) {
 		}
 */
 
+		// Do 16 ADC measurements
 		for (i = 0; i < 16; i++) {
 			ADC1->CR2 |= ADC_CR2_JSWSTART; // Start conversion of injected channels
 			while (!(ADC1->SR & ADC_SR_JEOC)); // Wait until ADC conversions end
 			ADC1_raws[i]    = ADC1->JDR1; // Read injected data register1 (ADC_IN1)
 			Vrefint_raws[i] = ADC1->JDR2; // Read injected data register2 (ADC_IN17)
 		}
+		// Calculate interquartile mean values of ADC readings
 		ADC1_raw = InterquartileMean(ADC1_raws,16);
 		Vrefint_raw = InterquartileMean(Vrefint_raws,16);
 
-/*
-		// Calculate rough average of ADC readings
-		Vrefint_raw = Vrefint_raws[0];
-		ADC1_raw = ADC1_raws[0];
-		for (i = 1; i < 16; i++) {
-			Vrefint_raw += Vrefint_raws[i];
-			ADC1_raw += ADC1_raws[i];
-			Vrefint_raw >>= 1;
-			ADC1_raw >>= 1;
-		}
-*/
-
+		// Convert ADC readings to voltage
 		Vbat = (uint16_t)(((*VREFINT_CAL * ADC1_raw * 3.0)/(Vrefint_raw * 4095.0)) * 1000);
 		Vrefint = (uint16_t)(((Vrefint_raw * 3.0) / 4095.0) * 1000);
 		Vcpu = (uint16_t)(((*VREFINT_CAL * 3.0) / Vrefint_raw) * 1000);
-
 		printf("VOL: Bat=[%u.%03uV -> %u.%03uV] Ref=%u.%03uV CPU=%u.%03uV\r\n",
 				(unsigned int)Vbat / 1000, (unsigned int)Vbat % 1000,
 				((unsigned int)Vbat / 1000) * 2, ((unsigned int)Vbat % 1000) * 2,
@@ -829,12 +978,8 @@ int main(void) {
 
 		CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
 
-		// Get state of SD detect pin
-//		printf("SDP: %s\r\n",(SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? "no card" : "present");
-
 		// SD card state
 		printf("SDC: %s (%d)\r\n",_SD_connected ? "present" : "no card",(unsigned int)_SD_int_cntr);
-
 		if (_SD_last_state != _SD_connected) {
 			if (_SD_connected) {
 				// The SD card was inserted, need to initialize it
@@ -845,7 +990,6 @@ int main(void) {
 		_SD_last_state = _SD_connected;
 
 		// Read some blocks from the SD card
-//		if (!(SD_DETECT_PORT->IDR & SD_DETECT_PIN)) {
 		if (_SD_connected) {
 /*
 			for (i = 0; i < 2048; ) sector[i++] = '#';
@@ -857,31 +1001,105 @@ int main(void) {
 */
 			for (i = 0; i < 2048; ) sector[i++] = '#';
 			j = SD_ReadBlock_DMA(0,(uint32_t *)sector,2048);
-			printf("SD_ReadBlock_DMA = %02X, ",j);
+			printf("ReadBlock_DMA = %02X, ",j);
 			if (j == SDR_Success) {
 				j = SD_CheckRead(2048);
-				printf("SD_CheckRead = %02X, ",j);
+				printf("CheckRead = %02X, ",j);
 			}
 			if (j != SDR_Success) BEEPER_Enable(4444,1);
 			j = SD_GetCardState(&sector[0]);
-			printf("SD_GetCardState = %02X [%X]\r\n",j,sector[0]);
+			printf("CardState = %02X [%X]\r\n",j,sector[0]);
 		}
 
-		printf("------------------\r\n");
+#ifdef NRF24_SOLAR
+		// Yep, the following code is so ugly =)
+
+		// Solar temperature sensor packet
+		printf("NRF: %upkts%s",_packets_rcvd,(_new_packet) ? " " : "\r\n");
+		if (_new_packet) {
+			RT = (nRF24_RX_Buf[0] << 8) | nRF24_RX_Buf[1]; // Temperature
+			Vrefint = (nRF24_RX_Buf[6] << 8) + nRF24_RX_Buf[7]; // Sensor voltage
+			printf("[#%u TEMP: %d.%dC VREF: %u.%uV LSI: %uHz OTX: %u/%u %02u:%02u:%02u %02u.%02u.20%02u]\r\n",
+					(uint32_t)((nRF24_RX_Buf[2] << 24)|(nRF24_RX_Buf[3] << 16)|(nRF24_RX_Buf[4] << 8)|(nRF24_RX_Buf[5])), /* Packet number */
+					RT / 10, RT % 10,
+					Vrefint / 100, Vrefint % 100,
+					(nRF24_RX_Buf[14] << 8) + nRF24_RX_Buf[15], /* Sensor MCU LSI frequency */
+					nRF24_RX_Buf[16] >> 4, nRF24_RX_Buf[16] & 0x0F, /* Sensor nRF24 OTX register: lost packets/number of retries */
+					(((nRF24_RX_Buf[10] & 0x30) >> 4) * 10) + (nRF24_RX_Buf[10] & 0x0F), /* Time: hours */
+					((nRF24_RX_Buf[9] >> 4) * 10) + (nRF24_RX_Buf[9] & 0x0F), /* Time: minutes */
+					((nRF24_RX_Buf[8] >> 4) * 10) + (nRF24_RX_Buf[8] & 0x0F), /* Time: seconds */
+					((nRF24_RX_Buf[11] >> 4) * 10) + (nRF24_RX_Buf[11] & 0x0F), /* Date: day */
+					(((nRF24_RX_Buf[12] & 0x1f) >> 4) * 10) + (nRF24_RX_Buf[12] & 0x0F), /* Date: month */
+					((nRF24_RX_Buf[13] >> 4) * 10) + (nRF24_RX_Buf[13] & 0x0F) /* Date: year */
+					);
+
+			// Write data to log file
+			if (_logging) {
+				// Sensor time
+				LOG_WriteTime(
+						(((nRF24_RX_Buf[10] & 0x30) >> 4) * 10) + (nRF24_RX_Buf[10] & 0x0F),
+						((nRF24_RX_Buf[9] >> 4) * 10) + (nRF24_RX_Buf[9] & 0x0F),
+						((nRF24_RX_Buf[8] >> 4) * 10) + (nRF24_RX_Buf[8] & 0x0F));
+				LOG_WriteStr(";");
+				// Sensor date
+				LOG_WriteDate(
+						((nRF24_RX_Buf[11] >> 4) * 10) + (nRF24_RX_Buf[11] & 0x0F),
+						(((nRF24_RX_Buf[12] & 0x1f) >> 4) * 10) + (nRF24_RX_Buf[12] & 0x0F),
+						((nRF24_RX_Buf[13] >> 4) * 10) + (nRF24_RX_Buf[13] & 0x0F));
+				LOG_WriteStr(";");
+				// Packet number
+				LOG_WriteIntU((uint32_t)((nRF24_RX_Buf[2] << 24)|(nRF24_RX_Buf[3] << 16)|(nRF24_RX_Buf[4] << 8)|(nRF24_RX_Buf[5])));
+				LOG_WriteStr(";");
+				// Temperature
+				LOG_WriteInt(RT / 10);
+				LOG_WriteStr(".");
+				LOG_WriteInt(RT % 10);
+				LOG_WriteStr("C;");
+				// Sensor voltage
+				LOG_WriteIntF(Vrefint,2);
+				LOG_WriteStr("V;");
+				// Sensor MCU LSI frequency
+				LOG_WriteIntU((nRF24_RX_Buf[14] << 8) + nRF24_RX_Buf[15]);
+				LOG_WriteStr("Hz;");
+				// Sensor nRF24 OTX register (shockburst)
+				LOG_WriteIntU(nRF24_RX_Buf[16] >> 4); // Lost packets
+				LOG_WriteStr(";");
+				LOG_WriteIntU(nRF24_RX_Buf[16] & 0x0F); // Number of retries
+				LOG_WriteStr("\r\n");
+				LOG_FileSync(); // Save data buffer to SD card
+			}
+
+			_new_packet = FALSE;
+		}
+#else
+		// WBC packet
+		printf("NRF: %upkts%s",_packets_rcvd,(_new_packet) ? " " : "\r\n");
+		if (_new_packet) {
+			i = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
+			j = ((nRF24_RX_Buf[6] & 0x03) << 8) + nRF24_RX_Buf[7];
+			printf("[CRC: %02X%c%02X VBAT: %u.%uV WAKE: %u]\r\n",
+					i,(i == nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) ? '=' : '!',nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1],
+					j / 100, j % 100,
+					(nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9]);
+			_new_packet = FALSE;
+		}
+#endif
+
+	    printf("---------------------------------------------\r\n");
 
 //		BEEPER_Enable(111,1);
-		Delay_ms(2000);
+//		Delay_ms(2000);
+		SleepWait();
 	}
 
 
 
 
+	// Put MCU into STANDBY mode
 	PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
 	PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
 	SleepStandby();
 
-
-
-
+	// After STANDBY the MCU will go RESET routine, not here
 	while(1);
 }
