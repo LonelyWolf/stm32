@@ -1,6 +1,5 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_gpio.h>
-#include <stm32l1xx_i2c.h>
 
 #include <delay.h>
 #include <i2c.h>
@@ -16,7 +15,7 @@ void BMP180_WriteReg(uint8_t reg, uint8_t value) {
 
 	buf[0] = reg;
 	buf[1] = value;
-	I2C2_Write(&buf[0],2,BMP180_ADDR,I2C_STOP);
+	I2Cx_Write(BMP180_I2C_PORT,&buf[0],2,BMP180_ADDR,I2C_STOP);
 }
 
 // Read BMP180 register
@@ -28,9 +27,9 @@ uint8_t BMP180_ReadReg(uint8_t reg) {
 	uint8_t value = 0; // Initialize value in case of I2C timeout
 
 	// Send register address
-	I2C2_Write(&reg,1,BMP180_ADDR,I2C_NOSTOP);
+	I2Cx_Write(BMP180_I2C_PORT,&reg,1,BMP180_ADDR,I2C_NOSTOP);
 	// Read register value
-	I2C2_Read(&value,1,BMP180_ADDR);
+	I2Cx_Read(BMP180_I2C_PORT,&value,1,BMP180_ADDR);
 
 	return value;
 }
@@ -63,8 +62,8 @@ void BMP180_ReadCalibration(void) {
 	uint8_t buffer[BMP180_PROM_DATA_LEN];
 
 	buffer[0] = BMP180_PROM_START_ADDR;
-	I2C2_Write(&buffer[0],1,BMP180_ADDR,I2C_NOSTOP); // Send calibration first register address
-	I2C2_Read(&buffer[0],BMP180_PROM_DATA_LEN,BMP180_ADDR);
+	I2Cx_Write(BMP180_I2C_PORT,&buffer[0],1,BMP180_ADDR,I2C_NOSTOP); // Send calibration first register address
+	I2Cx_Read(BMP180_I2C_PORT,&buffer[0],BMP180_PROM_DATA_LEN,BMP180_ADDR);
 
 	BMP180_Calibration.AC1 = (buffer[0]  << 8) | buffer[1];
 	BMP180_Calibration.AC2 = (buffer[2]  << 8) | buffer[3];
@@ -92,12 +91,12 @@ BMP180_RESULT BMP180_Read_UT(uint16_t *UT) {
 
 	buf[0] = BMP180_ADC_OUT_MSB_REG;
 	// Send ADC MSB register address
-	if (!I2C2_Write(&buf[0],1,BMP180_ADDR,I2C_NOSTOP)) {
+	if (!I2Cx_Write(BMP180_I2C_PORT,&buf[0],1,BMP180_ADDR,I2C_NOSTOP)) {
 		*UT = 0;
 		return BMP180_ERROR;
 	}
 	// Read ADC MSB and LSB
-	if (I2C2_Read(&buf[0],2,BMP180_ADDR)) {
+	if (I2Cx_Read(BMP180_I2C_PORT,&buf[0],2,BMP180_ADDR)) {
 		*UT = (buf[0] << 8) | buf[1];
 		return BMP180_SUCCESS;
 	} else {
@@ -122,12 +121,12 @@ BMP180_RESULT BMP180_Read_PT(uint32_t *PT, uint8_t oss) {
 	// Read pressure value
 	buf[0] = BMP180_ADC_OUT_MSB_REG;
 	// Send ADC MSB register address
-	if (!I2C2_Write(&buf[0],1,BMP180_ADDR,I2C_NOSTOP)) {
+	if (!I2Cx_Write(BMP180_I2C_PORT,&buf[0],1,BMP180_ADDR,I2C_NOSTOP)) {
 		*PT = 0;
 		return BMP180_ERROR;
 	}
 	// Read MSB, LSB, XLSB bytes
-	if (I2C2_Read(&buf[0],3,BMP180_ADDR)) {
+	if (I2Cx_Read(BMP180_I2C_PORT,&buf[0],3,BMP180_ADDR)) {
 		*PT = ((buf[0] << 16) | (buf[1] << 8) | buf[0]) >> (8 - oss);
 		return BMP180_SUCCESS;
 	} else {
