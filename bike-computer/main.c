@@ -766,7 +766,7 @@ int main(void) {
     PutStr(0,16,"BMP180:",fnt5x7);
     UC1701_Flush();
     // I2C fast mode (400kHz)
-    if (I2C2_Init(400000) == I2C_SUCCESS) {
+    if (I2Cx_Init(I2C2,400000) == I2C_SUCCESS) {
         BMP180_Reset(); // Send reset command to BMP180
         Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
         if (BMP180_Check() == BMP180_SUCCESS) {
