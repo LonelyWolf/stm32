@@ -13,32 +13,32 @@
 
 
 // nRF24L01 SPI peripheral
-#define nRF24_SPI_PORT    SPI2
+#define nRF24_SPI_PORT       SPI2
 
 // nRF24L01 GPIO peripherals
-#define nRF24_PORT_PERIPH RCC_AHBPeriph_GPIOC
+#define nRF24_PORT_PERIPH    RCC_AHBPeriph_GPIOB | RCC_AHBPeriph_GPIOC
 
-// nRF24L01 CSN (Chip Select) pin
-#define nRF24_CSN_PORT    GPIOC
-#define nRF24_CSN_PIN     GPIO_Pin_8     // PC8
+// nRF24L01 CSN (Chip Select) pin (PC8)
+#define nRF24_CSN_PORT       GPIOC
+#define nRF24_CSN_PIN        GPIO_Pin_8
 
-// nRF24L01 CE (Chip Enable) pin
-#define nRF24_CE_PORT     GPIOC
-#define nRF24_CE_PIN      GPIO_Pin_7     // PC7
+// nRF24L01 CE (Chip Enable) pin (PC7)
+#define nRF24_CE_PORT        GPIOC
+#define nRF24_CE_PIN         GPIO_Pin_7
 
-// nRF24L01 IRQ pin
-#define nRF24_IRQ_PORT    GPIOC
-#define nRF24_IRQ_PIN     GPIO_Pin_6     // PC6
-
-// Handy macros
+// nRF24L01 IRQ pin (PC6)
+#define nRF24_IRQ_PORT       GPIOC
+#define nRF24_IRQ_PIN        GPIO_Pin_6
+#define nRF24_IRQ_EXTI       (1 << 6)
+#define nRF24_IRQ_EXTI_N     EXTI6_IRQn
 
 // Chip Enable Activates RX or TX mode
-#define nRF24_CE_L()      nRF24_CE_PORT->BSRRH = nRF24_CE_PIN
-#define nRF24_CE_H()      nRF24_CE_PORT->BSRRL = nRF24_CE_PIN
+#define nRF24_CE_L()         nRF24_CE_PORT->BSRRH = nRF24_CE_PIN
+#define nRF24_CE_H()         nRF24_CE_PORT->BSRRL = nRF24_CE_PIN
 
 // SPI Chip Select
-#define nRF24_CSN_L()     nRF24_CSN_PORT->BSRRH = nRF24_CSN_PIN
-#define nRF24_CSN_H()     nRF24_CSN_PORT->BSRRL = nRF24_CSN_PIN
+#define nRF24_CSN_L()        nRF24_CSN_PORT->BSRRH = nRF24_CSN_PIN
+#define nRF24_CSN_H()        nRF24_CSN_PORT->BSRRL = nRF24_CSN_PIN
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,36 +46,36 @@
 
 // nRF24L01 data rate
 typedef enum {
-    nRF24_DataRate_250kbps = (uint8_t)0x20, // 250kbps data rate
-    nRF24_DataRate_1Mbps   = (uint8_t)0x00, // 1Mbps data rate
-    nRF24_DataRate_2Mbps   = (uint8_t)0x08  // 2Mbps data rate
+	nRF24_DataRate_250kbps = (uint8_t)0x20, // 250kbps data rate
+	nRF24_DataRate_1Mbps   = (uint8_t)0x00, // 1Mbps data rate
+	nRF24_DataRate_2Mbps   = (uint8_t)0x08  // 2Mbps data rate
 } nRF24_DataRate_TypeDef;
 
 // nRF24L01 RF output power in TX mode
 typedef enum {
-    nRF24_TXPower_18dBm = (uint8_t)0x00, // -18dBm
-    nRF24_TXPower_12dBm = (uint8_t)0x02, // -12dBm
-    nRF24_TXPower_6dBm  = (uint8_t)0x04, //  -6dBm
-    nRF24_TXPower_0dBm  = (uint8_t)0x06  //   0dBm
+	nRF24_TXPower_18dBm = (uint8_t)0x00, // -18dBm
+	nRF24_TXPower_12dBm = (uint8_t)0x02, // -12dBm
+	nRF24_TXPower_6dBm  = (uint8_t)0x04, //  -6dBm
+	nRF24_TXPower_0dBm  = (uint8_t)0x06  //   0dBm
 } nRF24_TXPower_TypeDef;
 
 // nRF24L01 CRC encoding scheme
 typedef enum {
-    nRF24_CRC_off   = (uint8_t)0x00, // CRC disabled
-    nRF24_CRC_1byte = (uint8_t)0x08, // 1-byte CRC
-    nRF24_CRC_2byte = (uint8_t)0x0c  // 2-byte CRC
+	nRF24_CRC_off   = (uint8_t)0x00, // CRC disabled
+	nRF24_CRC_1byte = (uint8_t)0x08, // 1-byte CRC
+	nRF24_CRC_2byte = (uint8_t)0x0c  // 2-byte CRC
 } nRF24_CRC_TypeDef;
 
 // nRF24L01 power control
 typedef enum {
-    nRF24_PWR_Up   = (uint8_t)0x02, // Power up
-    nRF24_PWR_Down = (uint8_t)0x00  // Power down
+	nRF24_PWR_Up   = (uint8_t)0x02, // Power up
+	nRF24_PWR_Down = (uint8_t)0x00  // Power down
 } nRF24_PWR_TypeDef;
 
 // nRF24L01 RX/TX control
 typedef enum {
-    nRF24_PRIM_RX = (uint8_t)0x01, // PRX
-    nRF24_PRIM_TX = (uint8_t)0x00  // PTX
+	nRF24_PRIM_RX = (uint8_t)0x01, // PRX
+	nRF24_PRIM_TX = (uint8_t)0x00  // PTX
 } nRF24_PRIM_TypeDef;
 
 // RX data pipe
@@ -111,10 +111,11 @@ typedef enum {
 	nRF24_RX_PCKT_ERROR = (uint8_t)0xff
 } nRF24_RX_PCKT_TypeDef;
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-/* nRF24L0 commands */
+// nRF24L0 commands
 #define nRF24_CMD_RREG             0x00  // R_REGISTER -> Read command and status registers
 #define nRF24_CMD_WREG             0x20  // W_REGISTER -> Write command and status registers
 #define nRF24_CMD_R_RX_PAYLOAD     0x61  // R_RX_PAYLOAD -> Read RX payload
@@ -124,7 +125,7 @@ typedef enum {
 #define nRF24_CMD_REUSE_TX_PL      0xE3  // REUSE_TX_PL -> Reuse last transmitted payload
 #define nRF24_CMD_NOP              0xFF  // No operation (to read status register)
 
-/* nRF24L0 registers */
+// nRF24L0 registers
 #define nRF24_REG_CONFIG           0x00  // Configuration register
 #define nRF24_REG_EN_AA            0x01  // Enable "Auto acknowledgment"
 #define nRF24_REG_EN_RXADDR        0x02  // Enable RX addresses
@@ -152,7 +153,7 @@ typedef enum {
 #define nRF24_REG_DYNPD            0x1C  // Enable dynamic payload length
 #define nRF24_REG_FEATURE          0x1D  // Feature register
 
-/* nRF24L0 bits */
+// nRF24L0 bits
 #define nRF24_MASK_RX_DR           0x40  // Mask interrupt caused by RX_DR
 #define nRF24_MASK_TX_DS           0x20  // Mask interrupt caused by TX_DS
 #define nRF24_MASK_MAX_RT          0x10  // Mask interrupt caused by MAX_RT

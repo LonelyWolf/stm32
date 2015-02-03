@@ -19,27 +19,34 @@ void nRF24_Init() {
 	GPIO_InitTypeDef PORT;
 
 	// Initialize nRF24L01 GPIO
-	RCC_AHBPeriphClockCmd(nRF24_PORT_PERIPH,ENABLE); // Enable PORTC peripheral
+	RCC_AHBPeriphClockCmd(nRF24_PORT_PERIPH,ENABLE); // Enable GPIO peripherals
+
+	// Output push-pull
 	PORT.GPIO_Mode  = GPIO_Mode_OUT;
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
 	PORT.GPIO_OType = GPIO_OType_PP;
 	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
-	// Configure CS pin as output with Push-Pull
+
+	// Configure CS pin
 	PORT.GPIO_Pin = nRF24_CSN_PIN;
 	GPIO_Init(nRF24_CSN_PORT,&PORT);
-	// Configure CE pin as output with Push-Pull
+
+	// Configure CE pin
 	PORT.GPIO_Pin = nRF24_CE_PIN;
 	GPIO_Init(nRF24_CE_PORT,&PORT);
-	// Configure IRQ pin as input with Pull-Up
-//#WARNING Do not enable Pull-UP for IRQ, this increase power consumption for 80uA. nRF24L01 already have the pull-up!
+
+	// Configure IRQ pin as input without Pull-Up
+	// IRQ pin is already have the pull-up inside, so enabling it in MCU will increase
+	// power consumption for about 80uA
 	PORT.GPIO_Pin  = nRF24_IRQ_PIN;
 	PORT.GPIO_Mode = GPIO_Mode_IN;
-	PORT.GPIO_PuPd = GPIO_PuPd_UP;
+	PORT.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(nRF24_IRQ_PORT,&PORT);
 
 	nRF24_CSN_H(); // Chip release
 	nRF24_CE_L();  // RX/TX disable
 
+	// Clear FIFO and interrupt flags
 	nRF24_FlushRX();
 	nRF24_FlushTX();
 	nRF24_ClearIRQFlags();
@@ -79,7 +86,7 @@ uint8_t nRF24_ReadReg(uint8_t reg) {
 //   count - bytes count
 void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,reg);
+	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register to read from
 	while (count--) *pBuf++ = SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_NOP);
 	nRF24_CSN_H();
 }
@@ -91,14 +98,14 @@ void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 //   count - bytes count
 void nRF24_WriteBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,reg);
+	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register
 	while (count--) SPIx_SendRecv(nRF24_SPI_PORT,*pBuf++);
 	nRF24_CSN_H();
 }
 
 // Check if nRF24L01 present (send byte sequence, read it back and compare)
 // return:
-//   1 - looks like an nRF24L01 is online
+//   1 - nRF24L01 is online and responding
 //   0 - received sequence differs from original
 uint8_t nRF24_Check(void) {
     uint8_t rxbuf[5];
@@ -217,12 +224,14 @@ uint8_t nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD) {
     if (status & nRF24_MASK_MAX_RT) {
         // Auto retransmit counter exceeds the programmed maximum limit. FIFO is not removed.
     	nRF24_FlushTX(); // Flush TX FIFO buffer
-        return nRF24_MASK_MAX_RT;
+
+    	return nRF24_MASK_MAX_RT;
     };
     if (status & nRF24_MASK_TX_DS) {
         // Transmit ok
     	nRF24_FlushTX(); // Flush TX FIFO buffer
-        return nRF24_MASK_TX_DS;
+
+    	return nRF24_MASK_TX_DS;
     }
 
     // Some banana happens
@@ -248,11 +257,13 @@ nRF24_RX_PCKT_TypeDef nRF24_RXPacket(uint8_t * pBuf, uint8_t RX_PAYLOAD) {
     	status = (status & 0x0e) > 1;
     	if (status > 5) {
         	nRF24_FlushRX(); // Flush RX FIFO buffer (do this here just for any case)
-    		return nRF24_RX_PCKT_EMPTY;
+
+        	return nRF24_RX_PCKT_EMPTY;
     	}
 		nRF24_ReadBuf(nRF24_CMD_R_RX_PAYLOAD,pBuf,RX_PAYLOAD); // Read received payload from RX FIFO buffer
     	nRF24_FlushRX(); // Flush RX FIFO buffer
-	    return (nRF24_RX_PCKT_TypeDef)status; // Data pipe number
+
+    	return (nRF24_RX_PCKT_TypeDef)status; // Data pipe number
     }
 
     // Some banana happens
@@ -280,13 +291,13 @@ void nRF24_PowerDown(void) {
     nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,conf); // Go Power down mode
 }
 
-// Wake nRF24 from Power Down mode (usually wakes to Standby-I mode within 1.5ms)
+// Wake nRF24 from Power Down mode
+// note: with external crystal it wake to Standby-I mode within 1.5ms
 void nRF24_Wake(void) {
     uint8_t conf;
 
     conf = nRF24_ReadReg(nRF24_REG_CONFIG) | (1<<1); // Set PWR_UP bit
-    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,conf); // Wakeup
-    // Delay_ms(2); // Wakeup from Power Down to Standby-I mode takes 1.5ms
+    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,conf); // Wake-up
 }
 
 // Configure RF output power in TX mode
