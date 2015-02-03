@@ -84,9 +84,6 @@ void SleepStandby(void) {
 	// Enter STANDBY mode when the CPU enters deepsleep
 	PWR->CR |= PWR_CR_PDDS;
 
-	// Disable sleep-on-exit
-	SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
-
 	// Set SLEEPDEEP bit of Cortex-M System Control Register
 	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
 

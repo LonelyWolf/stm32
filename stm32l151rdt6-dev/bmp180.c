@@ -1,6 +1,5 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_gpio.h>
-#include <stm32l1xx_i2c.h>
 
 #include <delay.h>
 #include <i2c.h>

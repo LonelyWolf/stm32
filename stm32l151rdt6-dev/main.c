@@ -78,6 +78,8 @@
 #define SD_DETECT_EXTI_N          EXTI3_IRQn
 
 
+
+
 // It's obvious!
 uint32_t i,j,k;
 
@@ -106,7 +108,7 @@ uint32_t ADC1_raw,Vrefint_raw;
 uint32_t Vbat,Vrefint,Vcpu;
 
 // nRF24 variables
-#define NRF24_SOLAR // if defined - receive solar powered temperature sensor, WBC otherwise
+//#define NRF24_SOLAR // if defined - receive solar powered temperature sensor, WBC otherwise
 #ifdef NRF24_SOLAR
 // Yes, this is redefinition from wolk.h (must be warn from compiler for the following lines)
 #define nRF24_RX_Addr               "WolkT" // RX address for nRF24L01
@@ -128,6 +130,7 @@ NVIC_InitTypeDef NVICInit;
 
 
 
+// RTC wake-up IRQ handler
 void RTC_WKUP_IRQHandler(void) {
 	if (RTC->ISR & RTC_ISR_WUTF) {
 		// RTC Wake-up interrupt
@@ -215,6 +218,7 @@ void DMA2_Channel4_IRQHandler(void) {
 	DMA2->IFCR = DMA_IFCR_CGIF4 | DMA_IFCR_CHTIF4 | DMA_IFCR_CTCIF4 | DMA_IFCR_CTEIF4;
 }
 
+// Compute interquartile mean from array of values
 uint32_t InterquartileMean(uint16_t *array, uint32_t numOfSamples) {
 	uint32_t sum=0;
 	uint32_t index, maxindex;
@@ -238,7 +242,6 @@ int main(void) {
 
 
 
-
 /*
 	// NVIC: 2 bit for pre-emption priority, 2 bits for subpriority
 	// WARNING: this stuff will be re-setup in USB init routine
@@ -256,9 +259,9 @@ int main(void) {
 
 	// Enable and configure RTC
 	RTC_Config();
-//	RTC_SetWakeUp(10); // Wake every 10 seconds
+	RTC_SetWakeUp(10); // Wake every 10 seconds
 //	RTC_SetWakeUp(30); // Wake every 30 seconds
-	RTC_SetWakeUp(60); // Wake every minute
+//	RTC_SetWakeUp(60); // Wake every minute
 //	RTC_SetWakeUp(120); // Wake every 2 minutes
 
 
@@ -467,8 +470,6 @@ int main(void) {
 		SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI1; // Clear bits (PA[x] pin as input source)
 		SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI1_PB; // Set PB[x] pin as input source
 
-		SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOB,EXTI_PinSource1);
-
 /*
 		// Enable the nRF24 IRQ pin interrupt
 		NVICInit.NVIC_IRQChannel = nRF24_IRQ_EXTI_N;
@@ -513,12 +514,14 @@ int main(void) {
 	    nRF24_ClearIRQFlags();
 	    nRF24_FlushRX();
 
+//	    nRF24_PowerDown();
+
 	    printf("\r\n---------------------------------------------\r\n");
 	}
 
 
 
-
+///*
 	// Check Vbat measurement
 
 	// Enable the PORTA peripheral
@@ -554,6 +557,7 @@ int main(void) {
 	// Enable the ADC
 	ADC1->CR2 |= ADC_CR2_ADON;
 	while (!(ADC1->SR & ADC_SR_ADONS)); // Wait until ADC is on
+//*/
 
 
 
@@ -561,48 +565,95 @@ int main(void) {
 	// Initialize the I2C peripheral
 	if (I2Cx_Init(I2C1,400000) != I2C_SUCCESS) {
 		printf("I2C initialization failed\r\n");
-		SleepStandby();
+	} else {
+		// Check if I2C devices respond
+		printf("I2C test:\r\n");
+		printf("  ...ping TSL2581: %s\r\n",(I2Cx_IsDeviceReady(I2C1,TSL2581_ADDR,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
+		printf("  ...ping  BMP180: %s\r\n",(I2Cx_IsDeviceReady(I2C1,BMP180_ADDR,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
+		printf("  ...ping   FAKE1: %s\r\n",(I2Cx_IsDeviceReady(I2C1,0xCC,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
+		printf("  ...ping BMC050A: %s\r\n",(I2Cx_IsDeviceReady(I2C1,BMC050_ACC_ADDR,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
+		printf("  ...ping BMC050M: %s\r\n",(I2Cx_IsDeviceReady(I2C1,BMC050_MAG_ADDR,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
+		printf("  ...ping   FAKE2: %s\r\n",(I2Cx_IsDeviceReady(I2C1,0xDD,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
+	    printf("---------------------------------------------\r\n");
 	}
+
 
 
 
 	// Check the ALS
-	TSL2581_Init();
-	TSL2581_SetGain(TSL2581_GAIN8);
-	d0 = TSL2581_GetData0();
-	d1 = TSL2581_GetData1();
-//	TSL2581_PowerOff();
-
-
-
-	// Check the BMP180
-    BMP180_Reset(); // Send reset command to BMP180
-    Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
-	if (BMP180_Check() == BMP180_SUCCESS) {
-		BMP180_ReadCalibration();
-		BR = BMP180_GetReadings(&RT,&RP,BMP180_ADVRES);
+	printf("Ambient light sensor ");
+	if (I2Cx_IsDeviceReady(I2C1,TSL2581_ADDR,10) == I2C_SUCCESS) {
+		printf("v%02X\r\n",TSL2581_GetDeviceID());
+		TSL2581_Init();
+		TSL2581_SetGain(TSL2581_GAIN8);
+		d0 = TSL2581_GetData0();
+		d1 = TSL2581_GetData1();
+//		TSL2581_PowerOff();
+	} else {
+		printf("FAIL\r\n");
 	}
 
 
 
 
+	// Check the BMP180
+	printf("Pressure sensor ");
+	if (I2Cx_IsDeviceReady(I2C1,BMP180_ADDR,10) == I2C_SUCCESS) {
+		printf("v%02X\r\n",BMP180_GetVersion());
+		BMP180_Reset(); // Send reset command to BMP180
+		Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
+		if (BMP180_Check() == BMP180_SUCCESS) {
+			BMP180_ReadCalibration();
+			BR = BMP180_GetReadings(&RT,&RP,BMP180_ADVRES);
+		} else {
+			printf("BMP180 check failed\r\n");
+			while(1);
+		}
+	} else {
+		printf("FAIL\r\n");
+	}
+
+
+
 	// Check the BMC050
-	BMC050_ACC_SoftReset();
-	Delay_ms(5); // must wait for start-up time of accelerometer (2ms)
-	BMC050_Init();
+	printf("eCompass ");
+	if (I2Cx_IsDeviceReady(BMC050_I2C_PORT,BMC050_ACC_ADDR,10) == I2C_SUCCESS) {
+		printf("v%02X\r\n",BMC050_ACC_GetDeviceID());
+		BMC050_ACC_SoftReset();
+		Delay_ms(5); // must wait for start-up time of accelerometer (2ms)
+		BMC050_Init();
 
-	// Enable I2C watchdog timer with 50ms
-	BMC050_ACC_InterfaceConfig(ACC_IF_WDT_50ms);
+		// Enable I2C watchdog timer with 50ms
+		BMC050_ACC_InterfaceConfig(ACC_IF_WDT_50ms);
 
-	BMC050_ACC_SetBandwidth(ACC_BW8); // Accelerometer readings filtering (lower or higher better?)
-	BMC050_ACC_SetIRQMode(ACC_IM_NOLATCH); // No IRQ latching
-	BMC050_ACC_ConfigSlopeIRQ(0,8); // Motion detection sensitivity
-	BMC050_ACC_IntPinMap(ACC_IM1_SLOPE); // Map slope interrupt to INT1 pin
-	BMC050_ACC_SetIRQ(ACC_IE_SLOPEX | ACC_IE_SLOPEY | ACC_IE_SLOPEZ); // Detect motion by all axes
-	BMC050_ACC_LowPower(ACC_SLEEP_1000); // Low power with sleep duration 1s
-//	BMC050_ACC_LowPower(ACC_SLEEP_1); // Low power with sleep duration 1ms
+		BMC050_ACC_SetBandwidth(ACC_BW8); // Accelerometer readings filtering (lower or higher better?)
+		BMC050_ACC_SetIRQMode(ACC_IM_NOLATCH); // No IRQ latching
+		BMC050_ACC_ConfigSlopeIRQ(0,8); // Motion detection sensitivity
+		BMC050_ACC_IntPinMap(ACC_IM1_SLOPE); // Map slope interrupt to INT1 pin
+		BMC050_ACC_SetIRQ(ACC_IE_SLOPEX | ACC_IE_SLOPEY | ACC_IE_SLOPEZ); // Detect motion by all axes
+		BMC050_ACC_LowPower(ACC_SLEEP_1000); // Low power with sleep duration 1s
+//		BMC050_ACC_LowPower(ACC_SLEEP_1); // Low power with sleep duration 1ms
 
-//	BMC050_ACC_Suspend();
+//		BMC050_ACC_Suspend();
+	} else {
+		printf("FAIL\r\n");
+	}
+
+
+
+
+	// End of I2C devices test
+    printf("---------------------------------------------\r\n");
+
+
+
+
+	// Put MCU into STANDBY mode
+//	PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
+//	PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
+//	SleepStop();
+//	SleepStandby();
+//	while(1);
 
 
 
@@ -844,7 +895,14 @@ int main(void) {
 				while (!DFS_GetNext(&vi,&di,&de)) {
 					if (de.name[0]) {
 						// Warning: there is no zero terminator in name
-						printf("file: \"%s\" [%02X] %10u\r\n",de.name,(unsigned int)de.attr,(de.filesize_3 << 24) | (de.filesize_2 << 16) | (de.filesize_1 << 8) | de.filesize_0);
+						printf("file: \"%s\" [%c%c%c%c%c] %10u\r\n",
+								de.name,
+								(de.attr & ATTR_DIRECTORY) ? 'D' : '-',
+								(de.attr & ATTR_READ_ONLY) ? 'R' : '-',
+								(de.attr & ATTR_HIDDEN)    ? 'H' : '-',
+								(de.attr & ATTR_SYSTEM)    ? 'S' : '-',
+								(de.attr & ATTR_ARCHIVE)   ? 'A' : '-',
+								(de.filesize_3 << 24) | (de.filesize_2 << 16) | (de.filesize_1 << 8) | de.filesize_0);
 					}
 				}
 			}
@@ -856,7 +914,14 @@ int main(void) {
 				while (!DFS_GetNext(&vi,&di,&de)) {
 					if (de.name[0]) {
 						// Warning: there is no zero terminator in name
-						printf("file: \"%s\" [%02X] %10u\r\n",de.name,de.attr,(de.filesize_3 << 24) | (de.filesize_2 << 16) | (de.filesize_1 << 8) | de.filesize_0);
+						printf("file: \"%s\" [%c%c%c%c%c] %10u\r\n",
+								de.name,
+								(de.attr & ATTR_DIRECTORY) ? 'D' : '-',
+								(de.attr & ATTR_READ_ONLY) ? 'R' : '-',
+								(de.attr & ATTR_HIDDEN)    ? 'H' : '-',
+								(de.attr & ATTR_SYSTEM)    ? 'S' : '-',
+								(de.attr & ATTR_ARCHIVE)   ? 'A' : '-',
+								(de.filesize_3 << 24) | (de.filesize_2 << 16) | (de.filesize_1 << 8) | de.filesize_0);
 					}
 				}
 			}

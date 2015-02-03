@@ -65,18 +65,13 @@ void BEEPER_Init(void) {
 	BEEPER_TIM->CR1   |= TIM_CR1_ARPE; // Auto-preload enable
 	BEEPER_TIM->CCMR1 |= TIM_CCMR1_OC1PE; // Output compare 1 preload enable
 	BEEPER_TIM->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1; // PWM mode 1
-//	BEEPER_TIM->CCMR2 |= TIM_CCMR2_OC3PE; // Output compare 3 preload enable
-//	BEEPER_TIM->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1; // PWM mode 1
-//	BEEPER_TIM->PSC    = 8; // prescaler
 	BEEPER_TIM->PSC    = SystemCoreClock / 4000000;
 	BEEPER_TIM->ARR    = 999; // auto reload value
 	BEEPER_TIM->CCR3   = 499; // 50% duty cycle
 	BEEPER_TIM->CCER  |= TIM_CCER_CC1NP; // Output polarity
 	BEEPER_TIM->CCER  |= TIM_CCER_CC1E; // BEEPER TIMx_CH1 output compare enable
-//	BEEPER_TIM->CCER  |= TIM_CCER_CC3P; // Output polarity
-//	BEEPER_TIM->CCER  |= TIM_CCER_CC3E; // BEEPER TIMx_CH3 output compare enable
 	BEEPER_TIM->EGR    = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
-	BEEPER_TIM->DIER  |= TIM_DIER_UIE; // �IMx update interrupt enable
+	BEEPER_TIM->DIER  |= TIM_DIER_UIE; // TIMx update interrupt enable
 
 	// BEEPER_TIM IRQ
 	NVICInit.NVIC_IRQChannel = BEEPER_TIM_IRQN;

@@ -3,7 +3,16 @@
 #define __BEEPER_H
 
 
-extern volatile       uint32_t          _beep_duration;
+// Buzzer HAL (TIM10_CH1 -> PA6)
+#define BEEPER_PIN               GPIO_Pin_6
+#define BEEPER_GPIO              GPIOA
+#define BEEPER_PERIPH            RCC_AHBPeriph_GPIOA
+#define BEEPER_GPIO_AF           GPIO_AF_TIM10
+#define BEEPER_GPIO_PIN_SRC      GPIO_PinSource6
+#define BEEPER_RCC               RCC->APB2ENR
+#define BEEPER_TIM               TIM10
+#define BEEPER_TIM_PERIPH        RCC_APB2Periph_TIM10
+#define BEEPER_TIM_IRQN          TIM10_IRQn
 
 
 // Single tone definition
@@ -125,16 +134,9 @@ static const Tone_TypeDef tones_SMB[] = {
 };
 
 
-// Buzzer on TIM10_CH1 (PA6)
-#define BEEPER_PIN               GPIO_Pin_6
-#define BEEPER_GPIO              GPIOA
-#define BEEPER_PERIPH            RCC_AHBPeriph_GPIOA
-#define BEEPER_GPIO_AF           GPIO_AF_TIM10
-#define BEEPER_GPIO_PIN_SRC      GPIO_PinSource6
-#define BEEPER_RCC               RCC->APB2ENR
-#define BEEPER_TIM               TIM10
-#define BEEPER_TIM_PERIPH        RCC_APB2Periph_TIM10
-#define BEEPER_TIM_IRQN          TIM10_IRQn
+// Public variables
+extern volatile uint32_t _beep_duration;
+extern volatile uint8_t  _tones_playing;
 
 
 // Function prototypes

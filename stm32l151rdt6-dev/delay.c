@@ -22,10 +22,10 @@ void Delay_Init(funcCallback_TypeDef func_CallBack) {
 	// One timer tick = 0,00005s = 0.05ms = 50us
 	RCC->APB1ENR |= DELAY_TIM_PERIPH; // Enable the TIMx peripheral
 	DELAY_TIM->CR1 |= TIM_CR1_ARPE; // Auto-preload enable
-//	DELAY_TIM->PSC  = 1600; // TIMx prescaler [ PSC = APB1clock / (PWMfreq * OVFCounter) ]
 	DELAY_TIM->PSC  = SystemCoreClock / 20000; // Delay timer prescaler, must be 1600
 	DELAY_TIM->ARR  = 9999; // Delay timer auto reload value (20000 ticks pers second)
 	DELAY_TIM->EGR  = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
+
 	// TIMx IRQ
 	NVICInit.NVIC_IRQChannel = DELAY_TIM_IRQN;
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
