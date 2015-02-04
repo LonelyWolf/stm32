@@ -152,7 +152,6 @@ void EXTI1_IRQHandler(void) {
 
 	if (EXTI->PR & nRF24_IRQ_EXTI) {
 		RX_status = nRF24_RXPacket(nRF24_RX_Buf,nRF24_RX_PAYLOAD);
-		nRF24_ClearIRQFlags();
 		if (RX_status == nRF24_RX_PCKT_PIPE0) {
 			_packets_rcvd++;
 			_new_packet = TRUE;

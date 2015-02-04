@@ -14,7 +14,7 @@ const uint8_t RX_ADDR_PIPES[6] = {nRF24_REG_RX_ADDR_P0, nRF24_REG_RX_ADDR_P1, nR
 
 
 // nRF24L01 initialization
-// note: SPI peripheral must be initialized before
+// note: the SPI peripheral must be initialized before
 void nRF24_Init() {
 	GPIO_InitTypeDef PORT;
 
@@ -56,7 +56,6 @@ void nRF24_Init() {
 // input:
 //   reg - register number
 //   value - new value
-// output: nRF24L01 status
 void nRF24_WriteReg(uint8_t reg, uint8_t value) {
 	nRF24_CSN_L();
 	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register
@@ -67,7 +66,7 @@ void nRF24_WriteReg(uint8_t reg, uint8_t value) {
 // Read nRF24L01 register
 // input:
 //   reg - register number
-// output: register value
+// return: register value
 uint8_t nRF24_ReadReg(uint8_t reg) {
 	uint8_t value;
 
@@ -207,35 +206,45 @@ void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_
 //   pBuf - buffer with data to send
 //   TX_PAYLOAD - buffer size
 // return:
-//   nRF24_MASK_MAX_RT - if transmit failed with maximum auto retransmit count
-//   nRF24_MAX_TX_DS - if transmit succeed
-//   contents of STATUS register otherwise
-uint8_t nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD) {
+//   nRF24_TX_XXX values
+nRF24_TX_PCKT_TypeDef nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD) {
     uint8_t status;
+    uint32_t wait = nRF24_WAIT_TIMEOUT;
 
+    // Release CE pin (in case if it still high)
     nRF24_CE_L();
-    nRF24_WriteBuf(nRF24_CMD_W_TX_PAYLOAD,pBuf,TX_PAYLOAD); // Write specified buffer to FIFO
-    nRF24_CE_H(); // CE pin high => Start transmit
-    // Delay_us(10); // Must hold CE at least 10us
-    while (nRF24_IRQ_PORT->IDR & nRF24_IRQ_PIN); // Wait for IRQ from nRF24L01
+    // Transfer data from specified buffer to the TX FIFO
+    nRF24_WriteBuf(nRF24_CMD_W_TX_PAYLOAD,pBuf,TX_PAYLOAD);
+    // CE pin high => Start transmit (must hold pin at least 10us)
+    nRF24_CE_H();
+    // Wait for and IRQ from nRF24L01
+    while ((nRF24_IRQ_PORT->IDR & nRF24_IRQ_PIN) && --wait);
+    if (!wait) return nRF24_TX_TIMEOUT;
+    // Release CE pin
     nRF24_CE_L();
-    status = nRF24_ReadReg(nRF24_REG_STATUS); // Read status register
-    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status); // Reset TX_DS and MAX_RT bits
+
+    // Read the status register
+    status = nRF24_ReadReg(nRF24_REG_STATUS);
+    // Clear pending IRQ flags
+    nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70);
     if (status & nRF24_MASK_MAX_RT) {
         // Auto retransmit counter exceeds the programmed maximum limit. FIFO is not removed.
-    	nRF24_FlushTX(); // Flush TX FIFO buffer
+    	nRF24_FlushTX();
 
-    	return nRF24_MASK_MAX_RT;
+    	return nRF24_TX_MAXRT;
     };
     if (status & nRF24_MASK_TX_DS) {
-        // Transmit ok
-    	nRF24_FlushTX(); // Flush TX FIFO buffer
+        // Transmit successful
+//    	nRF24_FlushTX(); // Flush TX FIFO buffer (is it really must be here?)
 
-    	return nRF24_MASK_TX_DS;
+    	return nRF24_TX_SUCCESS;
     }
 
     // Some banana happens
-    return status;
+	nRF24_FlushTX();
+	nRF24_ClearIRQFlags();
+
+    return nRF24_TX_ERROR;
 }
 
 // Receive data packet
@@ -248,37 +257,41 @@ uint8_t nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD) {
 //   nRF24_RX_PCKT_EMPTY - RX FIFO is empty
 nRF24_RX_PCKT_TypeDef nRF24_RXPacket(uint8_t * pBuf, uint8_t RX_PAYLOAD) {
 	uint8_t status;
+	nRF24_RX_PCKT_TypeDef result = nRF24_RX_PCKT_ERROR;
 
-    status = nRF24_ReadReg(nRF24_REG_STATUS); // Read status register
-    if (status & nRF24_MASK_RX_DR) {
+	status = nRF24_ReadReg(nRF24_REG_STATUS); // Read the status register
+	if (status & nRF24_MASK_RX_DR) {
     	// RX_DR bit set (Data ready RX FIFO interrupt)
-    	// Get received payload and determine data pipe number
-    	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70); // Clear RX_DR, TX_DS, MAX_RT flags
-    	status = (status & 0x0e) > 1;
-    	if (status > 5) {
-        	nRF24_FlushRX(); // Flush RX FIFO buffer (do this here just for any case)
+		result = (nRF24_RX_PCKT_TypeDef)((status & 0x0e) > 1); // Pipe number
+		if ((uint8_t)result < 6) {
+			// Read received payload from RX FIFO buffer
+			nRF24_ReadBuf(nRF24_CMD_R_RX_PAYLOAD,pBuf,RX_PAYLOAD);
+			// Clear pending IRQ flags
+			nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70);
+			// Check if RX FIFO is empty and flush it if not
+			status = nRF24_ReadReg(nRF24_REG_FIFO_STATUS);
+	    	if (status & nRF24_FIFO_RX_EMPTY) nRF24_FlushRX();
 
-        	return nRF24_RX_PCKT_EMPTY;
-    	}
-		nRF24_ReadBuf(nRF24_CMD_R_RX_PAYLOAD,pBuf,RX_PAYLOAD); // Read received payload from RX FIFO buffer
-    	nRF24_FlushRX(); // Flush RX FIFO buffer
+	    	return result; // Data pipe number
+		} else {
+	    	// RX FIFO is empty
+	    	return nRF24_RX_PCKT_EMPTY;
+		}
+	}
 
-    	return (nRF24_RX_PCKT_TypeDef)status; // Data pipe number
-    }
+	// Some banana happens
+	nRF24_FlushRX(); // Flush the RX FIFO buffer
+	nRF24_ClearIRQFlags();
 
-    // Some banana happens
-	nRF24_FlushRX(); // Flush RX FIFO buffer
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70); // Clear RX_DR, TX_DS, MAX_RT flags
-
-	return nRF24_RX_PCKT_ERROR;
+	return result;
 }
 
-// Clear all IRQ flags
+// Clear pending IRQ flags
 void nRF24_ClearIRQFlags(void) {
 	uint8_t status;
 
     status = nRF24_ReadReg(nRF24_REG_STATUS);
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70); // Clear RX_DR, TX_DS, MAX_RT flags
+	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70);
 }
 
 // Put nRF24 in Power Down mode

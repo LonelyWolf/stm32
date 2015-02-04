@@ -3,13 +3,13 @@
 #define __NRF24_H
 
 
-// nRF24L01+ connector pinout:
-//   PC7  -> CE
-//   PC8  -> CSN
-//   PB13 -> SCK
-//   PB15 -> MOSI
-//   PB14 <- MISO
-//   PC6  <- IRQ
+// nRF24L01+ transceiver connection:
+//		PB15 --> MOSI
+//		PB14 <-- MISO
+//		PB13 --> SCK
+//		PC6  --> CSN
+//		PC7  --> CE
+//		PB1  <-- IRQ
 
 
 // nRF24L01 SPI peripheral
@@ -18,19 +18,19 @@
 // nRF24L01 GPIO peripherals
 #define nRF24_PORT_PERIPH    RCC_AHBPeriph_GPIOB | RCC_AHBPeriph_GPIOC
 
-// nRF24L01 CSN (Chip Select) pin (PC8)
+// nRF24L01 CSN (Chip Select) pin (PC6)
 #define nRF24_CSN_PORT       GPIOC
-#define nRF24_CSN_PIN        GPIO_Pin_8
+#define nRF24_CSN_PIN        GPIO_Pin_6
 
 // nRF24L01 CE (Chip Enable) pin (PC7)
 #define nRF24_CE_PORT        GPIOC
 #define nRF24_CE_PIN         GPIO_Pin_7
 
-// nRF24L01 IRQ pin (PC6)
-#define nRF24_IRQ_PORT       GPIOC
-#define nRF24_IRQ_PIN        GPIO_Pin_6
-#define nRF24_IRQ_EXTI       (1 << 6)
-#define nRF24_IRQ_EXTI_N     EXTI6_IRQn
+// nRF24L01 IRQ pin (PB1)
+#define nRF24_IRQ_PORT       GPIOB
+#define nRF24_IRQ_PIN        GPIO_Pin_1
+#define nRF24_IRQ_EXTI       (1 << 1)
+#define nRF24_IRQ_EXTI_N     EXTI1_IRQn
 
 // Chip Enable Activates RX or TX mode
 #define nRF24_CE_L()         nRF24_CE_PORT->BSRRH = nRF24_CE_PIN
@@ -111,6 +111,13 @@ typedef enum {
 	nRF24_RX_PCKT_ERROR = (uint8_t)0xff
 } nRF24_RX_PCKT_TypeDef;
 
+// TX packet result
+typedef enum {
+	nRF24_TX_SUCCESS,   // Packet transmitted successfully
+	nRF24_TX_TIMEOUT,   // It was timeout during packet transmit
+	nRF24_TX_MAXRT,     // Transmit failed with maximum auto retransmit count
+	nRF24_TX_ERROR      // Some error happens
+} nRF24_TX_PCKT_TypeDef;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +168,8 @@ typedef enum {
 #define nRF24_FIFO_RX_FULL         0x02  // RX FIFO full flag
 
 #define nRF24_TEST_ADDR         "nRF24"  // Fake address to test nRF24 presence
+
+#define nRF24_WAIT_TIMEOUT   0x000FFFFF  // Timeout counter
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

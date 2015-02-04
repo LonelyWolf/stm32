@@ -111,6 +111,13 @@ typedef enum {
 	nRF24_RX_PCKT_ERROR = (uint8_t)0xff
 } nRF24_RX_PCKT_TypeDef;
 
+// TX packet result
+typedef enum {
+	nRF24_TX_SUCCESS,   // Packet transmitted successfully
+	nRF24_TX_TIMEOUT,   // It was timeout during packet transmit
+	nRF24_TX_MAXRT,     // Transmit failed with maximum auto retransmit count
+	nRF24_TX_ERROR      // Some error happens
+} nRF24_TX_PCKT_TypeDef;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +168,8 @@ typedef enum {
 #define nRF24_FIFO_RX_FULL         0x02  // RX FIFO full flag
 
 #define nRF24_TEST_ADDR         "nRF24"  // Fake address to test nRF24 presence
+
+#define nRF24_WAIT_TIMEOUT   0x000FFFFF  // Timeout counter
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
