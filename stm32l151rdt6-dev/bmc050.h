@@ -217,7 +217,7 @@ typedef enum {
 	ACC_IM2_HIGHG  = 0x000002, // High-G interrupt to INT2 pin
 	ACC_IM2_LOWG   = 0x000001, // Low-G interrupt to INT2 pin
 	ACC_IM2_DATA   = 0x008000, // New data interrupt to INT2 pin
-} BMC050_ACC_INtMapping_TypeDef;
+} BMC050_ACC_INTMap_TypeDef;
 
 
 void BMC050_Init(void);
@@ -241,7 +241,7 @@ void BMC050_ACC_ConfigSlopeIRQ(uint8_t nSamples, uint8_t threshold);
 uint8_t BMC050_ACC_GetTSIRQ(void);
 void BMC050_ACC_InterfaceConfig(BMC050_ACC_IF_TypeDef mode);
 void BMC050_ACC_IntPinConfig(BMC050_ACC_IntConfig_TypeDef mode);
-void BMC050_ACC_IntPinMap(BMC050_ACC_INtMapping_TypeDef map);
+void BMC050_ACC_IntPinMap(BMC050_ACC_INTMap_TypeDef map);
 
 uint8_t BMC050_MAG_GetDeviceID(void);
 

@@ -217,7 +217,7 @@ void BMC050_ACC_SetIRQMode(BMC050_ACC_IM_TypeDef mode) {
 	BMC050_WriteReg(BMC050_ACC_ADDR,BMC050_REG_ACC_IRQ_MODE,val);
 }
 
-// Configure the slope interrupt (ant-motion detection)
+// Configure the slope interrupt (any-motion detection)
 // input:
 //   nSamples - number of samples to be evaluated for the slope interrupt (0..3)
 //   threshold - threshold for the slope interrupt (LSB value of acceleration data)
@@ -252,7 +252,7 @@ void BMC050_ACC_IntPinConfig(BMC050_ACC_IntConfig_TypeDef mode) {
 // Configure accelerometer interrupts mapping
 // input:
 //   map - bitmap value of ACC_IMx_XXX values
-void BMC050_ACC_IntPinMap(BMC050_ACC_INtMapping_TypeDef map) {
+void BMC050_ACC_IntPinMap(BMC050_ACC_INTMap_TypeDef map) {
 	BMC050_WriteReg(BMC050_ACC_ADDR,BMC050_REG_ACC_INT_MAP1,map >> 16);
 	BMC050_WriteReg(BMC050_ACC_ADDR,BMC050_REG_ACC_INT_MAP2,map >> 8);
 	BMC050_WriteReg(BMC050_ACC_ADDR,BMC050_REG_ACC_INT_MAP3,map & 0xff);
