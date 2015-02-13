@@ -6,11 +6,24 @@
 #include <stm32l1xx_rtc.h>
 
 
-#define RTC_EXTI_LINE        1 << 20   // RTC connected to EXTI_Line20
+// RTC internally connected to EXTI_Line20
+#define RTC_EXTI_LINE        1 << 20
 
-#define JULIAN_DATE_BASE     2440588   // Unix epoch time in Julian calendar (UnixTime = 00:00:00 01.01.1970 => JDN = 2440588)
+// Unix epoch time in Julian calendar (UnixTime = 00:00:00 01.01.1970 => JDN = 2440588)
+#define JULIAN_DATE_BASE     2440588
 
 static const uint16_t week_day[] = { 0x4263, 0xA8BD, 0x42BF, 0x4370, 0xABBF, 0xA8BF, 0x43B2 };
+
+// Days of week text notation
+static char const * const sDOW[] = {
+		"MON",
+		"TUE",
+		"WED",
+		"THU",
+		"FRI",
+		"SAT",
+		"SUN"
+};
 
 
 extern RTC_TimeTypeDef RTC_Time;                   // Current RTC time
