@@ -159,7 +159,7 @@ NVIC_InitTypeDef NVICInit;
 // Determine source of reset
 uint32_t GetResetSource(void) {
 	uint32_t result = RESET_SRC_UNKNOWN;
-	uint32_t reg;
+	uint32_t reg, reg_save;
 
 	// Reset source
 	reg = RCC->CSR;
@@ -170,8 +170,11 @@ uint32_t GetResetSource(void) {
 	// Clear the reset flags
 	RCC->CSR |= RCC_CSR_RMVF;
 
-	// WKUP pin or RTC alarm
+	// Enable the PWR peripheral to deal with it CSR register
+	reg_save = RCC->APB1ENR;
 	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+
+	// WKUP pin or RTC alarm
 	reg = PWR->CSR;
 	if (reg & PWR_CSR_WUF) {
 		if (reg & PWR_CSR_SBF) result |= RESET_SRC_STBY;
@@ -190,6 +193,9 @@ uint32_t GetResetSource(void) {
 		// Restore value of the AHBENR register
 		RCC->AHBENR = reg;
 	}
+
+	// Restore value of the APB1ENR register
+	RCC->APB1ENR = reg_save;
 
 	return result;
 }
@@ -357,8 +363,9 @@ int main(void) {
 			BEEPER_Enable(444,1);
 			while (_beep_duration);
 		} else {
+			// Clear the RTC wake-up timer flag
 			PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-			RTC->ISR &= ~RTC_ISR_WUTF; // Clear the RTC wake-up timer flag
+			RTC->ISR &= ~RTC_ISR_WUTF;
 			PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 
 			// This is wake-up from RTC, do BEEP and wait until it ends
@@ -564,6 +571,12 @@ int main(void) {
 	// System core clock
 	i = SystemCoreClock;
 	printf("CPU: %u.%uMHz\r\n",i / 1000000,(i / 1000) % 1000);
+
+
+
+
+	// Debugger report
+	printf("Core debugger: %s\r\n",(CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) ? "PRESENT" : "NONE");
 
 
 
