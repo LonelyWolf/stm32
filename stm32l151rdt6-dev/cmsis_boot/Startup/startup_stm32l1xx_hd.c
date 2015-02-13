@@ -221,7 +221,8 @@ void Default_Reset_Handler(void)
   for (pulDest = &_sbss; pulDest < &_ebss;) *(pulDest++) = 0;
 
   /* Setup the microcontroller system. */
-  SystemInit();
+//  SystemInit();
+  // will call this from the main module
 	
   /* Call the application's entry point.*/
   main();

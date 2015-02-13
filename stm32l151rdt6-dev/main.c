@@ -77,11 +77,33 @@
 #define SD_DETECT_EXTI            (1 << 3)
 #define SD_DETECT_EXTI_N          EXTI3_IRQn
 
+// BMC050 IRQ pin (PC13)
+#define ACC_IRQ_PORT              GPIOC
+#define ACC_IRQ_PIN               GPIO_Pin_13
+#define ACC_IRQ_PERIPH            RCC_AHBPeriph_GPIOC
+#define ACC_IRQ_EXTI              (1 << 13)
+#define ACC_IRQ_EXTI_N            EXTI15_10_IRQn
+
+
+
+
+// Reset source
+#define RESET_SRC_UNKNOWN         (uint32_t)0x00000000 // Unknown reset source
+#define RESET_SRC_POR             (uint32_t)0x00000001 // POR/PDR (Power On Reset or Power Down Reset)
+#define RESET_SRC_SOFT            (uint32_t)0x00000002 // Software reset
+#define RESET_SRC_PIN             (uint32_t)0x00000004 // Reset from NRST pin
+#define RESET_SRC_STBY            (uint32_t)0x00000008 // Reset after STANBY, wake-up flag set (RTC or WKUP# pins)
+#define RESET_SRC_STBY_WP1        (uint32_t)0x00000010 // Reset after STANBY, wake-up from WKUP1 pin
+#define RESET_SRC_STBY_WP2        (uint32_t)0x00000020 // Reset after STANBY, wake-up from WKUP2 pin
+
 
 
 
 // It's obvious!
 uint32_t i,j,k;
+
+// Reset source
+uint32_t _reset_source = RESET_SRC_UNKNOWN;
 
 // USB
 volatile uint32_t _USB_int_cntr = 0;
@@ -123,6 +145,10 @@ uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD]; // nRF24L01 payload buffer for WBC
 volatile bool _new_packet = FALSE;
 uint32_t _packets_rcvd = 0; // Received packets counter
 
+// Date/Time
+RTC_TimeTypeDef _time;
+RTC_DateTypeDef _date;
+
 // SPL
 GPIO_InitTypeDef PORT;
 NVIC_InitTypeDef NVICInit;
@@ -130,10 +156,51 @@ NVIC_InitTypeDef NVICInit;
 
 
 
+// Determine source of reset
+uint32_t GetResetSource(void) {
+	uint32_t result = RESET_SRC_UNKNOWN;
+	uint32_t reg;
+
+	// Reset source
+	reg = RCC->CSR;
+	if (reg & RCC_CSR_PORRSTF) result |= RESET_SRC_POR;
+	if (reg & RCC_CSR_SFTRSTF) result |= RESET_SRC_SOFT;
+	if (reg & RCC_CSR_PINRSTF) result |= RESET_SRC_PIN;
+
+	// Clear the reset flags
+	RCC->CSR |= RCC_CSR_RMVF;
+
+	// WKUP pin or RTC alarm
+	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+	reg = PWR->CSR;
+	if (reg & PWR_CSR_WUF) {
+		if (reg & PWR_CSR_SBF) result |= RESET_SRC_STBY;
+
+		// Clear the wake-up and standby flags
+		PWR->CR |= PWR_CR_CWUF | PWR_CR_CSBF;
+
+		// Remember value of the AHBENR register
+		reg = RCC->AHBENR;
+
+		// Determine state of the WKUP# pins
+		RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOCEN;
+		if (GPIOA->IDR & GPIO_IDR_IDR_0)  result |= RESET_SRC_STBY_WP1;
+		if (GPIOC->IDR & GPIO_IDR_IDR_13) result |= RESET_SRC_STBY_WP2;
+
+		// Restore value of the AHBENR register
+		RCC->AHBENR = reg;
+	}
+
+	return result;
+}
+
 // RTC wake-up IRQ handler
 void RTC_WKUP_IRQHandler(void) {
 	if (RTC->ISR & RTC_ISR_WUTF) {
 		// RTC Wake-up interrupt
+
+		// Get current date/time
+		RTC_GetDateTime(&_time,&_date);
 
 		// Disable sleep-on-exit (return to main loop from IRQ)
 		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -185,7 +252,10 @@ void EXTI3_IRQHandler(void) {
 
 // EXTI[10..15] lines IRQ handler
 void EXTI15_10_IRQHandler(void) {
+	uint16_t acc_irq;
+
 	if (EXTI->PR & USB_SENS_EXTI) {
+		// USB sense pin
 		_USB_int_cntr++;
 		_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 		if (_USB_connected) {
@@ -194,6 +264,20 @@ void EXTI15_10_IRQHandler(void) {
 			BEEPER_PlayTones(tones_USB_dis);
 		}
 		EXTI->PR = USB_SENS_EXTI; // Clear IT bit for EXTI_Line
+	}
+
+	if (EXTI->PR & ACC_IRQ_EXTI) {
+		// Accelerometer IRQ pin
+		acc_irq = BMC050_ACC_GetIRQStatus();
+		if (acc_irq & ACC_IRQ_SLOPE) {
+			// Slope IRQ high
+			BEEPER_Enable(444,1);
+		} else {
+			// Slope IRQ low
+			BEEPER_Enable(3333,1);
+		}
+		printf("ACC: %s [%04X]\r\n",(ACC_IRQ_PORT->IDR & ACC_IRQ_PIN) ? "HIGH" : "LOW",acc_irq);
+		EXTI->PR = ACC_IRQ_EXTI; // Clear IT bit for EXTI_line
 	}
 }
 
@@ -236,8 +320,70 @@ uint32_t InterquartileMean(uint16_t *array, uint32_t numOfSamples) {
 
 
 int main(void) {
+	// Determine wake-up source
+	_reset_source = GetResetSource();
+
+
+
+
+	// Just for fun...
+	// If wake-up was from RTC then do BEEP and go back STANDBY mode
+	// If wake-up was from WKUP2 pin (accelerometer IRQ) then do BEEP, wait while IRQ asserted
+	//                     do another BEEP and go back STANBY mode
+	// If wake-up was from WKUP1 pin (ESCAPE button), then skip this and go to normal operation
+	if ((_reset_source & RESET_SRC_STBY) && !(_reset_source & RESET_SRC_STBY_WP1)) {
+		// At this time the MSI clock is used as system clock (~2.097MHz)
+		// Rise it up to ~4.194MHz to do proper beep
+		i = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE); // Clear MSIRANGE bits
+		RCC->ICSCR = i | RCC_ICSCR_MSIRANGE_6; // Set MSI range 6 (around 4.194MHz)
+
+		// Compute the actual MCU clock speed (for proper BEEPER initialization)
+		SystemCoreClockUpdate();
+
+		// Initialize BEEPER and do BEEP to indicate what MCU is awake
+		BEEPER_Init();
+
+		if (_reset_source & RESET_SRC_STBY_WP2) {
+			// This is wake-up from accelerometer IRQ pin
+			BEEPER_Enable(2222,2);
+
+			// Enable the accelerometer IRQ GPIO pin and wait until it becomes low
+			RCC->AHBENR |= ACC_IRQ_PERIPH; // Enable GPIO port peripheral
+			ACC_IRQ_PORT->MODER &= ~GPIO_MODER_MODER13; // Input mode (reset state)
+			ACC_IRQ_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR13; // Floating (clear bits)
+			while (ACC_IRQ_PORT->IDR & ACC_IRQ_PIN);
+
+			// Do another BEEP and wait till it ends
+			BEEPER_Enable(444,1);
+			while (_beep_duration);
+		} else {
+			PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+			RTC->ISR &= ~RTC_ISR_WUTF; // Clear the RTC wake-up timer flag
+			PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+
+			// This is wake-up from RTC, do BEEP and wait until it ends
+			BEEPER_Enable(1111,1);
+			while (_beep_duration);
+		}
+
+		// Put MCU into STANDBY mode
+		PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
+		PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
+		SleepStandby();
+	}
+
+
+
+
+	// Setup the microcontroller system
+	SystemInit();
+
+
+
+
 	// Enable debugging when the MCU is in low power modes
-//	DBGMCU->CR |= DBGMCU_CR_DBG_SLEEP | DBGMCU_CR_DBG_STOP | DBGMCU_CR_DBG_STANDBY;
+	DBGMCU->CR |= DBGMCU_CR_DBG_SLEEP | DBGMCU_CR_DBG_STOP | DBGMCU_CR_DBG_STANDBY;
+
 
 
 
@@ -258,9 +404,22 @@ int main(void) {
 
 	// Enable and configure RTC
 	RTC_Config();
-	RTC_SetWakeUp(10); // Wake every 10 seconds
+	if (_reset_source & RESET_SRC_POR) {
+		// Set time only in case of POR/PDR (power on/power down reset)
+		_time.RTC_Hours   = 0;
+		_time.RTC_Minutes = 0;
+		_time.RTC_Seconds = 0;
+		_date.RTC_Date    = 13;
+		_date.RTC_Month   = 02;
+		_date.RTC_Year    = 15;
+		_date.RTC_WeekDay = 5;
+		RTC_SetDateTime(&_time,&_date);
+	}
+	RTC_GetDateTime(&RTC_Time,&RTC_Date);
+
+//	RTC_SetWakeUp(10); // Wake every 10 seconds
 //	RTC_SetWakeUp(30); // Wake every 30 seconds
-//	RTC_SetWakeUp(60); // Wake every minute
+	RTC_SetWakeUp(60); // Wake every minute
 //	RTC_SetWakeUp(120); // Wake every 2 minutes
 
 
@@ -322,7 +481,7 @@ int main(void) {
 	// Configure USB sense pin
 	RCC->AHBENR |= USB_SENS_PERIPH; // Enable USB sense pin port peripheral
 
-	// Configure GPIO pin as input with pull-up
+	// Configure GPIO pin as input with pull-down
 	USB_SENS_PORT->MODER &= ~GPIO_MODER_MODER10; // Input mode (reset state)
 	USB_SENS_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR10; // Floating (clear bits)
 //	USB_SENS_PORT->PUPDR |=  GPIO_PUPDR_PUPDR10_0; // Pull-up
@@ -354,12 +513,57 @@ int main(void) {
 
 	_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 
+///*
 	if (_USB_connected) {
 		// Configure the USB peripheral
 		USB_HWConfig();
 		// Initialize the USB device
 		USB_Init();
 	}
+//*/
+
+
+
+
+	// For debug purposes
+	if (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) {
+		// Application executed under debugger control
+		BEEPER_Enable(333,3);
+		Delay_ms(500);
+	} else {
+		if (_reset_source & RESET_SRC_STBY) {
+			// Device has been in STANDBY mode
+			BEEPER_Enable(4000,3);
+		} else {
+			// Device has not been in STANDBY mode
+			BEEPER_Enable(1000,3);
+		}
+		Delay_ms(2000);
+	}
+
+
+
+
+	// Reset or wake-up source
+	if (_reset_source == RESET_SRC_UNKNOWN) {
+		printf("Wakeup: [UNKNOWN]\r\n");
+	} else {
+		printf("Wakeup: %s%s%s%s%s%s\r\n",
+				_reset_source & RESET_SRC_PIN      ? "PIN " : "",
+				_reset_source & RESET_SRC_POR      ? "POR/PDR " : "",
+				_reset_source & RESET_SRC_SOFT     ? "SOFT " : "",
+				_reset_source & RESET_SRC_STBY     ? "STBY " : "",
+				_reset_source & RESET_SRC_STBY_WP1 ? "WKUP1 " : "",
+				_reset_source & RESET_SRC_STBY_WP2 ? "WKUP2 " : ""
+				);
+	}
+
+
+
+
+	// System core clock
+	i = SystemCoreClock;
+	printf("CPU: %u.%uMHz\r\n",i / 1000000,(i / 1000) % 1000);
 
 
 
@@ -416,27 +620,6 @@ int main(void) {
 	NVIC_EnableIRQ(SD_DETECT_EXTI_N);
 
 	_SD_connected = (SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? 0 : 1;
-
-
-
-
-	// For debug purposes
-	if (CoreDebug->DHCSR & (1 << CoreDebug_DHCSR_C_DEBUGEN_Pos)) {
-		// Application executed under debugger control
-		BEEPER_Enable(333,3);
-		Delay_ms(500);
-	} else {
-		if (PWR->CSR & PWR_CSR_SBF) {
-			// Device has been in STANDBY mode
-			PWR->CR |= (PWR_CR_CWUF | PWR_CR_CSBF);
-			BEEPER_Enable(4000,3);
-			Delay_ms(5000);
-		} else {
-			// Device has not been in STANDBY mode
-			BEEPER_Enable(1000,3);
-			Delay_ms(1500);
-		}
-	}
 
 
 
@@ -582,7 +765,7 @@ int main(void) {
 	// Check the ALS
 	printf("Ambient light sensor ");
 	if (I2Cx_IsDeviceReady(I2C1,TSL2581_ADDR,10) == I2C_SUCCESS) {
-		printf("v%02X\r\n",TSL2581_GetDeviceID());
+		printf("ID: %02X\r\n",TSL2581_GetDeviceID());
 		TSL2581_Init();
 		TSL2581_SetGain(TSL2581_GAIN8);
 		d0 = TSL2581_GetData0();
@@ -598,7 +781,7 @@ int main(void) {
 	// Check the BMP180
 	printf("Pressure sensor ");
 	if (I2Cx_IsDeviceReady(I2C1,BMP180_ADDR,10) == I2C_SUCCESS) {
-		printf("v%02X\r\n",BMP180_GetVersion());
+		printf("ID: %02X\r\n",BMP180_GetVersion());
 		BMP180_Reset(); // Send reset command to BMP180
 		Delay_ms(15); // Wait for BMP180 startup time (10ms by datasheet)
 		if (BMP180_Check() == BMP180_SUCCESS) {
@@ -617,7 +800,7 @@ int main(void) {
 	// Check the BMC050
 	printf("eCompass ");
 	if (I2Cx_IsDeviceReady(BMC050_I2C_PORT,BMC050_ACC_ADDR,10) == I2C_SUCCESS) {
-		printf("v%02X\r\n",BMC050_ACC_GetDeviceID());
+		printf("ID: %02X\r\n",BMC050_ACC_GetDeviceID());
 		BMC050_ACC_SoftReset();
 		Delay_ms(5); // must wait for start-up time of accelerometer (2ms)
 		BMC050_Init();
@@ -625,15 +808,49 @@ int main(void) {
 		// Enable I2C watchdog timer with 50ms
 		BMC050_ACC_InterfaceConfig(ACC_IF_WDT_50ms);
 
+		// Configure accelerometer
+		BMC050_ACC_SetIRQ(ACC_IE_DISABLE); // Disable all interrupts
 		BMC050_ACC_SetBandwidth(ACC_BW8); // Accelerometer readings filtering (lower or higher better?)
-		BMC050_ACC_SetIRQMode(ACC_IM_NOLATCH); // No IRQ latching
-		BMC050_ACC_ConfigSlopeIRQ(0,8); // Motion detection sensitivity
+//		BMC050_ACC_SetIRQMode(ACC_IM_NOLATCH); // No IRQ latching
+		BMC050_ACC_SetIRQMode(ACC_IM_500ms); // Temporary latch IRQ for 500ms
+		BMC050_ACC_ConfigSlopeIRQ(3,4); // Motion detection sensitivity
 		BMC050_ACC_IntPinMap(ACC_IM1_SLOPE); // Map slope interrupt to INT1 pin
 		BMC050_ACC_SetIRQ(ACC_IE_SLOPEX | ACC_IE_SLOPEY | ACC_IE_SLOPEZ); // Detect motion by all axes
 		BMC050_ACC_LowPower(ACC_SLEEP_1000); // Low power with sleep duration 1s
 //		BMC050_ACC_LowPower(ACC_SLEEP_1); // Low power with sleep duration 1ms
+		BMC050_ACC_SetIRQMode(ACC_IM_RESET); // Clear IRQ bits
 
 //		BMC050_ACC_Suspend();
+
+		// Configure Accelerometer IRQ pin
+		RCC->AHBENR |= ACC_IRQ_PERIPH; // Enable GPIO port peripheral
+
+		// Configure GPIO pin as floating input (external pull-down)
+		ACC_IRQ_PORT->MODER &= ~GPIO_MODER_MODER13; // Input mode (reset state)
+		ACC_IRQ_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR13; // Floating (clear bits)
+
+		// Configure the EXTI line (Accelerometer IRQ pin)
+		EXTI->PR    =  ACC_IRQ_EXTI; // Clear IT pending bit for EXTI
+		EXTI->IMR  |=  ACC_IRQ_EXTI; // Enable interrupt request from EXTI
+		EXTI->EMR  &= ~ACC_IRQ_EXTI; // Disable event on EXTI
+		EXTI->RTSR |=  ACC_IRQ_EXTI; // Trigger rising edge enabled
+		EXTI->FTSR |=  ACC_IRQ_EXTI; // Trigger falling edge enabled
+
+		// PC13 as source input for EXTI13
+		SYSCFG->EXTICR[3] &= ~SYSCFG_EXTICR4_EXTI13; // Clear bits (Set PCxx pin as input source)
+		SYSCFG->EXTICR[3] |=  SYSCFG_EXTICR4_EXTI13_PC; // Set PCxx pin as input source
+
+	/*
+		// Enable the Accelerometer IRQ pin interrupt
+		NVICInit.NVIC_IRQChannel = ACC_IRQ_EXTI_N;
+		NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
+		NVICInit.NVIC_IRQChannelSubPriority = 0;
+		NVICInit.NVIC_IRQChannelCmd = ENABLE;
+		NVIC_Init(&NVICInit);
+	*/
+
+		// Simple enable the Accelerometer IRQ pin interrupt
+		NVIC_EnableIRQ(ACC_IRQ_EXTI_N);
 	} else {
 		printf("FAIL\r\n");
 	}
@@ -943,6 +1160,18 @@ int main(void) {
 
 
 	while(1) {
+		// Date/time
+		RTC_GetDateTime(&_time,&_date);
+		printf("DTM: %s, %02u:%02u:%02u %02u.%02u.20%02u\r\n",
+				sDOW[_date.RTC_WeekDay - 1],
+				_time.RTC_Hours,
+				_time.RTC_Minutes,
+				_time.RTC_Seconds,
+				_date.RTC_Date,
+				_date.RTC_Month,
+				_date.RTC_Year
+			);
+
 		// Measure Vbat
 /*
 		// Do 16 ADC measurements and calculate rough average
@@ -1149,11 +1378,22 @@ int main(void) {
 		}
 #endif
 
+		i = BMC050_ACC_GetIRQStatus();
+		printf("ACC: %s [%04X]\r\n",(ACC_IRQ_PORT->IDR & ACC_IRQ_PIN) ? "HIGH" : "LOW",i);
+//		BMC050_ACC_SetIRQMode(ACC_IM_RESET); // Clear IRQ bits
+
 	    printf("---------------------------------------------\r\n");
 
 //		BEEPER_Enable(111,1);
+
 //		Delay_ms(2000);
-		SleepWait();
+
+//		SleepWait();
+
+		// Put MCU into STANDBY mode
+		PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
+		PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
+		SleepStandby();
 	}
 
 
