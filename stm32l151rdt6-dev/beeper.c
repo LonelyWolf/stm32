@@ -6,8 +6,8 @@
 
 
 static GPIO_InitTypeDef PORT;
-volatile uint32_t _beep_duration;
-volatile uint8_t  _tones_playing;
+volatile uint32_t _beep_duration; // BEEPER output active if this is non-zeros
+volatile uint8_t  _tones_playing; // Tone sequence is playing if this is not null
 const Tone_TypeDef     *_tones;
 
 
