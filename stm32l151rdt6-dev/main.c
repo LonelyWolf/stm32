@@ -159,7 +159,7 @@ NVIC_InitTypeDef NVICInit;
 // Determine source of reset
 uint32_t GetResetSource(void) {
 	uint32_t result = RESET_SRC_UNKNOWN;
-	uint32_t reg, reg_save;
+	uint32_t reg;
 
 	// Reset source
 	reg = RCC->CSR;
@@ -171,7 +171,6 @@ uint32_t GetResetSource(void) {
 	RCC->CSR |= RCC_CSR_RMVF;
 
 	// Enable the PWR peripheral to deal with it CSR register
-	reg_save = RCC->APB1ENR;
 	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
 
 	// WKUP pin or RTC alarm
@@ -193,9 +192,6 @@ uint32_t GetResetSource(void) {
 		// Restore value of the AHBENR register
 		RCC->AHBENR = reg;
 	}
-
-	// Restore value of the APB1ENR register
-	RCC->APB1ENR = reg_save;
 
 	return result;
 }
@@ -347,9 +343,12 @@ int main(void) {
 		SystemCoreClockUpdate();
 
 		// Initialize BEEPER and do BEEP to indicate what MCU is awake
-		BEEPER_Init();
+//		BEEPER_Init();
 
 		if (_reset_source & RESET_SRC_STBY_WP2) {
+			// Initialize BEEPER and do BEEP to indicate what MCU is awake
+			BEEPER_Init();
+
 			// This is wake-up from accelerometer IRQ pin
 			BEEPER_Enable(2222,2);
 
@@ -364,13 +363,14 @@ int main(void) {
 			while (_beep_duration);
 		} else {
 			// Clear the RTC wake-up timer flag
+			// The PWR peripheral must be enabled (in GetResetSource)
 			PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
 			RTC->ISR &= ~RTC_ISR_WUTF;
 			PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 
 			// This is wake-up from RTC, do BEEP and wait until it ends
-			BEEPER_Enable(1111,1);
-			while (_beep_duration);
+//			BEEPER_Enable(1111,1);
+//			while (_beep_duration);
 		}
 
 		// Put MCU into STANDBY mode
@@ -425,8 +425,8 @@ int main(void) {
 	RTC_GetDateTime(&RTC_Time,&RTC_Date);
 
 //	RTC_SetWakeUp(10); // Wake every 10 seconds
-//	RTC_SetWakeUp(30); // Wake every 30 seconds
-	RTC_SetWakeUp(60); // Wake every minute
+	RTC_SetWakeUp(30); // Wake every 30 seconds
+//	RTC_SetWakeUp(60); // Wake every minute
 //	RTC_SetWakeUp(120); // Wake every 2 minutes
 
 
@@ -570,7 +570,16 @@ int main(void) {
 
 	// System core clock
 	i = SystemCoreClock;
-	printf("CPU: %u.%uMHz\r\n",i / 1000000,(i / 1000) % 1000);
+	printf("CPU: %u.%03uMHz\r\n",i / 1000000,(i / 1000) % 1000);
+/*
+	RCC_ClocksTypeDef RCC_Clocks;
+	RCC_GetClocksFreq(&RCC_Clocks);
+	printf("RCC: HCLK=%u PCLK1=%u PCLK2=%u SYSCLK=%u\r\n",
+			RCC_Clocks.HCLK_Frequency,
+			RCC_Clocks.PCLK1_Frequency,
+			RCC_Clocks.PCLK2_Frequency,
+			RCC_Clocks.SYSCLK_Frequency);
+*/
 
 
 
@@ -939,20 +948,19 @@ int main(void) {
 			if (sector[i] < 33) sector[i] = 127;
 			if (sector[i] > 127) sector[i] = 33;
 		}
-		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,1024);
-//		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,512);
+//		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,2048);
+		j = SD_WriteBlock_DMA(1024,(uint32_t *)sector,512);
 		printf("SD_WriteBlock_DMA = %X\r\n",j);
 		if (j == SDR_Success) {
 			// Wait till data transfered by DMA
-			j = SD_CheckWrite(1024);
-//			j = SD_CheckWrite(512);
+//			j = SD_CheckWrite(1024);
+			j = SD_CheckWrite(512);
 			printf("SD_CheckWrite = %X\r\n",j);
 			if (j == SDR_Success) d0++; else d1++;
 		} else d1++;
 		j = SD_GetCardState(&sector[0]);
 		printf("CardState = %X [%X]\r\n",sector[0],j);
 	    printf("---------------------------------------------\r\n");
-
 */
 
 /*
@@ -1401,7 +1409,11 @@ int main(void) {
 
 //		Delay_ms(2000);
 
+	    // Put MCU into SLEEP mode
 //		SleepWait();
+
+	    // Put MCU into STOP mode
+//	    SleepStop();
 
 		// Put MCU into STANDBY mode
 		PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
