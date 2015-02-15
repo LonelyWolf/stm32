@@ -9,12 +9,13 @@
 #define SDIO_DMA_CH            DMA2_Channel4
 
 // Alias word address of bits of the SDIO DCTRL register
-#define DCTRL_OFFSET           (SDIO_BASE - PERIPH_BASE + 0x2C)
-#define DMAEN_BITNUMBER        0x03 // DMAEN
-#define DCTRL_DMAEN_BB         (PERIPH_BB_BASE + (DCTRL_OFFSET * 32) + (DMAEN_BITNUMBER * 4))
-#define DTEN_BITNUMBER         0x00 // DTEN
-#define DCTRL_DTEN_BB          (PERIPH_BB_BASE + (DCTRL_OFFSET * 32) + (DTEN_BITNUMBER * 4))
-
+#define SDIO_DCTRL_OFFSET      (SDIO_BASE - PERIPH_BASE + 0x2C)
+#define SDIO_DCTRL_DTEN_BN     0 // DTEN
+#define SDIO_DCTRL_DTEN_BB     *(__IO uint32_t *)(PERIPH_BB_BASE + (SDIO_DCTRL_OFFSET * 32) + (SDIO_DCTRL_DTEN_BN * 4))
+// Alias word address of bits of the SDIO CLKCR register
+#define SDIO_CLKCR_OFFSET      (SDIO_BASE - PERIPH_BASE + 0x04)
+#define SDIO_CLKCR_CLKEN_BN    8 // CLKEN
+#define SDIO_CLKCR_CLKEN_BB    *(__IO uint32_t *)((PERIPH_BB_BASE + (SDIO_CLKCR_OFFSET * 32) + (SDIO_CLKCR_CLKEN_BN * 4)))
 
 // SDIO power supply control bits
 #define SDIO_PWR_OFF           0x00 // Power off: the clock to card is stopped
@@ -35,11 +36,12 @@
 // SDIO clocks for initialization and data transfer
 #define SDIO_CLK_DIV_INIT      SDIO_CLK_DIV_400K // SDIO initialization frequency (400kHz)
 //#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_400K  // SDIO data transfer 400kHz
+//#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_1M  // SDIO data transfer 1MHz
 //#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_8M  // SDIO data transfer 8MHz
 //#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_9M6  // SDIO data transfer 9.6MHz
 //#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_12M  // SDIO data transfer 12MHz
-#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_16M  // SDIO data transfer 16MHz
-//#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_24M  // SDIO data transfer 24MHz
+//#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_16M  // SDIO data transfer 16MHz
+#define SDIO_CLK_DIV_TRAN      SDIO_CLK_DIV_24M  // SDIO data transfer 24MHz
 
 // SDIO CMD response type
 #define SDIO_RESP_NONE         0x00                // No response

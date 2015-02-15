@@ -902,8 +902,44 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// Configure the DMA to send data to SDIO
 	SD_Cofigure_DMA(SD_DMA_TX,pBuf,length);
 
+#ifndef STM32L1XX_HD
 	// Data transfer: DMA enable, block, controller -> card, size: 2^9 = 512bytes, enable transfer
-	SDIO->DCTRL  = SDIO_DCTRL_DMAEN | (9 << 4) | SDIO_DCTRL_DTEN;
+	SDIO->DCTRL = SDIO_DCTRL_DMAEN | (9 << 4) | SDIO_DCTRL_DTEN;
+#else
+	// STM32L151RD: when the SDIO_CK clock is 24MHz, the incomprehensible error pops right after enabling
+	// the data transfer with DMA. Disabling the SDIO_CK clock output, enabling the DPSM and then enabling
+	// SDIO_CK output is workaround for this issue.
+
+	// Disable SDIO_CK clock output
+	SDIO_CLKCR_CLKEN_BB = 0;
+
+	// Data transfer: DMA enable, block, controller -> card, size: 2^9 = 512bytes, enable transfer
+	SDIO->DCTRL = SDIO_DCTRL_DMAEN | (9 << 4) | SDIO_DCTRL_DTEN;
+
+	// Datasheet says: after a data write, data cannot be written to the CLKCR register for three SDIOCLK (48 MHz)
+	// clock periods plus two PCLK2 clock periods.
+	// But this is not enough and experience has shown that at 32MHz system clock there must be at least 96 NOP's
+	// Do dummy delay here
+	for (response = 9; response--;) asm volatile ("nop"); // This equals to 96 pure "NOP", but less code
+
+/*
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
+*/
+
+	// Enable the SDIO_CK clock output
+	SDIO_CLKCR_CLKEN_BB = 1;
+#endif
 
 //	printf("INB4: STA=%X DCOUNT=%u FIFOCNT=%u DMA=%u DMA2=%X\r\n",SDIO->STA,SDIO->DCOUNT,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,DMA2->ISR);
 
