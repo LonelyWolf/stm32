@@ -215,6 +215,19 @@ SDResult SD_Response(uint16_t resp_type, uint32_t *pResp) {
 	return result;
 }
 
+// Set block size of the SD card
+// input:
+//   block_size - block length
+// return: SDResult value
+SDResult SD_SetBlockSize(uint32_t block_size) {
+	uint32_t response;
+
+	// Send SET_BLOCKLEN command
+	SD_Cmd(SD_CMD_SET_BLOCKLEN,8,SDIO_RESP_SHORT); // CMD16
+
+	return SD_Response(SD_R1,&response);
+}
+
 // Find the SD card SCR register value
 // input:
 //   pSCR - pointer to the SCR register value
@@ -420,7 +433,9 @@ SDResult SD_Init(void) {
 	// Read the SCR register
 	if (SDCard.Type != SDCT_MMC) {
 		// MMC card doesn't support this feature
+		// Warning: this function set block size to 8 bytes
 		SD_GetSCR((uint32_t *)SDCard.SCR);
+
 	}
 
 	// For SDv1,SDv2 and MMC card must set block size (SDHC/SDXC always have fixed size 512bytes)
@@ -952,6 +967,7 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 // command in case of multiple block transfer
 // input:
 //   length - buffer length (must be multiple of 512)
+// return: SDResult value
 // note: length passed here to determine if it was mutliple block transfer
 SDResult SD_CheckRead(uint32_t length) {
 	SDResult cmd_res = SDR_Success;
@@ -993,6 +1009,7 @@ SDResult SD_CheckRead(uint32_t length) {
 // in case of multiple block transfer
 // input:
 //   length - buffer length (must be multiple of 512)
+// return: SDResult value
 // note: length passed here to determine if it was multiple block transfer
 SDResult SD_CheckWrite(uint32_t length) {
 	SDResult cmd_res = SDR_Success;

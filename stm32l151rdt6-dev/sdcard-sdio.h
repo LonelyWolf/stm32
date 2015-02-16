@@ -251,6 +251,7 @@ extern SDCard_TypeDef SDCard;        // SD card parameters
 
 // Function prototypes
 void SD_SDIO_GPIO_Init(void);
+SDResult SD_SetBlockSize(uint32_t block_size);
 SDResult SD_Init(void);
 SDResult SD_SetBusWidth(uint32_t BW);
 void SD_SetBusClock(uint32_t clk_div);
