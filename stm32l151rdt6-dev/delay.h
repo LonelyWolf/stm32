@@ -3,11 +3,18 @@
 #define __DELAY_H
 
 
+// Delay timer HAL
 #define DELAY_TIM               TIM6
 #define DELAY_TIM_PERIPH        RCC_APB1Periph_TIM6
 #define DELAY_TIM_IRQN          TIM6_IRQn
+#define DELAY_TIM_APB           RCC->APB1ENR
 
+// NULL declaration
+#ifndef NULL
+#define NULL  ((void *)0)
+#endif
 
+// Callback function prototype
 typedef void (*funcCallback_TypeDef)(void);
 
 
