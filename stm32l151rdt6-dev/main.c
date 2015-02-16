@@ -196,6 +196,46 @@ uint32_t GetResetSource(void) {
 	return result;
 }
 
+// Inquiry status of the button
+void Button_Inquiry(BTN_TypeDef *button) {
+	if (button == &BTN[BTN_ESCAPE]) {
+		// Escape button have inverted input
+		if (!(button->PORT->IDR & button->PIN)) {
+		    // Button released
+			button->hold_cntr = 0;
+			if (button->state != BTN_Hold) button->cntr++;
+			button->state = BTN_Released;
+
+			// Disable sleep-on-exit (return to main loop from IRQ)
+			SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+
+			BEEPER_Enable(200,1);
+		} else {
+			// Button pressed
+			button->hold_cntr = 0;
+			button->state = BTN_Pressed;
+			BEEPER_Enable(2000,1);
+		}
+	} else {
+		if (button->PORT->IDR & button->PIN) {
+		    // Button released
+			button->hold_cntr = 0;
+			if (button->state != BTN_Hold) button->cntr++;
+			button->state = BTN_Released;
+
+			// Disable sleep-on-exit (return to main loop from IRQ)
+			SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
+
+			BEEPER_Enable(200,1);
+		} else {
+			// Button pressed
+			button->hold_cntr = 0;
+			button->state = BTN_Pressed;
+			BEEPER_Enable(2000,1);
+		}
+	}
+}
+
 // RTC wake-up IRQ handler
 void RTC_WKUP_IRQHandler(void) {
 	if (RTC->ISR & RTC_ISR_WUTF) {
@@ -212,6 +252,15 @@ void RTC_WKUP_IRQHandler(void) {
 		PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 
 		EXTI->PR = RTC_EXTI_LINE;
+	}
+}
+
+// EXTI0 line IRQ handler
+void EXTI0_IRQHandler(void) {
+	if (EXTI->PR & BTN3_EXTI) {
+		// EXTI0 (Button#3 -> "ESCAPE")
+		Button_Inquiry(&BTN[BTN_ESCAPE]);
+		EXTI->PR = BTN3_EXTI; // Clear IT bit for EXTI_line
 	}
 }
 
@@ -256,6 +305,8 @@ void EXTI3_IRQHandler(void) {
 void EXTI15_10_IRQHandler(void) {
 	uint16_t acc_irq;
 
+/*
+	// EXTI10 of USB sense conflicts with EXTI10 of button "UP"
 	if (EXTI->PR & USB_SENS_EXTI) {
 		// USB sense pin
 		_USB_int_cntr++;
@@ -267,10 +318,11 @@ void EXTI15_10_IRQHandler(void) {
 		}
 		EXTI->PR = USB_SENS_EXTI; // Clear IT bit for EXTI_Line
 	}
+*/
 
 	if (EXTI->PR & ACC_IRQ_EXTI) {
 		// Accelerometer IRQ pin
-		acc_irq = BMC050_ACC_GetIRQStatus();
+		acc_irq = BMC050_ACC_GetIRQStatus(); // <--- Bad idea to call this in IRQ handler
 		if (acc_irq & ACC_IRQ_SLOPE) {
 			// Slope IRQ high
 			BEEPER_Enable(444,1);
@@ -278,8 +330,25 @@ void EXTI15_10_IRQHandler(void) {
 			// Slope IRQ low
 			BEEPER_Enable(3333,1);
 		}
-		printf("ACC: %s [%04X]\r\n",(ACC_IRQ_PORT->IDR & ACC_IRQ_PIN) ? "HIGH" : "LOW",acc_irq);
 		EXTI->PR = ACC_IRQ_EXTI; // Clear IT bit for EXTI_line
+	}
+
+	if (EXTI->PR & BTN0_EXTI) {
+		// EXTI10 (Button#0 -> "UP")
+		Button_Inquiry(&BTN[BTN_UP]);
+		EXTI->PR = BTN0_EXTI; // Clear IT bit for EXTI_line
+	}
+
+	if (EXTI->PR & BTN1_EXTI) {
+		// EXTI11 (Button#1 -> "DOWN")
+		Button_Inquiry(&BTN[BTN_DOWN]);
+		EXTI->PR = BTN1_EXTI; // Clear IT bit for EXTI_line
+	}
+
+	if (EXTI->PR & BTN2_EXTI) {
+		// EXTI15 (Button#2 -> "ENTER")
+		Button_Inquiry(&BTN[BTN_ENTER]);
+		EXTI->PR = BTN2_EXTI; // Clear IT bit for EXTI_line
 	}
 }
 
@@ -339,15 +408,18 @@ int main(void) {
 		i = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE); // Clear MSIRANGE bits
 		RCC->ICSCR = i | RCC_ICSCR_MSIRANGE_6; // Set MSI range 6 (around 4.194MHz)
 
+		// Enable the PWR peripheral to deal with it CSR register
+		RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+
 		// Compute the actual MCU clock speed (for proper BEEPER initialization)
 		SystemCoreClockUpdate();
 
 		// Initialize BEEPER and do BEEP to indicate what MCU is awake
-//		BEEPER_Init();
+		BEEPER_Init();
 
 		if (_reset_source & RESET_SRC_STBY_WP2) {
 			// Initialize BEEPER and do BEEP to indicate what MCU is awake
-			BEEPER_Init();
+//			BEEPER_Init();
 
 			// This is wake-up from accelerometer IRQ pin
 			BEEPER_Enable(2222,2);
@@ -369,8 +441,8 @@ int main(void) {
 			PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 
 			// This is wake-up from RTC, do BEEP and wait until it ends
-//			BEEPER_Enable(1111,1);
-//			while (_beep_duration);
+			BEEPER_Enable(1111,1);
+			while (_beep_duration);
 		}
 
 		// Put MCU into STANDBY mode
@@ -424,27 +496,29 @@ int main(void) {
 	}
 	RTC_GetDateTime(&RTC_Time,&RTC_Date);
 
-//	RTC_SetWakeUp(10); // Wake every 10 seconds
-	RTC_SetWakeUp(30); // Wake every 30 seconds
+//	RTC_SetWakeUp(2); // Wake every 2 seconds
+	RTC_SetWakeUp(10); // Wake every 10 seconds
+//	RTC_SetWakeUp(30); // Wake every 30 seconds
 //	RTC_SetWakeUp(60); // Wake every minute
 //	RTC_SetWakeUp(120); // Wake every 2 minutes
 
 
 
 
+	// Initialize delay
 	Delay_Init(NULL);
+
+
+
+
+	// Initialize beeper
 	BEEPER_Init();
 
 
 
 
-	// Enable power control lines GPIO
-	RCC_AHBPeriphClockCmd(
-			PWR_GPS_ENABLE_PERIPH |
-			PWR_SD_ENABLE_PERIPH |
-			PWR_VBAT_ENABLE_PERIPH |
-			PWR_LCD_ENABLE_PERIPH,
-			ENABLE); // Enable power control peripherals
+	// Enable power control lines GPIO peripherals
+	RCC->AHBENR |= (PWR_GPS_ENABLE_PERIPH | PWR_SD_ENABLE_PERIPH | PWR_VBAT_ENABLE_PERIPH | PWR_LCD_ENABLE_PERIPH);
 
 	// Configure power control lines as push-pull output without pull-up
 	PORT.GPIO_Mode  = GPIO_Mode_OUT;
@@ -454,19 +528,19 @@ int main(void) {
 
 	PORT.GPIO_Pin = PWR_GPS_ENABLE_PIN;
 	GPIO_Init(PWR_GPS_ENABLE_PORT,&PORT);
-	PWR_GPS_ENABLE_L(); // Turn off
+	PWR_GPS_ENABLE_L(); // Turn it off
 
 	PORT.GPIO_Pin = PWR_SD_ENABLE_PIN;
 	GPIO_Init(PWR_SD_ENABLE_PORT,&PORT);
-	PWR_SD_ENABLE_L(); // Turn off
+	PWR_SD_ENABLE_L(); // Turn it off
 
 	PORT.GPIO_Pin = PWR_VBAT_ENABLE_PIN;
 	GPIO_Init(PWR_VBAT_ENABLE_PORT,&PORT);
-	PWR_VBAT_ENABLE_L(); // Turn off
+	PWR_VBAT_ENABLE_L(); // Turn it off
 
 	PORT.GPIO_Pin = PWR_LCD_ENABLE_PIN;
 	GPIO_Init(PWR_LCD_ENABLE_PORT,&PORT);
-	PWR_LCD_ENABLE_L(); // Turn off
+	PWR_LCD_ENABLE_L(); // Turn it off
 
 
 
@@ -491,9 +565,9 @@ int main(void) {
 	// Configure GPIO pin as input with pull-down
 	USB_SENS_PORT->MODER &= ~GPIO_MODER_MODER10; // Input mode (reset state)
 	USB_SENS_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR10; // Floating (clear bits)
-//	USB_SENS_PORT->PUPDR |=  GPIO_PUPDR_PUPDR10_0; // Pull-up
 	USB_SENS_PORT->PUPDR |=  GPIO_PUPDR_PUPDR10_1; // Pull-down
 
+/*
 	// Configure the EXTI line (USB sense pin)
 	EXTI->PR    =  USB_SENS_EXTI; // Clear IT pending bit for EXTI
 	EXTI->IMR  |=  USB_SENS_EXTI; // Enable interrupt request from EXTI
@@ -505,6 +579,7 @@ int main(void) {
 	// In fact this is not necessary because it is the default condition after reset
 	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI10; // Clear bits (Set PA10 pin as input source)
 	SYSCFG->EXTICR[2] |=  SYSCFG_EXTICR3_EXTI10_PA; // Set PA10 pin as input source
+*/
 
 /*
 	// Enable the USB sense pin interrupt
@@ -516,7 +591,7 @@ int main(void) {
 */
 
 	// Simple enable the USB sense pin interrupt
-	NVIC_EnableIRQ(USB_SENS_EXTI_N);
+//	NVIC_EnableIRQ(USB_SENS_EXTI_N);
 
 	_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 
@@ -528,6 +603,99 @@ int main(void) {
 		USB_Init();
 	}
 //*/
+
+
+
+
+	// Buttons initialization
+	for (i = 0; i < 4; i++) memset(&BTN[i],0,sizeof(BTN[i]));
+	BTN[0].PORT  = BTN0_PORT;
+	BTN[0].PIN   = BTN0_PIN;
+	BTN[0].EXTIn = BTN0_EXTI;
+
+	BTN[1].PORT  = BTN1_PORT;
+	BTN[1].PIN   = BTN1_PIN;
+	BTN[1].EXTIn = BTN1_EXTI;
+
+	BTN[2].PORT  = BTN2_PORT;
+	BTN[2].PIN   = BTN2_PIN;
+	BTN[2].EXTIn = BTN2_EXTI;
+
+	BTN[3].PORT  = BTN3_PORT;
+	BTN[3].PIN   = BTN3_PIN;
+	BTN[3].EXTIn = BTN3_EXTI;
+
+	// Enable button GPIOx peripherals (pins where buttons connected)
+	RCC->AHBENR |= BTN0_PERIPH | BTN1_PERIPH | BTN2_PERIPH | BTN3_PERIPH;
+
+	PORT.GPIO_Speed = GPIO_Speed_2MHz;
+	PORT.GPIO_Mode  = GPIO_Mode_IN;
+	PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+
+	// Button#0 (PB10)
+	PORT.GPIO_Pin = BTN0_PIN;
+	GPIO_Init(BTN0_PORT,&PORT);
+	// Button#1 (PB11)
+	PORT.GPIO_Pin = BTN1_PIN;
+	GPIO_Init(BTN1_PORT,&PORT);
+	// Button#2 (PA15)
+	PORT.GPIO_Pin = BTN2_PIN;
+	GPIO_Init(BTN2_PORT,&PORT);
+	// Button#3 (PA0)
+	PORT.GPIO_Pin = BTN3_PIN;
+	GPIO_Init(BTN3_PORT,&PORT);
+
+	// Configure buttons the EXTI lines
+	// Button#0
+	EXTI->PR    =  BTN0_EXTI; // Clear IT pending bit for EXTI
+	EXTI->IMR  |=  BTN0_EXTI; // Enable interrupt request from EXTI
+	EXTI->EMR  &= ~BTN0_EXTI; // Disable event on EXTI
+	EXTI->RTSR |=  BTN0_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR |=  BTN0_EXTI; // Trigger falling edge enabled
+	// PB10 as source input for EXTI10
+	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI10; // Clear bits (Set PA10 pin as input source)
+	SYSCFG->EXTICR[2] |=  SYSCFG_EXTICR3_EXTI10_PB; // Set PB10 pin as input source
+
+	// Button#1
+	EXTI->PR    =  BTN1_EXTI; // Clear IT pending bit for EXTI
+	EXTI->IMR  |=  BTN1_EXTI; // Enable interrupt request from EXTI
+	EXTI->EMR  &= ~BTN1_EXTI; // Disable event on EXTI
+	EXTI->RTSR |=  BTN1_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR |=  BTN1_EXTI; // Trigger falling edge enabled
+
+	// PB11 as source input for EXTI11
+	SYSCFG->EXTICR[2] &= ~SYSCFG_EXTICR3_EXTI11; // Clear bits (Set PA11 pin as input source)
+	SYSCFG->EXTICR[2] |=  SYSCFG_EXTICR3_EXTI11_PB; // Set PB11 pin as input source
+
+	// Button#2
+	EXTI->PR    =  BTN2_EXTI; // Clear IT pending bit for EXTI
+	EXTI->IMR  |=  BTN2_EXTI; // Enable interrupt request from EXTI
+	EXTI->EMR  &= ~BTN2_EXTI; // Disable event on EXTI
+	EXTI->RTSR |=  BTN2_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR |=  BTN2_EXTI; // Trigger falling edge enabled
+
+	// PA15 as source input for EXTI15
+	SYSCFG->EXTICR[3] &= ~SYSCFG_EXTICR4_EXTI15; // Clear bits (Set PA15 pin as input source)
+	// In fact this is not necessary because it is the default condition after reset
+	SYSCFG->EXTICR[3] |=  SYSCFG_EXTICR4_EXTI15_PA; // Set PA15 pin as input source
+
+	// Button#3
+	EXTI->PR    =  BTN3_EXTI; // Clear IT pending bit for EXTI
+	EXTI->IMR  |=  BTN3_EXTI; // Enable interrupt request from EXTI
+	EXTI->EMR  &= ~BTN3_EXTI; // Disable event on EXTI
+	EXTI->RTSR |=  BTN3_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR |=  BTN3_EXTI; // Trigger falling edge enabled
+
+	// PA0 as source input for EXTI0
+	SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI0; // Clear bits (Set PA0 pin as input source)
+	// In fact this is not necessary because it is the default condition after reset
+	SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI0_PA; // Set PA0 pin as input source
+
+	// Simple enable the button pins interrupts
+	NVIC_EnableIRQ(BTN0_EXTI_N);
+	NVIC_EnableIRQ(BTN1_EXTI_N);
+	NVIC_EnableIRQ(BTN2_EXTI_N);
+	NVIC_EnableIRQ(BTN3_EXTI_N);
 
 
 
@@ -838,7 +1006,8 @@ int main(void) {
 		BMC050_ACC_ConfigSlopeIRQ(3,4); // Motion detection sensitivity
 		BMC050_ACC_IntPinMap(ACC_IM1_SLOPE); // Map slope interrupt to INT1 pin
 		BMC050_ACC_SetIRQ(ACC_IE_SLOPEX | ACC_IE_SLOPEY | ACC_IE_SLOPEZ); // Detect motion by all axes
-		BMC050_ACC_LowPower(ACC_SLEEP_1000); // Low power with sleep duration 1s
+//		BMC050_ACC_LowPower(ACC_SLEEP_1000); // Low power with sleep duration 1s
+		BMC050_ACC_LowPower(ACC_SLEEP_500); // Low power with sleep duration 500ms
 //		BMC050_ACC_LowPower(ACC_SLEEP_1); // Low power with sleep duration 1ms
 		BMC050_ACC_SetIRQMode(ACC_IM_RESET); // Clear IRQ bits
 
@@ -907,12 +1076,12 @@ int main(void) {
 	// Enable the SDIO interrupt
 //	NVIC_EnableIRQ(SDIO_IRQn);
 
-//	if (!(SD_DETECT_PORT->IDR & SD_DETECT_PIN)) {
 	if (_SD_connected) {
 		SD_SDIO_GPIO_Init();
 		j = SD_Init();
 		printf("SD_Init: %X\r\n",j);
 	} else j = SDR_NoResponse;
+	_SD_last_state = _SD_connected;
 
 	if (j == SDR_Success) {
 		if (SDCard.Type != SDCT_MMC) {
@@ -953,7 +1122,7 @@ int main(void) {
 		printf("SD_WriteBlock_DMA = %X\r\n",j);
 		if (j == SDR_Success) {
 			// Wait till data transfered by DMA
-//			j = SD_CheckWrite(1024);
+//			j = SD_CheckWrite(2048);
 			j = SD_CheckWrite(512);
 			printf("SD_CheckWrite = %X\r\n",j);
 			if (j == SDR_Success) d0++; else d1++;
@@ -1193,6 +1362,21 @@ int main(void) {
 				_date.RTC_Year
 			);
 
+//		printf("BTN: #0 IDR=%s\r\n",(GPIOB->IDR & GPIO_Pin_10) ? "HI" : "LOW");
+//		printf("BTN: #1 IDR=%s\r\n",(GPIOB->IDR & GPIO_Pin_11) ? "HI" : "LOW");
+//		printf("BTN: #2 IDR=%s\r\n",(GPIOA->IDR & GPIO_Pin_15) ? "HI" : "LOW");
+//		printf("BTN: #3 IDR=%s\r\n",(GPIOA->IDR & GPIO_Pin_0)  ? "HI" : "LOW");
+
+		// Buttons
+		for (i = 0; i < 4; i++) {
+			printf("BTN: #%u CNTR=%u HOLD=%u STATE=%02X IDR=%s\r\n",
+					i,
+					BTN[i].cntr,
+					BTN[i].hold_cntr,
+					BTN[i].state,
+					(BTN[i].PORT->IDR & BTN[i].PIN) ? "HI" : "LOW");
+		}
+
 		// Measure Vbat
 /*
 		// Do 16 ADC measurements and calculate rough average
@@ -1299,6 +1483,10 @@ int main(void) {
 				// The SD card was inserted, need to initialize it
 				j = SD_Init();
 				printf("SD_Init: %X\r\n",j);
+				if ((j == SDR_Success) && (SDCard.Type != SDCT_MMC)) {
+					// MMC doesn't support 4-bit bus
+					if (SDCard.SCR[1] & 0x05) SD_SetBusWidth(SD_BUS_4BIT);
+				}
 			}
 		}
 		_SD_last_state = _SD_connected;
@@ -1321,6 +1509,7 @@ int main(void) {
 				printf("CheckRead = %02X, ",j);
 			}
 			if (j != SDR_Success) BEEPER_Enable(4444,1);
+
 			j = SD_GetCardState(&sector[0]);
 			printf("CardState = %02X [%X]\r\n",j,sector[0]);
 		}
@@ -1416,9 +1605,20 @@ int main(void) {
 //	    SleepStop();
 
 		// Put MCU into STANDBY mode
-		PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
-		PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
-		SleepStandby();
+//		PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
+//		PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
+//		SleepStandby();
+
+	    if (BTN[BTN_UP].state == BTN_Pressed) {
+	    	BEEPER_PlayTones(tones_3beep);
+	    	while(_tones_playing);
+	    	RTC_SetWakeUp(0); // Disable RTC wake-up
+	    	PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
+	    	PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
+	    	SleepStandby();
+	    } else {
+	    	SleepWait();
+	    }
 	}
 
 

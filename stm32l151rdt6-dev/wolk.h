@@ -18,20 +18,35 @@
 #define nRF24_RX_PAYLOAD                 11 // nRF24L01 payload length
 
 
-// Buttons
-#define      BTN0_PORT   GPIOA
-#define      BTN0_PIN    GPIO_Pin_5
-#define      BTN1_PORT   GPIOC
-#define      BTN1_PIN    GPIO_Pin_12
-#define      BTN2_PORT   GPIOC
-#define      BTN2_PIN    GPIO_Pin_10
-#define      BTN3_PORT   GPIOC
-#define      BTN3_PIN    GPIO_Pin_11
+// Buttons HAL
+#define BTN0_PORT     GPIOB
+#define BTN0_PIN      GPIO_Pin_10
+#define BTN0_PERIPH   RCC_AHBPeriph_GPIOB
+#define BTN0_EXTI     (1 << 10)
+#define BTN0_EXTI_N   EXTI15_10_IRQn
 
-#define      BTN_UP      0
-#define      BTN_DOWN    1
-#define      BTN_ENTER   2
-#define      BTN_ESCAPE  3
+#define BTN1_PORT     GPIOB
+#define BTN1_PIN      GPIO_Pin_11
+#define BTN1_PERIPH   RCC_AHBPeriph_GPIOB
+#define BTN1_EXTI     (1 << 11)
+#define BTN1_EXTI_N   EXTI15_10_IRQn
+
+#define BTN2_PORT     GPIOA
+#define BTN2_PIN      GPIO_Pin_15
+#define BTN2_PERIPH   RCC_AHBPeriph_GPIOA
+#define BTN2_EXTI     (1 << 15)
+#define BTN2_EXTI_N   EXTI15_10_IRQn
+
+#define BTN3_PORT     GPIOA
+#define BTN3_PIN      GPIO_Pin_0
+#define BTN3_PERIPH   RCC_AHBPeriph_GPIOA
+#define BTN3_EXTI     (1 << 0)
+#define BTN3_EXTI_N   EXTI0_IRQn
+
+#define BTN_UP        0
+#define BTN_DOWN      1
+#define BTN_ENTER     2
+#define BTN_ESCAPE    3
 
 
 // NULL declaration
@@ -96,6 +111,7 @@ typedef struct {
 // Button structure
 typedef struct {
 	GPIO_TypeDef *PORT;       // Button GPIO port
+	uint16_t EXTIn;           // Button EXTI line
 	uint16_t PIN;             // Button pin
 	uint8_t cntr;             // Number of button clicks
 	BTN_StateTypeDef state;   // Button state
@@ -124,8 +140,11 @@ extern uint32_t _time_idle;                        // Time from last user event 
 
 // Embedded internal reference voltage calibration value
 // Factory measured Vrefint at Vdda = 3V (+/- 5mV)
-//#define VREFINT_CAL           ((uint16_t *)(uint32_t)0x1ff80078) // STM32L15xx6/8/B
+#ifdef STM32L151RD
 #define VREFINT_CAL           ((uint16_t *)(uint32_t)0x1ff800f8) // STM32L15xxD
+#else
+#define VREFINT_CAL           ((uint16_t *)(uint32_t)0x1ff80078) // STM32L15xx6/8/B
+#endif
 
 
 // Function prototypes

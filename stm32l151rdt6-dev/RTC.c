@@ -14,7 +14,7 @@ void RTC_Config(void) {
 	RTC_InitTypeDef RTCInit;
 	NVIC_InitTypeDef NVICInit;
 
-	RCC->APB1ENR |= RCC_APB1Periph_PWR; // Enable the PWR peripheral
+	RCC->APB1ENR |= RCC_APB1ENR_PWREN; // Enable the PWR peripheral
 	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
 
 	// Turn on LSE and wait until it become stable
