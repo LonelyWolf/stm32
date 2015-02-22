@@ -16,7 +16,7 @@
 #define nRF24_SPI_PORT       SPI2
 
 // nRF24L01 GPIO peripherals
-#define nRF24_PORT_PERIPH    RCC_AHBPeriph_GPIOB | RCC_AHBPeriph_GPIOC
+#define nRF24_PORT_PERIPH    RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN
 
 // nRF24L01 CSN (Chip Select) pin (PC6)
 #define nRF24_CSN_PORT       GPIOC

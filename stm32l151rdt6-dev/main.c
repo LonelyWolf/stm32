@@ -19,6 +19,8 @@
 #include "log.h"
 #include "spi.h"
 #include "nRF24.h"
+#include "uart.h"
+#include "ST7541.h"
 
 // USB stuff
 #include "usb_lib.h"
@@ -149,6 +151,15 @@ uint32_t _packets_rcvd = 0; // Received packets counter
 RTC_TimeTypeDef _time;
 RTC_DateTypeDef _date;
 
+// LCD debug
+// 7,7,27
+// 6,6,32
+// 5,6,26
+uint8_t lcd_res_ratio = 7;
+uint8_t lcd_lcd_bias = 7;
+uint8_t lcd_el_vol = 27;
+uint8_t lcd_changing = 2;
+
 // SPL
 GPIO_InitTypeDef PORT;
 NVIC_InitTypeDef NVICInit;
@@ -172,6 +183,7 @@ uint32_t GetResetSource(void) {
 
 	// Enable the PWR peripheral to deal with it CSR register
 	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+//	#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
 
 	// WKUP pin or RTC alarm
 	reg = PWR->CSR;
@@ -186,6 +198,7 @@ uint32_t GetResetSource(void) {
 
 		// Determine state of the WKUP# pins
 		RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOCEN;
+//		#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
 		if (GPIOA->IDR & GPIO_IDR_IDR_0)  result |= RESET_SRC_STBY_WP1;
 		if (GPIOC->IDR & GPIO_IDR_IDR_13) result |= RESET_SRC_STBY_WP2;
 
@@ -206,6 +219,10 @@ void Button_Inquiry(BTN_TypeDef *button) {
 			if (button->state != BTN_Hold) button->cntr++;
 			button->state = BTN_Released;
 
+			// LCD debug
+			lcd_changing++;
+			if (lcd_changing > 2) lcd_changing = 0;
+
 			// Disable sleep-on-exit (return to main loop from IRQ)
 			SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 
@@ -222,6 +239,28 @@ void Button_Inquiry(BTN_TypeDef *button) {
 			button->hold_cntr = 0;
 			if (button->state != BTN_Hold) button->cntr++;
 			button->state = BTN_Released;
+
+			switch (lcd_changing) {
+				case 0:
+					// res_ratio
+					if (button == &BTN[BTN_UP]) lcd_res_ratio++; else lcd_res_ratio--;
+					if (lcd_res_ratio > 7) lcd_res_ratio = 0;
+					break;
+				case 1:
+					// lcd_bias
+					if (button == &BTN[BTN_UP]) lcd_lcd_bias++; else lcd_lcd_bias--;
+					if (lcd_lcd_bias > 7) lcd_lcd_bias = 0;
+					break;
+				case 2:
+					// el_vol
+					if (button == &BTN[BTN_UP]) lcd_el_vol++; else lcd_el_vol--;
+					if (lcd_el_vol > 63) lcd_el_vol = 0;
+					break;
+				default:
+					break;
+			}
+			ST7541_Contrast(lcd_res_ratio,lcd_lcd_bias,lcd_el_vol);
+			printf("ST7541: RES=%u BIAS=%u ELVOL=%u\r\n",lcd_res_ratio,lcd_lcd_bias,lcd_el_vol);
 
 			// Disable sleep-on-exit (return to main loop from IRQ)
 			SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -330,6 +369,7 @@ void EXTI15_10_IRQHandler(void) {
 			// Slope IRQ low
 			BEEPER_Enable(3333,1);
 		}
+		printf("---> ACC IRQ: [%s] <---\r\n",(acc_irq & ACC_IRQ_SLOPE) ? "HIGH" : "LOW");
 		EXTI->PR = ACC_IRQ_EXTI; // Clear IT bit for EXTI_line
 	}
 
@@ -397,6 +437,17 @@ int main(void) {
 
 
 
+	// PB4 after reset acts as NJTRST input with pull-up (PB4 configure as alternative function)
+	// The LED backlight PWM output must be tied to ground ASAP
+	// Configure PB4 as GPIO
+	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+//	#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
+	GPIOB->MODER &= ~GPIO_MODER_MODER4; // Input
+	GPIOB->PUPDR &= ~GPIO_PUPDR_PUPDR4; // No pull-up, pull-down
+
+
+
+
 	// Just for fun...
 	// If wake-up was from RTC then do BEEP and go back STANDBY mode
 	// If wake-up was from WKUP2 pin (accelerometer IRQ) then do BEEP, wait while IRQ asserted
@@ -409,6 +460,7 @@ int main(void) {
 		RCC->ICSCR = i | RCC_ICSCR_MSIRANGE_6; // Set MSI range 6 (around 4.194MHz)
 
 		// Enable the PWR peripheral to deal with it CSR register
+//		#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
 		RCC->APB1ENR |= RCC_APB1ENR_PWREN;
 
 		// Compute the actual MCU clock speed (for proper BEEPER initialization)
@@ -477,6 +529,13 @@ int main(void) {
 
 	// Enable the system configuration controller
 	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+
+
+
+	// UART port initialization
+	UARTx_Init(USART2,1382400);
+	UART_SendStr(USART2,"--- STM32L151RDT6 ---\r\n");
 
 
 
@@ -555,6 +614,17 @@ int main(void) {
 	GPIO_Init(GPIOA,&PORT);
 	RCC_MCOConfig(RCC_MCOSource_PLLCLK,RCC_MCODiv_16);
 */
+
+
+
+
+	// Display SPI port initialization: 1-line TX, lowest speed (125kHz on 32MHz CPU)
+	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);
+
+	ST7541_Init();
+	ST7541_Fill(0x0000);
+	ST7541_Contrast(7,7,32);
+	ST7541_Flush();
 
 
 
@@ -814,9 +884,8 @@ int main(void) {
 
 
 
-	// nRF24 SPI port initialization
-	SPIx_Init(nRF24_SPI_PORT);
-	SPIx_SetSpeed(nRF24_SPI_PORT,SPI_BR_2); // Highest speed (16MHz with 32MHz CPU)
+	// nRF24 SPI port initialization: 2 lines full duplex, highest speed (16MHz at 32MHz CPU)
+	SPIx_Init(nRF24_SPI_PORT,SPI_DIR_DUPLEX,SPI_BR_2);
 
 	// Initialize and configure nRF24
 	nRF24_Init();
@@ -890,6 +959,7 @@ int main(void) {
 
 	    printf("\r\n---------------------------------------------\r\n");
 	}
+
 
 
 
@@ -1003,7 +1073,7 @@ int main(void) {
 		BMC050_ACC_SetBandwidth(ACC_BW8); // Accelerometer readings filtering (lower or higher better?)
 //		BMC050_ACC_SetIRQMode(ACC_IM_NOLATCH); // No IRQ latching
 		BMC050_ACC_SetIRQMode(ACC_IM_500ms); // Temporary latch IRQ for 500ms
-		BMC050_ACC_ConfigSlopeIRQ(3,4); // Motion detection sensitivity
+		BMC050_ACC_ConfigSlopeIRQ(3,8); // Motion detection sensitivity
 		BMC050_ACC_IntPinMap(ACC_IM1_SLOPE); // Map slope interrupt to INT1 pin
 		BMC050_ACC_SetIRQ(ACC_IE_SLOPEX | ACC_IE_SLOPEY | ACC_IE_SLOPEZ); // Detect motion by all axes
 //		BMC050_ACC_LowPower(ACC_SLEEP_1000); // Low power with sleep duration 1s
@@ -1598,8 +1668,48 @@ int main(void) {
 
 //		Delay_ms(2000);
 
+	    ST7541_Fill(0x0000);
+	    k = 33;
+	    j = 28;
+	    while (j < 121) {
+	    	i = 0;
+	    	while (i < 123) {
+	    		PutChar5x7(i,j,k++,gs_black);
+	    		if (k > 128) k = 33;
+	    		i += 6;
+	    	}
+	    	j += 8;
+	    }
+	    PutIntU5x7(10,1,lcd_res_ratio,gs_black);
+	    PutStr5x7(28,1,"RES_RATIO",gs_black);
+	    PutIntU5x7(10,9,lcd_lcd_bias,gs_black);
+	    PutStr5x7(28,9,"LCD_BIAS",gs_black);
+	    PutIntU5x7(10,17,lcd_el_vol,gs_black);
+	    PutStr5x7(28,17,"CONTRAST",gs_black);
+	    HLine(0,127,26,gs_black);
+	    switch (lcd_changing) {
+			case 0:
+				FillRect(2,0,6,7,gs_black);
+				break;
+			case 1:
+				FillRect(2,8,6,15,gs_black);
+				break;
+			case 2:
+				FillRect(2,16,6,23,gs_black);
+				break;
+			default:
+				break;
+		}
+//	    FillRect(0,100,127,127,gs_black);
+	    FillRect(0,100,31,127,gs_black);
+	    FillRect(32,100,63,127,gs_dkgray);
+	    FillRect(64,100,95,127,gs_ltgray);
+	    FillRect(96,100,127,127,gs_white);
+	    Rect(0,0,127,127,gs_black);
+	    ST7541_Flush();
+
 	    // Put MCU into SLEEP mode
-//		SleepWait();
+		SleepWait();
 
 	    // Put MCU into STOP mode
 //	    SleepStop();
@@ -1609,6 +1719,7 @@ int main(void) {
 //		PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
 //		SleepStandby();
 
+/*
 	    if (BTN[BTN_UP].state == BTN_Pressed) {
 	    	BEEPER_PlayTones(tones_3beep);
 	    	while(_tones_playing);
@@ -1619,6 +1730,7 @@ int main(void) {
 	    } else {
 	    	SleepWait();
 	    }
+*/
 	}
 
 
