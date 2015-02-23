@@ -70,5 +70,6 @@ void SPIx_Init(SPI_TypeDef *SPI, uint16_t SPI_direction, uint16_t SPI_prescaler)
 void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler);
 void SPIx_Send(SPI_TypeDef *SPI, uint8_t data);
 uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data);
+void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length);
 
 #endif // __SPIx_H

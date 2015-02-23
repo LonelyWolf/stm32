@@ -120,7 +120,7 @@ void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler) {
 	SPI->CR1 = reg; // Update the SPI configuration
 }
 
-// Send data via SPI
+// Send byte to SPI
 // input:
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   data - byte to send
@@ -130,7 +130,7 @@ void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
 	(void)SPI->DR; // Clear the RXNE bit
 }
 
-// Send/Receive data via SPI
+// Send byte to SPI and return received byte
 // input:
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   data - byte to send
@@ -140,4 +140,18 @@ uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data) {
 	while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
 
 	return SPI->DR; // Received byte
+}
+
+// Send data buffer to SPI
+// input:
+//   SPI - pointer to the SPI port
+//   pBuf - pointer to the data buffer
+//   length - length of the data buffer
+void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+	do {
+		SPI->DR = *pBuf++;
+		while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
+	} while (--length);
+	(void)SPI->DR; // Clear the RXNE bit
+	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
