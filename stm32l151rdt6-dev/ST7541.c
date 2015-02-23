@@ -108,17 +108,17 @@ void ST7541_Init(void) {
 //	ST7541_cmd(0x56); // LCD bias: 1/11
 	ST7541_cmd(0x57); // LCD bias: 1/12
 
-	ST7541_cmd_double(0x38,0xf4); // Frame rate 123Hz, Booster efficiency level 2
+//	ST7541_cmd_double(0x38,0xf4); // Frame rate 123Hz, Booster efficiency level 2
 //	ST7541_cmd_double(0x38,0xf0); // Frame rate 123Hz, Booster efficiency level 0
 //	ST7541_cmd_double(0x38,0x54); // Frame rate 67Hz, Booster efficiency level 2
-//	ST7541_cmd_double(0x38,0x04); // Frame rate 77Hz, Booster efficiency level 2
+	ST7541_cmd_double(0x38,0x04); // Frame rate 77Hz, Booster efficiency level 2
 //	ST7541_cmd_double(0x38,0x00); // Frame rate 77Hz, Booster efficiency level 0
 //	ST7541_cmd_double(0x38,0x14); // Frame rate 51Hz, Booster efficiency level 2
 //	ST7541_cmd_double(0x38,0x74); // Frame rate 70Hz, Booster efficiency level 2
 
 //	ST7541_cmd(0x2e); // Power control: VC,VR,VF = 1,1,0 (internal voltage booster)
 	ST7541_cmd(0x2a); // Power control: VC,VR,VF = 0,1,0 (external LCD bias supply)
-	Delay_ms(10);
+	Delay_ms(100);
 //	ST7541_cmd(0x2f); // Power control: VC,VR,VF = 1,1,1 (internal voltage booster)
 	ST7541_cmd(0x2b); // Power control: VC,VR,VF = 0,1,1 (external LCD bias supply)
 
@@ -129,10 +129,10 @@ void ST7541_Init(void) {
 
 //	ST7541_cmd(0x90); // FRC/PWM mode: 4FRC, 9PWM
 //	ST7541_cmd(0x92); // FRC/PWM mode: 4FRC, 12PWM
-	ST7541_cmd(0x93); // FRC/PWM mode: 4FRC, 15PWM
+//	ST7541_cmd(0x93); // FRC/PWM mode: 4FRC, 15PWM
 //	ST7541_cmd(0x94); // FRC/PWM mode: 3FRC, 9PWM
 //	ST7541_cmd(0x96); // FRC/PWM mode: 3FRC, 12PWM
-//	ST7541_cmd(0x97); // FRC/PWM mode: 3FRC, 15PWM
+	ST7541_cmd(0x97); // FRC/PWM mode: 3FRC, 15PWM
 
 	// Enable high power mode
 	ST7541_cmd_double(0xf7,0x1a); // High power mode enable
@@ -273,11 +273,10 @@ void ST7541_Orientation(uint8_t orientation) {
 
 // Send vRAM buffer content into display
 void ST7541_Flush(void) {
-	uint16_t i;
-
 	ST7541_SetAddr(0,0);
 	ST7541_CS_L();
-	for (i = 0; i < (SCR_W * SCR_H) >> 2; i++) ST7541_data(vRAM[i]);
+	ST7541_RS_H();
+	SPIx_SendBuf(ST7541_SPI_PORT,vRAM,(SCR_W * SCR_H) >> 2);
 	ST7541_CS_H();
 }
 

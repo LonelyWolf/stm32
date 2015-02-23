@@ -159,6 +159,7 @@ uint8_t lcd_res_ratio = 7;
 uint8_t lcd_lcd_bias = 7;
 uint8_t lcd_el_vol = 27;
 uint8_t lcd_changing = 2;
+uint8_t lcd_char = 33;
 
 // SPL
 GPIO_InitTypeDef PORT;
@@ -1669,17 +1670,7 @@ int main(void) {
 //		Delay_ms(2000);
 
 	    ST7541_Fill(0x0000);
-	    k = 33;
-	    j = 28;
-	    while (j < 121) {
-	    	i = 0;
-	    	while (i < 123) {
-	    		PutChar5x7(i,j,k++,gs_black);
-	    		if (k > 128) k = 33;
-	    		i += 6;
-	    	}
-	    	j += 8;
-	    }
+
 	    PutIntU5x7(10,1,lcd_res_ratio,gs_black);
 	    PutStr5x7(28,1,"RES_RATIO",gs_black);
 	    PutIntU5x7(10,9,lcd_lcd_bias,gs_black);
@@ -1700,11 +1691,28 @@ int main(void) {
 			default:
 				break;
 		}
-//	    FillRect(0,100,127,127,gs_black);
+/*
+		// Gray shades
 	    FillRect(0,100,31,127,gs_black);
 	    FillRect(32,100,63,127,gs_dkgray);
 	    FillRect(64,100,95,127,gs_ltgray);
 	    FillRect(96,100,127,127,gs_white);
+*/
+///*
+	    // Chess board
+	    k = 0;
+	    for (i = 0; i < 8; i++) {
+    		d0 = 16 + (i * 12);
+	    	for (j = 0; j < 8; j++) {
+	    		d1 = 29 + (j * 12);
+	    		FillRect(d0,d1,d0 + 11,d1 + 11,(k) ? gs_white : gs_ltgray);
+	    		Rect(d0,d1,d0 + 11,d1 + 11,gs_black);
+	    		k = !k;
+	    	}
+	    	k = !k;
+	    }
+//*/
+
 	    Rect(0,0,127,127,gs_black);
 	    ST7541_Flush();
 
