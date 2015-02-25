@@ -2,6 +2,7 @@
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_syscfg.h>
 #include <misc.h>
+#include <math.h> // Don't forget to add '-lm' linker option (damn CoIDE)
 
 // Debug
 #include <stdio.h>
@@ -1433,6 +1434,65 @@ int main(void) {
 
 	// Measure LCD performance
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
+
+	// GFX Demo (rotozoomer with checkerboard or XOR texture)
+	float ca,sa;
+	float scalee = 0.5;
+	float dscalee = 0.05;
+	float angle = 0.0;
+	float x,y;
+	float xrow = 0.0;
+	float yrow = 0.0;
+
+    RTC_SetWakeUp(10);
+    _new_time = FALSE;
+    ST7541_Fill(0x0000);
+	while(1) {
+		ca = scalee * cosf(angle);
+		sa = scalee * sinf(angle);
+		xrow = sa;
+		yrow = ca;
+		for (j = 16; j < 127; j++) {
+			x = xrow;
+			y = yrow;
+			for (i = 0; i < 127; i++) {
+				x += ca;
+				y += sa;
+				if (lcd_changing % 2) {
+					Pixel(i,j,((((int8_t)x >> 3) & 1) ^ (((int8_t)y >> 3) & 1)) ? gs_black : gs_white); // Black and white checker board
+				} else {
+					Pixel(i,j,(((int8_t)x >> 3) & 3) ^ (((int8_t)y >> 3) & 3)); // 2-bit XOR texture
+				}
+			}
+			xrow += -sa;
+			yrow +=  ca;
+		}
+		angle += 0.05;
+		scalee += ((scalee <= 0.10) || (scalee >= 1.3)) ? dscalee *= -1: dscalee;
+
+		Rect(0,16,127,127,gs_black);
+		FillRect(0,0,127,15,gs_white);
+
+		// Draw FPS with shadow effect
+		lcd_color = gs_ltgray;
+		i = PutIntF(4,4,d0,1,fnt7x10) + 4;
+		PutStr(i,4,"FPS",fnt7x10);
+		lcd_color = gs_dkgray;
+		i = PutIntF(3,3,d0,1,fnt7x10) + 4;
+		PutStr(i,3,"FPS",fnt7x10);
+		lcd_color = gs_black;
+		i = PutIntF(2,2,d0,1,fnt7x10) + 4;
+		PutStr(i,2,"FPS",fnt7x10);
+
+		ST7541_Flush_DMA();
+		k++;
+
+		if (_new_time) {
+			d0 = k;
+			_new_time = FALSE;
+			k = 0;
+		}
+	}
 
     ST7541_Fill(0x0000);
 	k = 0;
