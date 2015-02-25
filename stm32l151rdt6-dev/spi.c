@@ -126,8 +126,21 @@ void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler) {
 //   data - byte to send
 void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
 	SPI->DR = data; // Send byte to SPI (TXE cleared)
-	while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
-	(void)SPI->DR; // Clear the RXNE bit
+	while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission is complete
+}
+
+// Send data buffer to SPI
+// input:
+//   SPI - pointer to the SPI port
+//   pBuf - pointer to the data buffer
+//   length - length of the data buffer
+void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+	do {
+		SPI->DR = *pBuf++;
+		while (!(SPI->SR & SPI_SR_TXE));
+	} while (--length);
+	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
 
 // Send byte to SPI and return received byte
@@ -142,16 +155,89 @@ uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data) {
 	return SPI->DR; // Received byte
 }
 
-// Send data buffer to SPI
+// Initialize the DMA peripheral for SPI
 // input:
-//   SPI - pointer to the SPI port
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   pBuf - pointer to the data buffer
-//   length - length of the data buffer
-void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
-	do {
-		SPI->DR = *pBuf++;
-		while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
-	} while (--length);
-	(void)SPI->DR; // Clear the RXNE bit
-	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+//   length - length of the buffer size
+// note: the corresponding DMA peripheral clock must be already enabled
+void SPIx_Configure_DMA_TX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+	DMA_Channel_TypeDef *DMAx_Ch;
+
+	if (SPI == SPI1) {
+		DMAx_Ch = SPI1_DMA_CH_TX;
+	} else if (SPI == SPI2) {
+		DMAx_Ch = SPI2_DMA_CH_TX;
+	} else if (SPI == SPI3) {
+		DMAx_Ch = SPI3_DMA_CH_TX;
+	}
+	// DMA: memory -> SPI, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
+	DMAx_Ch->CCR   = DMA_CCR1_DIR | DMA_CCR1_MINC | DMA_CCR1_PL_0;
+	DMAx_Ch->CPAR  = (uint32_t)(&(SPI->DR)); // Address of the peripheral data register
+	DMAx_Ch->CMAR  = (uint32_t)pBuf; // Memory address
+	DMAx_Ch->CNDTR = length; // Number of data
+}
+
+// Initialize the DMA peripheral for SPI
+// input:
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   pBuf - pointer to the data buffer
+//   length - length of the buffer size
+// note: the corresponding DMA peripheral clock must be already enabled
+void SPIx_Configure_DMA_RX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+	DMA_Channel_TypeDef *DMAx_Ch;
+
+	if (SPI == SPI1) {
+		DMAx_Ch = SPI1_DMA_CH_RX;
+	} else if (SPI == SPI2) {
+		DMAx_Ch = SPI2_DMA_CH_RX;
+	} else if (SPI == SPI3) {
+		DMAx_Ch = SPI3_DMA_CH_RX;
+	}
+	// DMA: SPI -> memory, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
+	DMAx_Ch->CCR   = DMA_CCR1_MINC | DMA_CCR1_PL_0;
+	DMAx_Ch->CPAR  = (uint32_t)(&(SPI->DR)); // Address of the peripheral data register
+	DMAx_Ch->CMAR  = (uint32_t)pBuf; // Memory address
+	DMAx_Ch->CNDTR = length; // Number of data
+}
+
+// Enable/disable SPI RX/TX DMA channels
+// input:
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   NewState - new state of channels (ENABLE/DISABLE)
+void SPIx_SetDMA(SPI_TypeDef *SPI, FunctionalState NewState) {
+	if (NewState == ENABLE) {
+		// Clear DMA interrupt flags and enable RX/TX DMA channels
+		if (SPI == SPI1) {
+			SPI1_DMA_PERIPH->IFCR = SPI1_DMA_CH_TX_F | SPI1_DMA_CH_RX_F;
+			SPI1_DMA_CH_TX->CCR |= DMA_CCR1_EN;
+//			SPI1_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+		} else if (SPI == SPI2) {
+			SPI2_DMA_PERIPH->IFCR = SPI2_DMA_CH_TX_F | SPI2_DMA_CH_RX_F;
+			SPI2_DMA_CH_TX->CCR |= DMA_CCR1_EN;
+//			SPI2_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+		} else if (SPI == SPI3) {
+			SPI3_DMA_PERIPH->IFCR = SPI3_DMA_CH_TX_F | SPI3_DMA_CH_RX_F;
+			SPI3_DMA_CH_TX->CCR |= DMA_CCR1_EN;
+//			SPI3_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+		}
+		// Enable SPI RX/TX DMA
+		SPI->CR2 |= SPI_CR2_TXDMAEN;
+//		SPI->CR2 |= SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN;
+	} else {
+		// Disable RX/TX DMA channels
+		if (SPI == SPI1) {
+			SPI1_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
+//			SPI1_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		} else if (SPI == SPI2) {
+			SPI2_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
+//			SPI2_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		} else if (SPI == SPI3) {
+			SPI3_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
+//			SPI3_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		}
+		// Disable SPI RX/TX DMA
+		SPI->CR2 &= ~SPI_CR2_TXDMAEN;
+//		SPI->CR2 &= ~(SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN);
+	}
 }
