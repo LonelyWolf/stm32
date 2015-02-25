@@ -70,8 +70,22 @@ typedef enum {
 	gs_black  = 3
 } GrayScale_TypeDef;
 
+typedef enum {
+	font_V     = 0,        // Vertical font scan lines
+	font_H     = 1         // Horizontal font scan lines
+} FontScan_TypeDef;
+
+typedef struct {
+	uint8_t font_Width;                // Width of character
+	uint8_t font_Height;               // Height of character
+	uint8_t font_BPC;                  // Bytes for one character
+	FontScan_TypeDef font_Scan;        // Font scan lines behavior
+	uint8_t font_Data[];               // Font data
+} Font_TypeDef;
+
 
 // Public variables
+extern GrayScale_TypeDef lcd_color;
 extern uint16_t scr_width;
 extern uint16_t scr_height;
 
@@ -93,6 +107,7 @@ void ST7541_SetScrollLine(uint8_t line);
 void ST7541_Orientation(uint8_t orientation);
 
 void ST7541_Flush(void);
+void ST7541_Flush_DMA(void);
 void ST7541_Fill(uint16_t pattern);
 
 void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS);
@@ -103,12 +118,13 @@ void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef 
 void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, GrayScale_TypeDef GS);
 void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, GrayScale_TypeDef GS);
 
-void PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, GrayScale_TypeDef GS);
-uint16_t PutStr5x7(uint8_t X, uint8_t Y, char *str, GrayScale_TypeDef GS);
-uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, GrayScale_TypeDef GS);
-uint8_t PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, GrayScale_TypeDef GS);
-uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, GrayScale_TypeDef GS);
-uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, GrayScale_TypeDef GS);
-uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, GrayScale_TypeDef GS);
+uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font);
+uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
+uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
+uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font);
+uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
+uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font);
+uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font);
+uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
 
 #endif // __ST7541_H

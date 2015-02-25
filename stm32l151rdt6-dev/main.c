@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 // Libraries
+#include "wolk.h"
 #include "i2c.h"
 #include "RTC.h"
 #include "bmp180.h"
@@ -14,7 +15,6 @@
 #include "tsl2581.h"
 #include "beeper.h"
 #include "delay.h"
-#include "wolk.h"
 #include "sdcard-sdio.h"
 #include "log.h"
 #include "spi.h"
@@ -28,6 +28,10 @@
 
 // DOSFS
 #include "dosfs.h"
+
+// Resources
+#include <font5x7.h>
+#include <font7x10.h>
 
 
 
@@ -115,7 +119,7 @@ volatile uint32_t _USB_connected = 0;
 volatile uint32_t _SD_int_cntr = 0;
 volatile uint32_t _SD_connected = 0;
 volatile uint32_t _SD_last_state = 0;
-uint8_t __attribute__((aligned(4))) sector[2048];
+uint8_t sector[2048] __attribute__((aligned(4)));
 
 // ALS variables
 uint16_t d0,d1;
@@ -152,14 +156,17 @@ RTC_TimeTypeDef _time;
 RTC_DateTypeDef _date;
 
 // LCD debug
-// 7,7,27
+// 7,7,24
 // 6,6,32
 // 5,6,26
 uint8_t lcd_res_ratio = 7;
 uint8_t lcd_lcd_bias = 7;
-uint8_t lcd_el_vol = 27;
+uint8_t lcd_el_vol = 24;
 uint8_t lcd_changing = 2;
 uint8_t lcd_char = 33;
+
+// Flags
+volatile bool _new_time = FALSE;
 
 // SPL
 GPIO_InitTypeDef PORT;
@@ -283,6 +290,8 @@ void RTC_WKUP_IRQHandler(void) {
 
 		// Get current date/time
 		RTC_GetDateTime(&_time,&_date);
+
+		_new_time = TRUE;
 
 		// Disable sleep-on-exit (return to main loop from IRQ)
 		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -619,12 +628,14 @@ int main(void) {
 
 
 
-	// Display SPI port initialization: 1-line TX, lowest speed (125kHz on 32MHz CPU)
-	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);
+	// Display SPI port initialization: 1-line TX
+//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_256); // lowest speed (125kHz on 32MHz CPU)
+//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2); // highest speed (16MHz on 32MHz CPU)
+	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_4); // 8MHz on 32MHz CPU
 
 	ST7541_Init();
 	ST7541_Fill(0x0000);
-	ST7541_Contrast(7,7,32);
+	ST7541_Contrast(7,7,24);
 	ST7541_Flush();
 
 
@@ -666,14 +677,14 @@ int main(void) {
 
 	_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 
-///*
+/*
 	if (_USB_connected) {
 		// Configure the USB peripheral
 		USB_HWConfig();
 		// Initialize the USB device
 		USB_Init();
 	}
-//*/
+*/
 
 
 
@@ -1420,6 +1431,65 @@ int main(void) {
 
 
 
+	// Measure LCD performance
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
+
+    ST7541_Fill(0x0000);
+	k = 0;
+    for (i = 0; i < 8; i++) {
+		d0 = 16 + (i * 12);
+    	for (j = 0; j < 8; j++) {
+    		d1 = 29 + (j * 12);
+    		FillRect(d0,d1,d0 + 11,d1 + 11,(k) ? gs_white : gs_ltgray);
+    		Rect(d0,d1,d0 + 11,d1 + 11,gs_black);
+    		k = !k;
+    	}
+    	k = !k;
+    }
+    Rect(0,0,127,127,gs_black);
+
+    RTC_SetWakeUp(10);
+    _new_time = FALSE;
+	while(1) {
+		k = 0;
+		while (!_new_time) {
+			ST7541_Flush_DMA();
+//			ST7541_Flush();
+			k++;
+		}
+		FillRect(2,2,63,12,gs_white);
+		i = PutIntF(2,2,k,1,fnt7x10) + 2;
+		PutStr(i,2,"FPS",fnt7x10);
+		printf("DTM: %s, %02u:%02u:%02u %02u.%02u.20%02u\r\n",
+				sDOW[_date.RTC_WeekDay - 1],
+				_time.RTC_Hours,
+				_time.RTC_Minutes,
+				_time.RTC_Seconds,
+				_date.RTC_Date,
+				_date.RTC_Month,
+				_date.RTC_Year
+			);
+		printf("FPS = %u.%u\r\n",k / 10,k % 10);
+		_new_time = FALSE;
+	}
+	// Results with 125kHz
+	// ST7541_data :   3.8FPS
+	// SPIx_SendBuf:   3.8FPS
+	// DMA         :   3.8FPS
+
+	// Result with 8MHz
+	// ST7541_data :  57.4FPS
+	// SPIx_SendBuf: 149.9FPS
+	// DMA         : 243.0FPS
+
+	// Results with 16MHz
+	// ST7541_data :  64.5FPS
+	// SPIx_SendBuf: 149.9FPS
+	// DMA         : 430.2FPS <-- FAIL
+
+
+
+
 	while(1) {
 		// Date/time
 		RTC_GetDateTime(&_time,&_date);
@@ -1671,12 +1741,12 @@ int main(void) {
 
 	    ST7541_Fill(0x0000);
 
-	    PutIntU5x7(10,1,lcd_res_ratio,gs_black);
-	    PutStr5x7(28,1,"RES_RATIO",gs_black);
-	    PutIntU5x7(10,9,lcd_lcd_bias,gs_black);
-	    PutStr5x7(28,9,"LCD_BIAS",gs_black);
-	    PutIntU5x7(10,17,lcd_el_vol,gs_black);
-	    PutStr5x7(28,17,"CONTRAST",gs_black);
+	    PutIntU(10,1,lcd_res_ratio,fnt5x7);
+	    PutStr(28,1,"RES_RATIO",fnt5x7);
+	    PutIntU(10,9,lcd_lcd_bias,fnt5x7);
+	    PutStr(28,9,"LCD_BIAS",fnt5x7);
+	    PutIntU(10,17,lcd_el_vol,fnt5x7);
+	    PutStr(28,17,"CONTRAST",fnt5x7);
 	    HLine(0,127,26,gs_black);
 	    switch (lcd_changing) {
 			case 0:

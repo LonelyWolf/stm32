@@ -4,16 +4,18 @@
 
 #include "delay.h"
 #include "spi.h"
+
 #include "ST7541.h"
-#include "font5x7.h"
 
 
-uint16_t                  scr_width       = SCR_W;
-uint16_t                  scr_height      = SCR_H;
-ScrOrientation_TypeDef    scr_orientation = scr_normal;
+GrayScale_TypeDef         lcd_color       = gs_black; // Foreground color
+uint16_t                  scr_width       = SCR_W; // Screen width
+uint16_t                  scr_height      = SCR_H; // Screen height
+ScrOrientation_TypeDef    scr_orientation = scr_normal; // Screen orientation
 
 // Display buffer
-uint8_t vRAM[(SCR_W * SCR_H) >> 2];
+//uint8_t vRAM[(SCR_W * SCR_H) >> 2];
+uint8_t vRAM[(SCR_W * SCR_H) >> 2] __attribute__((aligned(4)));
 
 // Grayscale palette (PWM values for white, light gray, dark gray, black)
 uint8_t const GrayPalette[] = {0x00,0x00,0xaa,0xaa,0xdd,0xdd,0xff,0xff}; // 15PWM
@@ -118,7 +120,7 @@ void ST7541_Init(void) {
 
 //	ST7541_cmd(0x2e); // Power control: VC,VR,VF = 1,1,0 (internal voltage booster)
 	ST7541_cmd(0x2a); // Power control: VC,VR,VF = 0,1,0 (external LCD bias supply)
-	Delay_ms(100);
+	Delay_ms(10);
 //	ST7541_cmd(0x2f); // Power control: VC,VR,VF = 1,1,1 (internal voltage booster)
 	ST7541_cmd(0x2b); // Power control: VC,VR,VF = 0,1,1 (external LCD bias supply)
 
@@ -273,10 +275,32 @@ void ST7541_Orientation(uint8_t orientation) {
 
 // Send vRAM buffer content into display
 void ST7541_Flush(void) {
+//	uint16_t i;
+
 	ST7541_SetAddr(0,0);
 	ST7541_CS_L();
 	ST7541_RS_H();
 	SPIx_SendBuf(ST7541_SPI_PORT,vRAM,(SCR_W * SCR_H) >> 2);
+//	for (i = 0; i < (SCR_W * SCR_H) >> 2; i++) ST7541_data(vRAM[i]);
+	ST7541_CS_H();
+}
+
+// Send vRAM buffer contrent into display with DMA
+void ST7541_Flush_DMA(void) {
+	ST7541_SetAddr(0,0);
+	ST7541_CS_L();
+	ST7541_RS_H();
+	// Configure the DMA transfer
+	SPIx_Configure_DMA_TX(ST7541_SPI_PORT,vRAM,(SCR_W * SCR_H) >> 2);
+	// Enable the DMA channel
+	SPIx_SetDMA(ST7541_SPI_PORT,ENABLE);
+	// Wait until DMA transfer is over
+	while (!(SPI1_DMA_PERIPH->ISR & SPI1_DMA_TX_TCIF));
+	// Disable the DMA channel
+	SPIx_SetDMA(ST7541_SPI_PORT,DISABLE);
+	// Ensure that the SPI communication is complete
+	while (!(ST7541_SPI_PORT->SR & SPI_SR_TXE));
+	while (ST7541_SPI_PORT->SR & SPI_SR_BSY);
 	ST7541_CS_H();
 }
 
@@ -284,13 +308,19 @@ void ST7541_Flush(void) {
 // input:
 //   pattern - byte to fill vRAM buffer
 void ST7541_Fill(uint16_t pattern) {
-	uint16_t i,j;
+	uint16_t i;
+	union {
+		uint16_t w;
+		struct {
+			uint8_t b1;
+			uint8_t b0;
+		};
+	} p;
 
-	for (j = 0; j < 16; j++) {
-		for (i = 0; i < SCR_W; i++) {
-			vRAM[(j * (SCR_W << 1)) + (i << 1)] = pattern >> 8;
-			vRAM[(j * (SCR_W << 1)) + (i << 1) + 1] = (uint8_t)pattern;
-		}
+	p.w = pattern;
+	for (i = 0; i < (SCR_W * SCR_H) >> 2; ) {
+		vRAM[i++] = p.b1;
+		vRAM[i++] = p.b0;
 	}
 }
 
@@ -470,57 +500,122 @@ void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, GrayScale_TypeDef G
 	}
 }
 
-// Print single character with fixed font (5x7)
+// Draw single character
 // input:
-//   X,Y - start position
-//   char - character to print
-//   GS - grayscale pixel color
-void PutChar5x7(uint8_t X, uint8_t Y, uint8_t Char, GrayScale_TypeDef GS) {
-	uint16_t i,j;
-	uint8_t buffer[5],tmpCh;
+//   X,Y - character top left corner coordinates
+//   Char - character to be drawn
+//   Font - pointer to font
+// return: character width in pixels
+uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
+	uint8_t chW,chH;
+	uint8_t pX = X;
+	uint8_t pY = Y;
+	uint16_t i,j,k;
+	uint8_t buffer[32];
+	uint8_t tmpCh;
 
-	memcpy(buffer,&Font5x7[(Char - 32) * 5],5);
+	chW = Font->font_Width; // Character width
+	chH = Font->font_Height; // Character height
+	if (Char < 32 || Char > 0x7e) Char = 0x7e;
+	memcpy(buffer,&Font->font_Data[(Char - 32) * Font->font_BPC],Font->font_BPC);
 
-    for (i = 0; i < 5; i++) {
-    	tmpCh = buffer[i];
-    	for (j = 0; j < 8; j++) {
-    		if ((tmpCh >> j) & 0x01) Pixel(X + i,Y + j,GS);
-    	}
-    }
+	if (Font->font_Scan == font_V) {
+		if (chH < 8) {
+			// Small font, one byte height
+			for (i = 0; i < chW; i++) {
+				tmpCh = buffer[i];
+				for (j = 0; j < chH; j++) {
+					if ((tmpCh >> j) & 0x01) Pixel(pX,pY,lcd_color);
+					pY++;
+				}
+				pY = Y;
+				pX++;
+			}
+		} else {
+			// Big font, more than one byte height
+			for (k = 0; k <= (chH / 8); k++) {
+				for (i = 0; i < chW; i++) {
+					tmpCh = buffer[(i << 1) + k];
+					for (j = 0; j < 8; j++) {
+						if ((tmpCh >> (7 - j)) & 0x01) Pixel(pX,pY,lcd_color);
+						pY++;
+						if (pY > Y + chH) break;
+					}
+					pX++;
+				}
+				pY = Y + (k << 3);
+				pX = X;
+			}
+		}
+	} else {
+		for (j = 0; j < chH; j++) {
+			tmpCh = buffer[j];
+			for (i = 0; i < chW; i++) {
+				if ((tmpCh >> i) & 0x01) Pixel(pX,pY,lcd_color);
+				pX++;
+			}
+			pX = X;
+			pY++;
+		}
+	}
+
+	return Font->font_Width + 1;
 }
 
-// Print zero terminated string with fixed font (5x7)
+// Draw string
 // input:
-//   X,Y - start position
-//   str - pointer to buffer containing string
-//   GS - grayscale pixel color
-// return:
-//   length of printed value
-uint16_t PutStr5x7(uint8_t X, uint8_t Y, char *str, GrayScale_TypeDef GS) {
-	uint8_t strLen;
+//   X,Y - top left coordinates of first character
+//   str - pointer to zero-terminated string
+//   Font - pointer to font
+// return: string width in pixels
+uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
+	uint8_t strLen = 0;
 
-	strLen = 0;
     while (*str) {
-        PutChar5x7(X,Y,*str++,GS);
-        if (X < scr_width - 7) { X += 6; } else if (Y < scr_height - 8) { X = 0; Y += 7; } else { X = 0; Y = 0; }
+        X += DrawChar(X,Y,*str++,Font);
+        if (X > scr_width - Font->font_Width - 1) break;
         strLen++;
     };
 
-    return strLen * 6;
+    return strLen * (Font->font_Width + 1);
 }
 
-// Print signed integer value with fixed font (5x7)
+// Draw string with line feed (by screen edge)
 // input:
-//   X,Y - start position
-//   num - number to print
-//   decimals - number of decimal digits (after decimal point)
-//   GS - grayscale pixel color
-// return:
-//   length of printed value
-uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, GrayScale_TypeDef GS) {
-	char str[11]; // 10 chars max for UINT32_MAX
-	int i = 0;
+//   X,Y - top left coordinates of first character
+//   str - pointer to zero-terminated string
+//   Font - pointer to font
+// return: string width in pixels
+uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
+	uint8_t strLen = 0;
+
+    while (*str) {
+        DrawChar(X,Y,*str++,Font);
+        if (X < scr_width - Font->font_Width - 1) {
+        	X += Font->font_Width + 1;
+        } else if (Y < scr_height - Font->font_Height - 1) {
+        	X = 0; Y += Font->font_Height;
+        } else {
+        	X = 0; Y = 0;
+        }
+        strLen++;
+    };
+
+    return strLen * (Font->font_Width + 1);
+}
+
+// Draw signed integer value
+// input:
+//   X,Y - top left coordinates of first symbol
+//   num - signed integer value
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font) {
+	uint8_t str[11]; // 10 chars max for UINT32_MAX
+	int8_t i = 0;
 	uint8_t neg = 0;
+	int8_t intLen;
+	uint8_t pX;
 
 	if (num < 0) {
 		neg = 1;
@@ -528,42 +623,46 @@ uint8_t PutInt5x7(uint8_t X, uint8_t Y, int32_t num, GrayScale_TypeDef GS) {
 	}
 	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
 	if (neg) str[i++] = '-';
+	intLen = i;
+	pX = X + (intLen - 1) * (Font->font_Width + 1);
+	for (i = 0; i < intLen; i++) {
+		pX -= DrawChar(pX,Y,str[i],Font);
+	}
 
-	int strLen = i;
-	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],GS);
-
-	return strLen * 6;
+    return intLen * (Font->font_Width + 1);
 }
 
-// Print unsigned integer value with fixed font (5x7)
+// Draw unsigned integer value
 // input:
-//   X,Y - start position
-//   num - number to print
-//   GS - grayscale pixel color
-// return:
-//   length of printed value
-uint8_t PutIntU5x7(uint8_t X, uint8_t Y, uint32_t num, GrayScale_TypeDef GS) {
-	char str[11]; // 10 chars max for UINT32_MAX
-	int i = 0;
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
+	uint8_t str[11]; // 10 chars max for UINT32_MAX
+	int8_t i = 0;
+	int8_t intLen;
+	uint8_t pX;
 
 	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
+	intLen = i;
+	pX = X + (intLen - 1) * (Font->font_Width + 1);
+	for (i = 0; i < intLen; i++) {
+		pX -= DrawChar(pX,Y,str[i],Font);
+	}
 
-	int strLen = i;
-	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],GS);
-
-	return strLen * 6;
+    return intLen * (Font->font_Width + 1);
 }
 
-// Print signed integer value as float with fixed font (5x7)
+// Draw signed integer value with decimal point
 // input:
-//   X,Y - start position
-//   num - number to print
-//   decimals - number of decimal digits (after decimal point)
-//   GS - grayscale pixel color
-// return:
-//   length of printed value
-uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, GrayScale_TypeDef GS) {
-	char str[12];
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   decimals - number of digits after decimal point
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font) {
+	uint8_t str[12];
 	int8_t i;
 	uint8_t neg;
 	int8_t strLen;
@@ -584,10 +683,10 @@ uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, GrayScal
 
 	neg = X;
 	for (i = 0; i < strLen; i++) {
-		PutChar5x7(neg,Y,str[strLen - i - 1],GS);
-		neg += 6;
+		DrawChar(neg,Y,str[strLen - i - 1],Font);
+		neg += Font->font_Width + 1;
 		if (strLen - i - 1 == decimals && decimals != 0) {
-			Rect(neg,Y + 5,neg + 1,Y + 6,GS);
+			Rect(neg,Y + Font->font_Height - 2,neg + 1,Y + Font->font_Height - 1,lcd_color);
 			neg += 3;
 		}
 	}
@@ -595,15 +694,14 @@ uint8_t PutIntF5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, GrayScal
 	return (neg - X);
 }
 
-// Print signed integer value with leading zeros and fixed font (5x7)
+// Draw signed integer value with leading zeros
 // input:
-//   X,Y - start position
-//   num - number to print
-//   digits - number of leading zeros
-//   GS - grayscale pixel color
-// return:
-//   length of printed value
-uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, GrayScale_TypeDef GS) {
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   digits - minimal number of length (e.g. num=35, digits=5 --> 00035)
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font) {
 	uint8_t i;
 	uint8_t neg;
 	int32_t tmp = num;
@@ -618,44 +716,46 @@ uint8_t PutIntLZ5x7(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, GrayScale
 	do { len++; } while ((tmp /= 10) > 0); // Calculate number length in symbols
 
 	if (len > digits) {
-		X += PutInt5x7(X,Y,num,GS);
+		X += PutInt(X,Y,num,Font);
 		return X;
 	}
 
 	if (neg) {
-		PutChar5x7(X,Y,'-',GS);
-		X += 6;
+		DrawChar(X,Y,'-',Font);
+		X += Font->font_Width + 1;
 		num *= -1;
 	}
 	for (i = 0; i < digits - len; i++) {
-		PutChar5x7(X,Y,'0',GS);
-		X += 6;
+		DrawChar(X,Y,'0',Font);
+		X += Font->font_Width + 1;
 	}
-	X += PutInt5x7(X,Y,num,GS);
+	X += PutInt(X,Y,num,Font);
 
 	return X - pX;
 }
 
-// Print HEX value with fixed font (5x7)
+// Draw integer as hexadecimal
 // input:
-//   X,Y - start position
-//   num - number to print
-//   GS - grayscale pixel color
-// return:
-//   length of printed value
-uint8_t PutHex5x7(uint8_t X, uint8_t Y, uint32_t num, GrayScale_TypeDef GS) {
-	char str[11]; // 10 chars max for UINT32_MAX
-	int i = 0;
+//   X,Y - top left coordinates of first symbol
+//   num - unsigned integer value
+//   Font - pointer to font
+// return: number width in pixels
+uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
+	uint8_t str[11]; // 10 chars max for UINT32_MAX
+	int8_t i = 0;
 	uint32_t onum = num;
+	int8_t intLen;
+	uint8_t pX;
 
 	do { str[i++] = "0123456789ABCDEF"[num % 0x10]; } while ((num /= 0x10) > 0);
 	if (onum < 0x10) str[i++] = '0';
-//	str[i++] = 'x';
-//	str[i++] = '0';
 
-	int strLen = i;
+	intLen = i;
 
-	for (i--; i >= 0; i--) PutChar5x7(X + (strLen * 6) - ((i + 1) * 6),Y,str[i],GS);
+	pX = X + (intLen - 1) * (Font->font_Width + 1);
+	for (i = 0; i < intLen; i++) {
+		pX -= DrawChar(pX,Y,str[i],Font);
+	}
 
-	return strLen * 6;
+    return intLen * (Font->font_Width + 1);
 }
