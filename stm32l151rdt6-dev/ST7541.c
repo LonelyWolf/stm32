@@ -273,19 +273,35 @@ void ST7541_Orientation(uint8_t orientation) {
 	ST7541_CS_H();
 }
 
-// Send vRAM buffer content into display
+// Send vRAM buffer into display
 void ST7541_Flush(void) {
-//	uint16_t i;
+	// Send video buffer with SPI 16-bit frame
+	ST7541_SetAddr(0,0);
+	ST7541_CS_L();
+	ST7541_RS_H();
+	// Disable the SPI peripheral, set 16-bit data frame format and then enable the SPI back
+	ST7541_SPI_PORT->CR1 &= ~SPI_CR1_SPE;
+	ST7541_SPI_PORT->CR1 |= SPI_CR1_DFF | SPI_CR1_SPE;
+	// Send buffer
+	SPIx_SendBuf16(ST7541_SPI_PORT,(uint16_t *)&vRAM[0],(SCR_W * SCR_H) >> 3);
+	ST7541_CS_H();
+	// Disable the SPI peripheral, set 8-bit data frame format and then enable the SPI back
+	ST7541_SPI_PORT->CR1 &= ~SPI_CR1_SPE;
+	ST7541_SPI_PORT->CR1 &= ~SPI_CR1_DFF;
+//	ST7541_SPI_PORT->CR1 &= ~(SPI_CR1_DFF | SPI_CR1_SPE); // Is it correct to do this in one move?
+	ST7541_SPI_PORT->CR1 |= SPI_CR1_SPE;
 
+/*
+	// Send video buffer with SPI 8-bit frame
 	ST7541_SetAddr(0,0);
 	ST7541_CS_L();
 	ST7541_RS_H();
 	SPIx_SendBuf(ST7541_SPI_PORT,vRAM,(SCR_W * SCR_H) >> 2);
-//	for (i = 0; i < (SCR_W * SCR_H) >> 2; i++) ST7541_data(vRAM[i]);
 	ST7541_CS_H();
+*/
 }
 
-// Send vRAM buffer contrent into display with DMA
+// Send vRAM buffer into display with DMA
 void ST7541_Flush_DMA(void) {
 	ST7541_SetAddr(0,0);
 	ST7541_CS_L();
@@ -353,6 +369,7 @@ void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
 		vRAM[offset]     |=  bit;
 		vRAM[offset + 1] &= ~bit;
 	} else {
+		// gs_ltgray
 		vRAM[offset]     &= ~bit;
 		vRAM[offset + 1] |=  bit;
 	}
@@ -364,9 +381,22 @@ void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
 //   Y - vertical coordinate
 //   GS - grayscale pixel color
 void HLine(uint8_t X1, uint8_t X2, uint8_t Y, GrayScale_TypeDef GS) {
-	uint8_t x;
+	uint8_t X,eX;
 
-	for (x = X1; x <= X2; x++) Pixel(x,Y,GS);
+	if (X1 > X2) {
+		X = X1; eX = X2;
+	} else {
+		X = X2; eX = X1;
+	}
+	do {
+		Pixel(X,Y,GS);
+	} while (X-- > eX);
+
+/*
+	uint8_t X;
+
+	for (X = X1; X <= X2; X++) Pixel(X,Y,GS);
+*/
 }
 
 // Draw vertical line
@@ -375,9 +405,22 @@ void HLine(uint8_t X1, uint8_t X2, uint8_t Y, GrayScale_TypeDef GS) {
 //   Y1,Y2 - top and bottom vertical coordinates (Y1 must be less than Y2)
 //   GS - grayscale pixel color
 void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, GrayScale_TypeDef GS) {
-	uint8_t y;
+	uint8_t Y,eY;
 
-	for (y = Y1; y <= Y2; y++) Pixel(X,y,GS);
+	if (Y1 > Y2) {
+		Y = Y1; eY = Y2;
+	} else {
+		Y = Y2; eY = Y1;
+	}
+	do {
+		Pixel(X,Y,GS);
+	} while (Y-- > eY);
+
+/*
+	uint8_t Y;
+
+	for (Y = Y1; Y <= Y2; Y++) Pixel(X,Y,GS);
+*/
 }
 
 // Draw rectangle
@@ -400,9 +443,9 @@ void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef GS) 
 //   GS - grayscale pixel color
 // note: X1 must be less than X2 and Y1 must be less than Y2
 void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef GS) {
-	uint8_t y;
+	uint8_t Y;
 
-	for (y = Y1; y <= Y2; y++) HLine(X1,X2,y,GS);
+	for (Y = Y1; Y <= Y2; Y++) HLine(X1,X2,Y,GS);
 }
 
 // Draw line

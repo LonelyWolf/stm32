@@ -91,7 +91,17 @@
 #define ACC_IRQ_EXTI              (1 << 13)
 #define ACC_IRQ_EXTI_N            EXTI15_10_IRQn
 
-
+// LCD backlight pin (PB4)
+#define LCD_BL_PIN_PERIPH         RCC_AHBENR_GPIOBEN
+#define LCD_BL_PORT               GPIOB
+#define LCD_BL_PIN                GPIO_Pin_4
+#define LCD_BL_PIN_SRC            GPIO_PinSource4
+#define LCD_BL_GPIO_AF            GPIO_AF_TIM3
+#define LCD_BL_H()                LCD_BL_PORT->BSRRL = LCD_BL_PIN
+#define LCD_BL_L()                LCD_BL_PORT->BSRRH = LCD_BL_PIN
+#define LCD_BL_TIM_RCC            RCC->APB1ENR
+#define LCD_BL_TIM_PERIPH         RCC_APB1ENR_TIM3EN
+#define LCD_BL_TIM                TIM3
 
 
 // Reset source
@@ -631,13 +641,50 @@ int main(void) {
 
 	// Display SPI port initialization: 1-line TX
 //	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_256); // lowest speed (125kHz on 32MHz CPU)
-//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2); // highest speed (16MHz on 32MHz CPU)
-	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_4); // 8MHz on 32MHz CPU
+//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);   // highest speed (16MHz on 32MHz CPU)
+	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_4);   // 8MHz on 32MHz CPU
+//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_8);   // 4MHz on 32MHz CPU
+//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_16);  // 2MHz on 32MHz CPU
 
+	// Initialize display and clear screen
 	ST7541_Init();
-	ST7541_Fill(0x0000);
 	ST7541_Contrast(7,7,24);
+	ST7541_Fill(0x0000);
 	ST7541_Flush();
+
+	// Initialize the display backlight
+
+	// Backlight pin GPIO configuration
+	PORT.GPIO_Mode  = GPIO_Mode_AF;
+	PORT.GPIO_Speed = GPIO_Speed_40MHz;
+	PORT.GPIO_OType = GPIO_OType_PP;
+	PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+	PORT.GPIO_Pin   = LCD_BL_PIN;
+	GPIO_Init(LCD_BL_PORT,&PORT);
+	GPIO_PinAFConfig(LCD_BL_PORT,LCD_BL_PIN_SRC,LCD_BL_GPIO_AF);
+
+	// TIM3_CH1 as PWM output
+	LCD_BL_TIM_RCC |= LCD_BL_TIM_PERIPH; // Enable the TIMx peripheral
+	LCD_BL_TIM->CR1   |= TIM_CR1_ARPE; // Auto-preload enable
+	LCD_BL_TIM->CR2    = 0; // Clear this just for any case
+	LCD_BL_TIM->CCMR1 |= TIM_CCMR1_OC1PE; // Output compare 1 preload enable
+	LCD_BL_TIM->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1; // PWM mode 1
+	LCD_BL_TIM->PSC    = SystemCoreClock / 40000; // 400Hz PWM
+	LCD_BL_TIM->ARR    = 99; // 100 levels of backlight
+	LCD_BL_TIM->CCR1   = 50; // 50% duty cycle
+	LCD_BL_TIM->CCER  |= TIM_CCER_CC1NP | TIM_CCER_CC1E; // Output compare 1 enable, negative polarity
+	LCD_BL_TIM->EGR    = 1; // Generate an update event to reload the prescaler value immediately
+	LCD_BL_TIM->CR1   |= TIM_CR1_CEN; // Counter enable
+
+//	i = 0;
+//	int8_t di = 1;
+//	while (1) {
+//		LCD_BL_TIM->CCR1 = i;
+//		i += di;
+//		if ((i > 99) || (i == 0)) di *= -1;
+//		Delay_ms(50);
+//	}
+	LCD_BL_TIM->CCR1 = 10;
 
 
 
@@ -1435,6 +1482,7 @@ int main(void) {
 	// Measure LCD performance
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
 
+///*
 	// GFX Demo (rotozoomer with checkerboard or XOR texture)
 	float ca,sa;
 	float scalee = 0.5;
@@ -1452,10 +1500,10 @@ int main(void) {
 		sa = scalee * sinf(angle);
 		xrow = sa;
 		yrow = ca;
-		for (j = 16; j < 127; j++) {
+		for (j = 17; j < 127; j++) {
 			x = xrow;
 			y = yrow;
-			for (i = 0; i < 127; i++) {
+			for (i = 1; i < 127; i++) {
 				x += ca;
 				y += sa;
 				if (lcd_changing % 2) {
@@ -1485,6 +1533,7 @@ int main(void) {
 		PutStr(i,2,"FPS",fnt7x10);
 
 		ST7541_Flush_DMA();
+//		ST7541_Flush();
 		k++;
 
 		if (_new_time) {
@@ -1493,6 +1542,7 @@ int main(void) {
 			k = 0;
 		}
 	}
+//*/
 
     ST7541_Fill(0x0000);
 	k = 0;
@@ -1537,15 +1587,32 @@ int main(void) {
 	// SPIx_SendBuf:   3.8FPS
 	// DMA         :   3.8FPS
 
+	// Result with 2MHz
+	// ST7541_data :  34.7FPS
+	// SPIx_SendBuf:  60.9FPS
+	// DMA         :  60.9FPS
+
+	// Result with 4MHz
+	// ST7541_data :  47.3FPS
+	// SPIx_SendBuf: 121.7FPS
+	// SPIx_SendBuf16: 121.7FPS
+	// DMA         : 121.7FPS
+
 	// Result with 8MHz
 	// ST7541_data :  57.4FPS
 	// SPIx_SendBuf: 149.9FPS
+	// SPIx_SendBuf_2: 204.7FPS
+	// SPIx_Sendbuf16: 242.9FPS
 	// DMA         : 243.0FPS
+	// DMA16       : 242.7FPS
 
 	// Results with 16MHz
 	// ST7541_data :  64.5FPS
 	// SPIx_SendBuf: 149.9FPS
-	// DMA         : 430.2FPS <-- FAIL
+	// SPIx_SendBuf_2: 204.8FPS
+	// SPIx_SendBuf16: 430.4FPS <-- FAIL (LCD is not fast enough for this)
+	// DMA         : 430.2FPS <-- FAIL (LCD is not fast enough for this)
+	// DMA16       : 482.8FPS <-- FAIL (LCD is not fast enough for this)
 
 
 
