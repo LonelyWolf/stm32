@@ -101,6 +101,7 @@ void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler);
 void SPIx_Send(SPI_TypeDef *SPI, uint8_t data);
 uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data);
 void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length);
+void SPIx_SendBuf16(SPI_TypeDef *SPI, uint16_t *pBuf, uint32_t length);
 void SPIx_Configure_DMA_TX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length);
 void SPIx_Configure_DMA_RX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length);
 void SPIx_SetDMA(SPI_TypeDef *SPI, FunctionalState NewState);

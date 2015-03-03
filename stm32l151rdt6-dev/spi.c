@@ -125,8 +125,8 @@ void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler) {
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   data - byte to send
 void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
-	SPI->DR = data; // Send byte to SPI (TXE cleared)
 	while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+	SPI->DR = data; // Send byte to SPI (TXE cleared)
 	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission is complete
 }
 
@@ -137,8 +137,21 @@ void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
 //   length - length of the data buffer
 void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	do {
+		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
 		SPI->DR = *pBuf++;
-		while (!(SPI->SR & SPI_SR_TXE));
+	} while (--length);
+	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+}
+
+// Send data buffer to SPI (16-bit frame)
+// input:
+//   SPI - pointer to the SPI port
+//   pBuf - pointer to the data buffer
+//   length - length of the data buffer
+void SPIx_SendBuf16(SPI_TypeDef *SPI, uint16_t *pBuf, uint32_t length) {
+	do {
+		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->DR = *pBuf++;
 	} while (--length);
 	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
