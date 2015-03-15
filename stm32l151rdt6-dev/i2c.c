@@ -182,7 +182,7 @@ I2C_Status I2Cx_Write(I2C_TypeDef* I2Cx, const uint8_t* buf, uint32_t nbytes,
 	I2Cx->DR = SlaveAddress & ~I2C_OAR1_ADD0; // Last bit be reset (transmitter mode)
 
 	// Wait for EV6
-    if (I2Cx_WaitEvent(I2Cx,I2C_EVENT_EV6) == I2C_ERROR) return I2C_ERROR;
+	if (I2Cx_WaitEvent(I2Cx,I2C_EVENT_EV6) == I2C_ERROR) return I2C_ERROR;
 
 	// Send first byte (EV8)
 	I2Cx->DR = *buf++;
@@ -305,7 +305,7 @@ I2C_Status I2Cx_Read(I2C_TypeDef* I2Cx, uint8_t *buf, uint32_t nbytes,
 		*buf++ = I2Cx->DR;
 
 		// Wait for last byte received
-	    if (I2Cx_WaitEvent(I2Cx,I2C_EVENT_EV7) == I2C_ERROR) return I2C_ERROR;
+		if (I2Cx_WaitEvent(I2Cx,I2C_EVENT_EV7) == I2C_ERROR) return I2C_ERROR;
 
 		// Read last received byte
 		*buf = (uint8_t)I2Cx->DR;

@@ -161,6 +161,8 @@ uint8_t nRF24_RX_Buf[nRF24_RX_PAYLOAD]; // nRF24L01 payload buffer for WBC
 #endif
 volatile bool _new_packet = FALSE;
 uint32_t _packets_rcvd = 0; // Received packets counter
+uint32_t _packets_lost = 0; // Lost packets counter
+uint32_t _prev_wake_cntr = 0xDEADBEEF; // Prevous wake counter (to count lost packets)
 
 // Date/Time
 RTC_TimeTypeDef _time;
@@ -175,6 +177,7 @@ uint8_t lcd_lcd_bias = 7;
 uint8_t lcd_el_vol = 24;
 uint8_t lcd_changing = 2;
 uint8_t lcd_char = 33;
+uint8_t lcd_backlight = 10;
 
 // Flags
 volatile bool _new_time = FALSE;
@@ -193,9 +196,13 @@ uint32_t GetResetSource(void) {
 
 	// Reset source
 	reg = RCC->CSR;
-	if (reg & RCC_CSR_PORRSTF) result |= RESET_SRC_POR;
-	if (reg & RCC_CSR_SFTRSTF) result |= RESET_SRC_SOFT;
-	if (reg & RCC_CSR_PINRSTF) result |= RESET_SRC_PIN;
+	if (reg & RCC_CSR_SFTRSTF) {
+		result |= RESET_SRC_SOFT;
+	} else if (reg & RCC_CSR_PORRSTF) {
+		result |= RESET_SRC_POR;
+	} else if (reg & RCC_CSR_PINRSTF) {
+		result |= RESET_SRC_PIN;
+	}
 
 	// Clear the reset flags
 	RCC->CSR |= RCC_CSR_RMVF;
@@ -311,7 +318,22 @@ void RTC_WKUP_IRQHandler(void) {
 		RTC->ISR &= ~RTC_ISR_WUTF; // Clear the RTC wake-up timer flag
 		PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 
-		EXTI->PR = RTC_EXTI_LINE;
+		EXTI->PR = RTC_WKUP_EXTI; // Clear the EXTI pending bit
+	}
+}
+
+// RTC alarm IRQ handler
+void RTC_Alarm_IRQHandler(void) {
+	if (RTC->ISR & RTC_ISR_ALRAF) {
+		// RTC alarm A interrupt
+
+		BEEPER_PlayTones(tones_3beep);
+
+		PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+		RTC->ISR &= ~RTC_ISR_ALRAF; // Clear the RTC alarm A flag
+		PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+
+		EXTI->PR = RTC_ALARM_EXTI; // Clear the EXTI pending bit
 	}
 }
 
@@ -327,15 +349,42 @@ void EXTI0_IRQHandler(void) {
 // EXTI1 line IRQ handler
 void EXTI1_IRQHandler(void) {
 	nRF24_RX_PCKT_TypeDef RX_status;
+	uint8_t CRC_local;
+	uint16_t wake_cntr, wake_diff, vbat;
 
 	if (EXTI->PR & nRF24_IRQ_EXTI) {
 		RX_status = nRF24_RXPacket(nRF24_RX_Buf,nRF24_RX_PAYLOAD);
 		if (RX_status == nRF24_RX_PCKT_PIPE0) {
+			CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
+			if (CRC_local == nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) {
+				wake_cntr = (nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9];
+				if (_prev_wake_cntr == 0xDEADBEEF) _prev_wake_cntr = wake_cntr;
+				if (wake_cntr < _prev_wake_cntr) _prev_wake_cntr = wake_cntr;
+				wake_diff = wake_cntr - _prev_wake_cntr;
+				vbat = ((nRF24_RX_Buf[6] << 8) + nRF24_RX_Buf[7]) & 0x03ff;
+				printf("wake: %u[%u] diff: %u vbat=%u.%uV pkts: %u\\%u [%u%%]\r\n",
+						wake_cntr,
+						_prev_wake_cntr,
+						wake_diff,
+						vbat / 100,vbat % 100,
+						_packets_rcvd,
+						_packets_lost,
+						(_packets_lost * 100) / _packets_rcvd
+				);
+				_prev_wake_cntr = wake_cntr;
+				if (wake_diff > 1) {
+					_packets_lost += wake_diff - 1;
+//					BEEPER_Enable(1700,1);
+				}
+			} else {
+				printf("CRC: %02X <> %02X [%s]\r\n",nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1],CRC_local,(nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1] == CRC_local) ? "OK" : "BAD");
+//				BEEPER_Enable(333,1);
+			}
 			_packets_rcvd++;
 			_new_packet = TRUE;
+		} else {
+//			BEEPER_Enable(5000,3);
 		}
-
-//		BEEPER_Enable(700,2);
 
 		// Disable sleep-on-exit (return to main loop from IRQ)
 		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -561,6 +610,28 @@ int main(void) {
 
 
 
+/*
+	// Enable the RTC wake-up interrupt
+	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
+	NVIC_Init(&NVICInit);
+
+	// Enable the RTC alarm interrupt
+	NVICInit.NVIC_IRQChannel = RTC_Alarm_IRQn;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
+	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
+	NVIC_Init(&NVICInit);
+*/
+
+	// Simple enable the RTC wake-up interrupt
+	NVIC_EnableIRQ(RTC_WKUP_IRQn);
+
+	// Simple enable the RTC alarm IRQ
+	NVIC_EnableIRQ(RTC_Alarm_IRQn);
+
 	// Enable and configure RTC
 	RTC_Config();
 	if (_reset_source & RESET_SRC_POR) {
@@ -571,10 +642,11 @@ int main(void) {
 		_date.RTC_Date    = 13;
 		_date.RTC_Month   = 02;
 		_date.RTC_Year    = 15;
-		_date.RTC_WeekDay = 5;
+		_date.RTC_WeekDay = RTC_DOW_FRIDAY;
 		RTC_SetDateTime(&_time,&_date);
 	}
-	RTC_GetDateTime(&RTC_Time,&RTC_Date);
+	RTC_ITConfig(RTC_IT_WUT,ENABLE);
+	RTC_GetDateTime(&_time,&_date);
 
 //	RTC_SetWakeUp(2); // Wake every 2 seconds
 	RTC_SetWakeUp(10); // Wake every 10 seconds
@@ -684,7 +756,7 @@ int main(void) {
 //		if ((i > 99) || (i == 0)) di *= -1;
 //		Delay_ms(50);
 //	}
-	LCD_BL_TIM->CCR1 = 10;
+	LCD_BL_TIM->CCR1 = lcd_backlight;
 
 
 
@@ -1479,6 +1551,41 @@ int main(void) {
 
 
 
+/*
+    // Configure the RTC alarm A at 30th second on every minute
+	_time.RTC_Hours   = 00;
+	_time.RTC_Minutes = 00;
+	_time.RTC_Seconds = 30;
+
+	RTC_AlarmCmd(RTC_ALARM_A,DISABLE); // Disable the alarm A
+	RTC_SetAlarm(RTC_ALARM_A,&_time,0,RTC_ALARM_MASK_DAY | RTC_ALARM_MASK_HRS | RTC_ALARM_MASK_MIN);
+	RTC_ITConfig(RTC_IT_ALRA,ENABLE); // Enable the alarm A interrupt
+	RTC_AlarmCmd(RTC_ALARM_A,ENABLE); // Enable the alarm A
+
+	// Configure the RTC alarm A at 10th minute of every hour
+	_time.RTC_Hours   = 00;
+	_time.RTC_Minutes = 10;
+	_time.RTC_Seconds = 00;
+
+	RTC_AlarmCmd(RTC_ALARM_A,DISABLE); // Disable the alarm A
+	RTC_SetAlarm(RTC_ALARM_A,&_time,0,RTC_ALARM_MASK_DAY | RTC_ALARM_MASK_HRS | RTC_ALARM_MASK_SEC);
+	RTC_ITConfig(RTC_IT_ALRA,ENABLE); // Enable the alarm A interrupt
+	RTC_AlarmCmd(RTC_ALARM_A,ENABLE); // Enable the alarm A
+
+	// Configure the RTC alarm A at 3:30:33 every day
+	_time.RTC_Hours   = 03;
+	_time.RTC_Minutes = 30;
+	_time.RTC_Seconds = 33;
+
+	RTC_AlarmCmd(RTC_ALARM_A,DISABLE); // Disable the alarm A
+	RTC_SetAlarm(RTC_ALARM_A,&_time,0,RTC_ALARM_MASK_DAY);
+	RTC_ITConfig(RTC_IT_ALRA,ENABLE); // Enable the alarm A interrupt
+	RTC_AlarmCmd(RTC_ALARM_A,ENABLE); // Enable the alarm A
+*/
+
+
+
+
 	// Measure LCD performance
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
 
@@ -1495,12 +1602,13 @@ int main(void) {
     RTC_SetWakeUp(10);
     _new_time = FALSE;
     ST7541_Fill(0x0000);
+    d0 = 0;
 	while(1) {
 		ca = scalee * cosf(angle);
 		sa = scalee * sinf(angle);
 		xrow = sa;
 		yrow = ca;
-		for (j = 17; j < 127; j++) {
+		for (j = 31; j < 127; j++) {
 			x = xrow;
 			y = yrow;
 			for (i = 1; i < 127; i++) {
@@ -1518,8 +1626,8 @@ int main(void) {
 		angle += 0.05;
 		scalee += ((scalee <= 0.10) || (scalee >= 1.3)) ? dscalee *= -1: dscalee;
 
-		Rect(0,16,127,127,gs_black);
-		FillRect(0,0,127,15,gs_white);
+		Rect(0,30,127,127,gs_black);
+		FillRect(0,0,127,29,gs_white);
 
 		// Draw FPS with shadow effect
 		lcd_color = gs_ltgray;
@@ -1532,8 +1640,32 @@ int main(void) {
 		i = PutIntF(2,2,d0,1,fnt7x10) + 4;
 		PutStr(i,2,"FPS",fnt7x10);
 
+		// Draw packets count
+		i = 64;
+		i += PutStr(i,2,"Pkts:",fnt5x7);
+		PutIntU(i,2,_packets_rcvd,fnt5x7);
+		i = 64;
+		i += PutStr(i,10,"Lost:",fnt5x7);
+		PutIntU(i,10,_packets_lost,fnt5x7);
+
+		// Draw time
+		RTC_GetDateTime(&_time,&_date);
+		i = 0;
+		i += PutIntLZ(i,22,_time.RTC_Hours,2,fnt5x7);
+		i += DrawChar(i,22,':',fnt5x7);
+		i += PutIntLZ(i,22,_time.RTC_Minutes,2,fnt5x7);
+		i += DrawChar(i,22,':',fnt5x7);
+		i += PutIntLZ(i,22,_time.RTC_Seconds,2,fnt5x7);
+		i += 3;
+		i += PutIntLZ(i,22,_date.RTC_Date,2,fnt5x7);
+		i += DrawChar(i,22,'.',fnt5x7);
+		i += PutIntLZ(i,22,_date.RTC_Month,2,fnt5x7);
+		i += DrawChar(i,22,'.',fnt5x7);
+		i += PutIntLZ(i,22,_date.RTC_Year,2,fnt5x7);
+		PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay - 1],fnt5x7);
+
+
 		ST7541_Flush_DMA();
-//		ST7541_Flush();
 		k++;
 
 		if (_new_time) {
@@ -1541,6 +1673,18 @@ int main(void) {
 			_new_time = FALSE;
 			k = 0;
 		}
+
+	    if (BTN[BTN_UP].state == BTN_Pressed) {
+	    	if (lcd_backlight < 95) lcd_backlight += 5; else lcd_backlight = 100;
+	    	LCD_BL_TIM->CCR1 = lcd_backlight;
+	    }
+	    if (BTN[BTN_DOWN].state == BTN_Pressed) {
+	    	if (lcd_backlight > 5) lcd_backlight -= 5; else lcd_backlight = 0;
+	    	LCD_BL_TIM->CCR1 = lcd_backlight;
+	    }
+	    if (BTN[BTN_ESCAPE].state == BTN_Pressed) {
+	    	NVIC_SystemReset();
+	    }
 	}
 //*/
 
@@ -1557,6 +1701,22 @@ int main(void) {
     	k = !k;
     }
     Rect(0,0,127,127,gs_black);
+    ST7541_Flush_DMA();
+    while(1);
+
+/*
+    // Test partial display and power saving
+	ST7541_Flush();
+	Delay_ms(2000);
+	ST7541_Contrast(5,5,10);
+	ST7541_SetDisplayPartial(32,0,64);
+	Delay_ms(4000);
+	ST7541_PowerSave(ON);
+	Delay_ms(10000);
+	ST7541_PowerSave(OFF);
+	ST7541_SetDisplayPartial(0,0,128);
+	ST7541_Contrast(lcd_res_ratio,lcd_lcd_bias,lcd_el_vol);
+*/
 
     RTC_SetWakeUp(10);
     _new_time = FALSE;
@@ -1571,7 +1731,7 @@ int main(void) {
 		i = PutIntF(2,2,k,1,fnt7x10) + 2;
 		PutStr(i,2,"FPS",fnt7x10);
 		printf("DTM: %s, %02u:%02u:%02u %02u.%02u.20%02u\r\n",
-				sDOW[_date.RTC_WeekDay - 1],
+				RTC_DOW_STR[_date.RTC_WeekDay - 1],
 				_time.RTC_Hours,
 				_time.RTC_Minutes,
 				_time.RTC_Seconds,
@@ -1621,7 +1781,7 @@ int main(void) {
 		// Date/time
 		RTC_GetDateTime(&_time,&_date);
 		printf("DTM: %s, %02u:%02u:%02u %02u.%02u.20%02u\r\n",
-				sDOW[_date.RTC_WeekDay - 1],
+				RTC_DOW_STR[_date.RTC_WeekDay - 1],
 				_time.RTC_Hours,
 				_time.RTC_Minutes,
 				_time.RTC_Seconds,

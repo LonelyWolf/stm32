@@ -142,7 +142,7 @@ typedef enum {
 #define nRF24_REG_RF_SETUP         0x06  // RF setup register
 #define nRF24_REG_STATUS           0x07  // Status register
 #define nRF24_REG_OBSERVE_TX       0x08  // Transmit observe register
-#define nRF24_REG_CD               0x09  // Carrier detect
+#define nRF24_REG_RPD              0x09  // Received power detector
 #define nRF24_REG_RX_ADDR_P0       0x0A  // Receive address data pipe 0
 #define nRF24_REG_RX_ADDR_P1       0x0B  // Receive address data pipe 1
 #define nRF24_REG_RX_ADDR_P2       0x0C  // Receive address data pipe 2
