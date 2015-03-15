@@ -1,93 +1,243 @@
 #include <stm32l1xx_rcc.h>
-#include <stm32l1xx_rtc.h>
-#include <misc.h>
 
-#include <RTC.h>
+#include "RTC.h"
 
 
-RTC_TimeTypeDef RTC_Time;                   // Current RTC time
-RTC_DateTypeDef RTC_Date;                   // Current RTC date
+RTC_TimeTypeDef RTC_Time; // Current RTC time
+RTC_DateTypeDef RTC_Date; // Current RTC date
 
+
+// Waits until the RTC Time and Date registers (RTC_TR and RTC_DR) are synchronized with RTC APB clock
+// return: SUCCESS if RTC registers are synchronized, ERROR otherwise
+// note: write protection to RTC registers must be disabled (RTC_WPR = 0xCA,0x53)
+// note: access to the RTC registers must be enabled (bit DBP set in PWR_CR register)
+ErrorStatus RTC_WaitForSynchro(void) {
+	uint32_t wait = RTC_SYNC_TIMEOUT;
+
+	// Clear the RSF flag
+	RTC->ISR &= ~RTC_ISR_RSF;
+
+	// Wait the registers to be synchronized
+	while (!(RTC->ISR & RTC_ISR_RSF) && --wait);
+
+	return (RTC->ISR & RTC_ISR_RSF) ? SUCCESS : ERROR;
+}
+
+// Enters the RTC Initialization mode
+// return: SUCCESS if RTC is in initialization mode, ERROR otherwise
+// note: write protection to RTC registers must be disabled (RTC_WPR = 0xCA,0x53)
+// note: access to the RTC registers must be enabled (bit DBP set in PWR_CR register)
+ErrorStatus RTC_EnterInitMode(void) {
+	uint32_t wait = RTC_INIT_TIMEOUT;
+
+	if (!(RTC->ISR & RTC_ISR_INITF)) {
+	    // Set the initialization mode
+	    RTC->ISR = RTC_ISR_INIT;
+		wait = RTC_INIT_TIMEOUT;
+
+		// Wait till RTC is in INIT state or timeout
+		while (!(RTC->ISR & RTC_ISR_INITF) && --wait);
+	}
+
+	return (RTC->ISR & RTC_ISR_INITF) ? SUCCESS : ERROR;
+}
 
 // Initialize and configure the RTC peripheral
-void RTC_Config(void) {
-	RTC_InitTypeDef RTCInit;
-	NVIC_InitTypeDef NVICInit;
+// return: SUCCESS if RTC configured, ERROR otherwise
+ErrorStatus RTC_Config(void) {
+	uint32_t wait;
 
-	RCC->APB1ENR |= RCC_APB1ENR_PWREN; // Enable the PWR peripheral
-	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+	// Enable the PWR peripheral
+	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+
+	// Access to RTC, RTC Backup and RCC CSR registers enabled
+	PWR->CR |= PWR_CR_DBP;
 
 	// Turn on LSE and wait until it become stable
 	RCC_LSEConfig(RCC_LSE_ON);
 	while(!(RCC->CSR & RCC_CSR_LSERDY));
 
-	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE); // Select LSE as RTC clock source
-	RCC_RTCCLKCmd(ENABLE); // Enable RTC clock
-	RTC_WaitForSynchro(); // Wait for RTC APB registers synchronization
+	// Select LSE as RTC clock source
+	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE);
+	// Enable RTC clock
+	RCC_RTCCLKCmd(ENABLE);
 
-	// ck_spre = 1Hz
-	RTCInit.RTC_AsynchPrediv = 0x7f; // div128
-	RTCInit.RTC_SynchPrediv  = 0xff; // div256
-	RTCInit.RTC_HourFormat   = RTC_HourFormat_24;
-	RTC_Init(&RTCInit);
+	// Configure the EXTI line connected internally to the RTC WKUP
+	EXTI->PR    =  RTC_WKUP_EXTI; // Clear IT pending bit
+	EXTI->IMR  |=  RTC_WKUP_EXTI; // Enable interrupt request from EXTI line
+	EXTI->EMR  &= ~RTC_WKUP_EXTI; // Disable event on EXTI line
+	EXTI->RTSR |=  RTC_WKUP_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR &= ~RTC_WKUP_EXTI; // Trigger falling edge disabled
 
-	// Configure the EXTI line connected internally to the RTC
-	EXTI->PR    =  RTC_EXTI_LINE; // Clear IT pending bit
-	EXTI->IMR  |=  RTC_EXTI_LINE; // Enable interrupt request from EXTI line
-	EXTI->EMR  &= ~RTC_EXTI_LINE; // Disable event on EXTI line
-	EXTI->RTSR |=  RTC_EXTI_LINE; // Trigger rising edge enabled
-	EXTI->FTSR &= ~RTC_EXTI_LINE; // Trigger falling edge disabled
+	// Configure the EXTI line connected internally to the RTC ALARM
+	EXTI->PR    =  RTC_ALARM_EXTI; // Clear IT pending bit
+	EXTI->IMR  |=  RTC_ALARM_EXTI; // Enable interrupt request from EXTI line
+	EXTI->EMR  &= ~RTC_ALARM_EXTI; // Disable event on EXTI line
+	EXTI->RTSR |=  RTC_ALARM_EXTI; // Trigger rising edge enabled
+	EXTI->FTSR &= ~RTC_ALARM_EXTI; // Trigger falling edge disabled
 
-	// Enable the RTC wake-up interrupt
-	NVICInit.NVIC_IRQChannel = RTC_WKUP_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x0f; // 0x0f - lowest priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x00;
-	NVIC_Init(&NVICInit);
+	// Disable the write protection for RTC registers
+	RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
 
-	// Configure the wake-up clock source
-	RTC_WakeUpClockConfig(RTC_WakeUpClock_CK_SPRE_16bits);
+	// Wait for the RTC APB registers synchronization
+	if (RTC_WaitForSynchro() != SUCCESS) {
+		// Enable the write protection for RTC registers
+		RTC->WPR = 0xFF;
+		// Access to RTC, RTC Backup and RCC CSR registers disabled
+		PWR->CR &= ~PWR_CR_DBP;
 
-	// Disable the wake-up counter and configure it default value
-	RTC_WakeUpCmd(DISABLE);
-	RTC_SetWakeUpCounter(0); // wake-up every second (value = 1s - 1)
+		return ERROR;
+	}
 
-	// Enable the wake-up interrupt
-	RTC_ClearITPendingBit(RTC_IT_WUT);
-	RTC_ITConfig(RTC_IT_WUT,ENABLE);
+	// Enter the RTC initialization mode
+	if (RTC_EnterInitMode() != SUCCESS) {
+		// Enable the write protection for RTC registers
+		RTC->WPR = 0xFF;
+		// Access to RTC, RTC Backup and RCC CSR registers disabled
+		PWR->CR &= ~PWR_CR_DBP;
 
-	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+		return ERROR;
+	}
+
+	// Clear RTC CR FMT Bit (24-hour format)
+	RTC->CR &= ~RTC_CR_FMT;
+
+	// Configure the RTC prescaler
+	RTC->PRER = 0x007f00ff; // Asynch = 128, Synch = 256
+
+	// Exit the RTC Initialization mode
+	RTC->ISR &= ~RTC_ISR_INIT;
+
+	// Configure the wake-up clock source (ck_spre = 1Hz, 16bits)
+	RTC->CR &= ~RTC_CR_WUCKSEL;
+	RTC->CR |=  RTC_CR_WUCKSEL_2;
+
+	// Disable the wake-up timer
+	RTC->CR &= ~RTC_CR_WUTE;
+	// Wait for the RTC WUTWF flag is set or timeout
+	wait = RTC_INIT_TIMEOUT;
+	while (!(RTC->ISR & RTC_ISR_WUTWF) && --wait);
+	if (!(RTC->ISR & RTC_ISR_WUTWF)) {
+		// Enable the write protection for RTC registers
+		RTC->WPR = 0xFF;
+		// Access to RTC, RTC Backup and RCC CSR registers disabled
+		PWR->CR &= ~PWR_CR_DBP;
+
+		return ERROR;
+	}
+	// Set interval to 1 second (the wake-up counter is disabled)
+	RTC->WUTR = 0;
+
+	// Enable the write protection for RTC registers
+	RTC->WPR = 0xFF;
+	// Access to RTC, RTC Backup and RCC CSR registers disabled
+	PWR->CR &= ~PWR_CR_DBP;
+
+	return SUCCESS;
 }
 
-// Configure wake-up interrupt
+// Configure wake-up interval
 // input:
 //   interval - wake-up timer counter interval
-// note: interval can be a value from 0x0000 to 0xFFFF
-//       if interval is zero then wake-up is disabled
-void RTC_SetWakeUp(uint32_t interval) {
-	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-	// Wake-up counter can be set only when wake-up disabled
-	RTC_WakeUpCmd(DISABLE);
-	if (interval) {
-		// Set specified interval and enable wake-up counter
-		RTC_SetWakeUpCounter(interval - 1);
-		RTC_WakeUpCmd(ENABLE);
-	} else {
-		// Set interval to 1 second and leave a wake-up counter disabled
-		RTC_SetWakeUpCounter(0);
+// return: SUCCESS if wake-up
+// note: interval can be a value from range [0x0..0xFFFF]
+//       wake-up will be disabled if interval is zero
+ErrorStatus RTC_SetWakeUp(uint32_t interval) {
+	uint32_t wait;
+
+	// Access to RTC, RTC Backup and RCC CSR registers enabled
+	PWR->CR |= PWR_CR_DBP;
+	// Disable the write protection for RTC registers
+	RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+
+	// Disable the wake-up counter
+	RTC->CR &= ~RTC_CR_WUTE; // Disable the wake-up timer
+	// Wait for the RTC WUTWF flag is set or timeout
+	wait = RTC_INIT_TIMEOUT;
+	while (!(RTC->ISR & RTC_ISR_WUTWF) && --wait);
+	if (!(RTC->ISR & RTC_ISR_WUTWF)) {
+		// Enable the write protection for RTC registers
+		RTC->WPR = 0xFF;
+		// Access to RTC, RTC Backup and RCC CSR registers disabled
+		PWR->CR &= ~PWR_CR_DBP;
+
+		return ERROR;
 	}
-	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+
+	if (interval) {
+		// Set specified interval and enable the wake-up counter
+		RTC->WUTR = interval - 1;
+		// Enable the wake-up timer
+		RTC->CR |= RTC_CR_WUTE;
+	} else {
+		// Set interval to 1 second and left a wake-up counter disabled
+		RTC->WUTR = 0;
+	}
+
+	// Enable the write protection for RTC registers
+	RTC->WPR = 0xFF;
+	// Access to RTC, RTC Backup and RCC CSR registers disabled
+	PWR->CR &= ~PWR_CR_DBP;
+
+	return SUCCESS;
 }
 
 // Set date and time from RTC_Date and RTC_Time variables
 // input:
 //   Time - pointer to RTC time structure
 //   Date - pointer to RTC date structure
-void RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	PWR->CR |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-	RTC_SetTime(RTC_Format_BIN,time);
-	RTC_SetDate(RTC_Format_BIN,date);
-	PWR->CR &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+// return: SUCCESS if date and time set, ERROR otherwise
+ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
+	uint32_t TR,DR;
+
+	// Calculate value for time register
+	TR =   (((time->RTC_Hours   / 10) << 20) + ((time->RTC_Hours   % 10) << 16) +
+			((time->RTC_Minutes / 10) << 12) + ((time->RTC_Minutes % 10) <<  8) +
+			((time->RTC_Seconds / 10) <<  4) +  (time->RTC_Seconds % 10) +
+			 (time->RTC_H12 << 12)) & RTC_TR_RESERVED_MASK;
+	// Calculate value for date register
+	DR =   (((date->RTC_Year  / 10) << 20) + ((date->RTC_Year  % 10) << 16) +
+			((date->RTC_Month / 10) << 12) + ((date->RTC_Month % 10) <<  8) +
+			((date->RTC_Date  / 10) <<  4) +  (date->RTC_Date  % 10) +
+			 (date->RTC_WeekDay << 13)) & RTC_DR_RESERVED_MASK;
+
+	// Access to RTC, RTC Backup and RCC CSR registers enabled
+	PWR->CR |= PWR_CR_DBP;
+	// Disable the write protection for RTC registers
+	RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+
+	// Enter the RTC initialization mode
+	if (RTC_EnterInitMode() != SUCCESS) {
+		// Enable the write protection for RTC registers
+		RTC->WPR = 0xFF;
+		// Access to RTC, RTC Backup and RCC CSR registers disabled
+		PWR->CR &= ~PWR_CR_DBP;
+
+		return ERROR;
+	}
+
+	// Write date and time to the RTC registers
+	RTC->TR = TR;
+	RTC->DR = DR;
+
+	// Exit the RTC Initialization mode
+	RTC->ISR &= ~RTC_ISR_INIT;
+
+	// Wait for synchronization if BYPSHAD bit is not set in the RTC_CR register
+	TR = SUCCESS;
+	if (!(RTC->CR & RTC_CR_BYPSHAD)) {
+		TR = (RTC_WaitForSynchro() == ERROR) ? ERROR : SUCCESS;
+	}
+
+	// Enable the write protection for RTC registers
+	RTC->WPR = 0xFF;
+	// Access to RTC, RTC Backup and RCC CSR registers disabled
+	PWR->CR &= ~PWR_CR_DBP;
+
+	return TR;
 }
 
 // Get current date and time
@@ -96,11 +246,125 @@ void RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 //   Date - pointer to RTC date structure
 // return: date and time in Time and Date structures
 void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	RTC_GetTime(RTC_Format_BIN,time);
-	RTC_GetDate(RTC_Format_BIN,date);
+	uint32_t TR,DR;
+
+	// Get date and time (clear reserved bits just for any case)
+	TR = RTC->TR & RTC_TR_RESERVED_MASK;
+	DR = RTC->DR & RTC_DR_RESERVED_MASK;
+
+	// Convert BCD to human readable format
+	time->RTC_Hours   = (((TR >> 20) & 0x03) * 10) + ((TR >> 16) & 0x0f);
+	time->RTC_Minutes = (((TR >> 12) & 0x07) * 10) + ((TR >>  8) & 0x0f);
+	time->RTC_Seconds = (((TR >>  4) & 0x07) * 10) +  (TR & 0x0f);
+	time->RTC_H12     =   (TR & RTC_TR_PM) >> 16;
+	date->RTC_Year    = (((DR >> 20) & 0x07) * 10) + ((DR >> 16) & 0x0f);
+	date->RTC_Month   = (((DR >> 12) & 0x01) * 10) + ((DR >>  8) & 0x0f);
+	date->RTC_Date    = (((DR >>  4) & 0x03) * 10) +  (DR & 0x0f);
+	date->RTC_WeekDay = (DR & RTC_DR_WDU) >> 13;
+}
+
+// Set the specified RTC alarm
+// input:
+//   Alarm - which alarm to configure (RTC_ALARM_A or RTC_ALARM_B)
+//   time - pointer to RTC time structure
+//   AlarmDateDay - alarm date (value must be in range [1..31], don't care if RTC_ALARM_MASK_DAY bit set in AlarmMask)
+//   AlarmMask - mask for the alarm (combination of RTC_ALARM_MASK_XXX values)
+void RTC_SetAlarm(uint32_t Alarm, RTC_TimeTypeDef *time, uint8_t AlarmDateDay, uint32_t AlarmMask) {
+	uint32_t ALRM;
+
+	// Compute value for the ALRMAR register
+	ALRM =	((AlarmDateDay      / 10) << 28) + ((AlarmDateDay      % 10) << 24) +
+			((time->RTC_Hours   / 10) << 20) + ((time->RTC_Hours   % 10) << 16) +
+			((time->RTC_Minutes / 10) << 12) + ((time->RTC_Minutes % 10) <<  8) +
+			((time->RTC_Seconds / 10) <<  4) +  (time->RTC_Seconds % 10) +
+			 (time->RTC_H12 << 16) +
+			  AlarmMask;
+
+	// Access to RTC, RTC Backup and RCC CSR registers enabled
+	PWR->CR |= PWR_CR_DBP;
+	// Disable the write protection for RTC registers
+	RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+
+	if (Alarm == RTC_ALARM_A) {
+		// Set alarm A
+		RTC->ALRMAR = ALRM;
+	} else {
+		// Set alarm B
+		RTC->ALRMBR = ALRM;
+	}
+
+	// Enable the write protection for RTC registers
+	RTC->WPR = 0xFF;
+	// Access to RTC, RTC Backup and RCC CSR registers disabled
+	PWR->CR &= ~PWR_CR_DBP;
+}
+
+// Enable or disable the specified RTC alarm
+// input:
+//   Alarm - which alarm to configure (RTC_ALARM_A or RTC_ALARM_B)
+//   NewState - new state of alarm (ENABLED or DISABLED)
+// return: SUCCESS if alarm enabled/disabled, ERROR in case of timeout while disabling alarm
+ErrorStatus RTC_AlarmCmd(uint32_t Alarm, FunctionalState NewState) {
+	uint32_t wait = RTC_INIT_TIMEOUT;
+
+	// Access to RTC, RTC Backup and RCC CSR registers enabled
+	PWR->CR |= PWR_CR_DBP;
+	// Disable the write protection for RTC registers
+	RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+
+	if (NewState == ENABLE) {
+		// Enable the specified alarm
+		RTC->CR |= Alarm;
+		wait = SUCCESS;
+	} else {
+		// Disable the specified alarm
+		RTC->CR &= ~Alarm;
+
+		// Wait till ALRxWF flag set in RTC_ISR register or timeout
+		while (!(RTC->ISR & (Alarm >> 8)) && --wait);
+		wait = (RTC->ISR & (Alarm >> 8)) ? SUCCESS : ERROR;
+	}
+
+	// Enable the write protection for RTC registers
+	RTC->WPR = 0xFF;
+	// Access to RTC, RTC Backup and RCC CSR registers disabled
+	PWR->CR &= ~PWR_CR_DBP;
+
+	return wait;
+}
+
+// Enable or disable the specified RTC interrupts
+// input:
+//   IT - interrupts to be enabled or disabled (combination of RTC_IT_XXX values)
+//   NewState - new state of interrupt (ENABLED or DISABLED)
+void RTC_ITConfig(uint32_t IT, FunctionalState NewState) {
+	// Access to RTC, RTC Backup and RCC CSR registers enabled
+	PWR->CR |= PWR_CR_DBP;
+	// Disable the write protection for RTC registers
+	RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+
+	if (NewState == ENABLE) {
+		// Enable the specified interrupts
+		RTC->CR |=  IT;
+	} else {
+		// Disable the specified interrupts
+		RTC->CR &= ~IT;
+	}
+
+	// Enable the write protection for RTC registers
+	RTC->WPR = 0xFF;
+	// Access to RTC, RTC Backup and RCC CSR registers disabled
+	PWR->CR &= ~PWR_CR_DBP;
 }
 
 // Convert Date/Time structures to epoch time
+// input:
+//   time - pointer to the RTC time structure
+//   date - pointer to the RTC date structure
+// return: 32-bit epoch value (seconds)
 uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	uint8_t  a;
 	uint16_t y;
@@ -115,23 +379,27 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	m = date->RTC_Month + (12 * a) - 3; // since 1 March, 4801 BC
 
 	// Gregorian calendar date compute
-    JDN  = date->RTC_Date;
-    JDN += (153 * m + 2) / 5;
-    JDN += 365 * y;
-    JDN += y / 4;
-    JDN += -y / 100;
-    JDN += y / 400;
-    JDN  = JDN - 32045;
-    JDN  = JDN - JULIAN_DATE_BASE;    // Calculate from base date
-    JDN *= 86400;                     // Days to seconds
-    JDN += time->RTC_Hours * 3600;    // ... and today seconds
-    JDN += time->RTC_Minutes * 60;
-    JDN += time->RTC_Seconds;
+	JDN  = date->RTC_Date;
+	JDN += (153 * m + 2) / 5;
+	JDN += 365 * y;
+	JDN += y / 4;
+	JDN += -y / 100;
+	JDN += y / 400;
+	JDN  = JDN - 32045;
+	JDN  = JDN - JULIAN_DATE_BASE;    // Calculate from base date
+	JDN *= 86400;                     // Days to seconds
+	JDN += time->RTC_Hours * 3600;    // ... and today seconds
+	JDN += time->RTC_Minutes * 60;
+	JDN += time->RTC_Seconds;
 
 	return JDN;
 }
 
 // Convert epoch time to Date/Time structures
+// input:
+//   epoch - 32-bit epoch value (seconds)
+//   time - pointer to the RTC time structure
+//   date - pointer to the RTC date structure
 void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	uint32_t tm;
 	uint32_t t1;
@@ -156,28 +424,28 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	JD  = ((epoch + 43200) / (86400 >>1 )) + (2440587 << 1) + 1;
 	JDN = JD >> 1;
 
-    tm = epoch; t1 = tm / 60; sec  = tm - (t1 * 60);
-    tm = t1;    t1 = tm / 60; min  = tm - (t1 * 60);
-    tm = t1;    t1 = tm / 24; hour = tm - (t1 * 24);
+	tm = epoch; t1 = tm / 60; sec  = tm - (t1 * 60);
+	tm = t1;    t1 = tm / 60; min  = tm - (t1 * 60);
+	tm = t1;    t1 = tm / 24; hour = tm - (t1 * 24);
 
-    dow   = JDN % 7;
-    a     = JDN + 32044;
-    b     = ((4 * a) + 3) / 146097;
-    c     = a - ((146097 * b) / 4);
-    d     = ((4 * c) + 3) / 1461;
-    e     = c - ((1461 * d) / 4);
-    m     = ((5 * e) + 2) / 153;
-    mday  = e - (((153 * m) + 2) / 5) + 1;
-    month = m + 3 - (12 * (m / 10));
-    year  = (100 * b) + d - 4800 + (m / 10);
+	dow   = JDN % 7;
+	a     = JDN + 32044;
+	b     = ((4 * a) + 3) / 146097;
+	c     = a - ((146097 * b) / 4);
+	d     = ((4 * c) + 3) / 1461;
+	e     = c - ((1461 * d) / 4);
+	m     = ((5 * e) + 2) / 153;
+	mday  = e - (((153 * m) + 2) / 5) + 1;
+	month = m + 3 - (12 * (m / 10));
+	year  = (100 * b) + d - 4800 + (m / 10);
 
-    date->RTC_Year    = year - 2000;
-    date->RTC_Month   = month;
-    date->RTC_Date    = mday;
-    date->RTC_WeekDay = dow;
-    time->RTC_Hours   = hour;
-    time->RTC_Minutes = min;
-    time->RTC_Seconds = sec;
+	date->RTC_Year    = year - 2000;
+	date->RTC_Month   = month;
+	date->RTC_Date    = mday;
+	date->RTC_WeekDay = dow;
+	time->RTC_Hours   = hour;
+	time->RTC_Minutes = min;
+	time->RTC_Seconds = sec;
 }
 
 // Adjust time with time zone offset
@@ -188,7 +456,6 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t offset) {
 	uint32_t epoch;
 
-	epoch  = RTC_ToEpoch(time,date);
-	epoch += offset * 3600;
+	epoch = RTC_ToEpoch(time,date) + (offset * 3600);
 	RTC_FromEpoch(epoch,time,date);
 }
