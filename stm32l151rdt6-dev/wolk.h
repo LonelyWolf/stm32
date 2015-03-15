@@ -14,7 +14,8 @@
 // nRF24L01 working parameters
 #define nRF24_RX_Addr                 "WBC" // RX address for nRF24L01
 #define nRF24_RX_Addr_Size                3 // RX address size
-#define nRF24_RF_CHANNEL                 90 // nRF24L01 channel (90CH = 2490MHz)
+//#define nRF24_RF_CHANNEL                 90 // nRF24L01 channel (90CH = 2490MHz)
+#define nRF24_RF_CHANNEL                115 // nRF24L01 channel (115CH = 2515MHz)
 #define nRF24_RX_PAYLOAD                 11 // nRF24L01 payload length
 
 
