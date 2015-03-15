@@ -100,6 +100,8 @@ void ST7541_Contrast(uint8_t res_ratio, uint8_t lcd_bias, uint8_t el_vol);
 void ST7541_SetAllPixelOn(OnOffStatus state);
 void ST7541_SetInvert(InvertStatus state);
 void ST7541_SetDisplayState(DisplayState state);
+void ST7541_SetDisplayPartial(uint8_t COM, uint8_t Line, uint8_t Duty);
+void ST7541_PowerSave(OnOffStatus state);
 void ST7541_SetXDir(InvertStatus MX);
 void ST7541_SetYDir(InvertStatus MY);
 void ST7541_SetAddr(uint8_t X, uint8_t Y);

@@ -83,8 +83,9 @@ void ST7541_Init(void) {
 
 	ST7541_cmd(0xc8); // COM reverse direction
 	ST7541_cmd(0xa1); // ADC reverse direction
-	ST7541_cmd_double(0x40,0); // Start line 0
-	ST7541_cmd_double(0x48,0x80); // Duty cycle = 128
+	ST7541_cmd_double(0x40,0); // Initial display line 0
+	ST7541_cmd_double(0x44,0); // Initial COM0 0
+	ST7541_cmd_double(0x48,128); // Duty cycle 128
 
 	ST7541_cmd(0xab); // Enable built-in oscillator circuit
 
@@ -137,8 +138,8 @@ void ST7541_Init(void) {
 	ST7541_cmd(0x97); // FRC/PWM mode: 3FRC, 15PWM
 
 	// Enable high power mode
-	ST7541_cmd_double(0xf7,0x1a); // High power mode enable
-	ST7541_cmd_double(0xf3,0x0d); // High power mode control
+//	ST7541_cmd_double(0xf7,0x1a); // High power mode enable
+//	ST7541_cmd_double(0xf3,0x0d); // High power mode control
 
 	// Load grayscale palette
 	for (i = 0; i < 8; i++)	ST7541_cmd_double(0x88 + i,GrayPalette[i]);
@@ -183,7 +184,7 @@ void ST7541_SetAllPixelOn(OnOffStatus state) {
 
 // Set inverse display pixels
 // Input:
-//   state: NORMAL or INVERT
+//   state - NORMAL or INVERT
 void ST7541_SetInvert(InvertStatus state) {
 	ST7541_CS_L();
 	ST7541_cmd(state == NORMAL ? 0xa6 : 0xa7);
@@ -192,11 +193,33 @@ void ST7541_SetInvert(InvertStatus state) {
 
 // Toggle display on/off
 // Input:
-//   state: ENABLED or DISABLED
+//   state - ENABLED or DISABLED
 // Doesn't affect the display memory
 void ST7541_SetDisplayState(DisplayState state) {
 	ST7541_CS_L();
 	ST7541_cmd(state == ENABLED ? 0xaf : 0xae);
+	ST7541_CS_H();
+}
+
+// Configure partial display on LCD
+// input:
+//   COM - initial display COM
+//   Line - initial display line
+//   Duty - partial display duty
+void ST7541_SetDisplayPartial(uint8_t COM, uint8_t Line, uint8_t Duty) {
+	ST7541_CS_L();
+	ST7541_cmd_double(0x40,Line & 0x7f); // Line
+	ST7541_cmd_double(0x44,COM & 0x7f);  // COM
+	ST7541_cmd_double(0x48,Duty);        // Duty
+	ST7541_CS_H();
+}
+
+// Enter display power save mode
+// input:
+//   state - ON puts display to sleep mode, OFF - returns to normal mode
+void ST7541_PowerSave(OnOffStatus state) {
+	ST7541_CS_L();
+	ST7541_cmd(state == ON ? 0xa9 : 0xa8);
 	ST7541_CS_H();
 }
 
