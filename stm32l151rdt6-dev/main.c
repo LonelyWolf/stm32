@@ -369,7 +369,7 @@ void EXTI1_IRQHandler(void) {
 						vbat / 100,vbat % 100,
 						_packets_rcvd,
 						_packets_lost,
-						(_packets_lost * 100) / _packets_rcvd
+						(_packets_lost * 100) / (_packets_rcvd + _packets_lost)
 				);
 				_prev_wake_cntr = wake_cntr;
 				if (wake_diff > 1) {
@@ -484,17 +484,15 @@ void DMA2_Channel4_IRQHandler(void) {
 
 // Compute interquartile mean from array of values
 uint32_t InterquartileMean(uint16_t *array, uint32_t numOfSamples) {
-	uint32_t sum=0;
+	uint32_t sum = 0;
 	uint32_t index, maxindex;
 
 	// discard the lowest and the highest data samples
-	maxindex = 3 * numOfSamples / 4;
-	for (index = (numOfSamples / 4); index < maxindex; index++) {
-		sum += array[index];
-	}
-	// return the mean value of the remaining samples value
+	maxindex = 3 * (numOfSamples >> 2);
+	for (index = numOfSamples >> 2; index < maxindex; index++) sum += array[index];
 
-	return (sum / (numOfSamples / 2));
+	// return the mean value of the remaining samples value
+	return (sum / (numOfSamples >> 1));
 }
 
 
@@ -556,16 +554,47 @@ int main(void) {
 			BEEPER_Enable(444,1);
 			while (_beep_duration);
 		} else {
-			// Clear the RTC wake-up timer flag
-			// The PWR peripheral must be enabled (in GetResetSource)
-			PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
-			RTC->ISR &= ~RTC_ISR_WUTF;
-			PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
+			// Initialize display SPI port
+			SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);
+
+			// Initialize display control pins
+			ST7541_InitGPIO();
+
+			ST7541_CS_L();
+			ST7541_cmd(0x2f); // Power control: VC,VR,VF = 1,1,1 (internal voltage booster)
+			ST7541_CS_H();
+
+			ST7541_SetDisplayPartial(32,0,64);
+			ST7541_Contrast(5,5,10);
+
+			// Draw time
+			ST7541_Fill(0x0000);
+			RTC_GetDateTime(&_time,&_date);
+			i = 0;
+			i += PutIntLZ(i,42,_time.RTC_Hours,2,fnt5x7);
+			i += DrawChar(i,42,':',fnt5x7);
+			i += PutIntLZ(i,42,_time.RTC_Minutes,2,fnt5x7);
+			i += DrawChar(i,42,':',fnt5x7);
+			i += PutIntLZ(i,42,_time.RTC_Seconds,2,fnt5x7);
+			i += 3;
+			i += PutIntLZ(i,42,_date.RTC_Date,2,fnt5x7);
+			i += DrawChar(i,42,'.',fnt5x7);
+			i += PutIntLZ(i,42,_date.RTC_Month,2,fnt5x7);
+			i += DrawChar(i,42,'.',fnt5x7);
+			i += PutIntLZ(i,42,_date.RTC_Year,2,fnt5x7);
+			PutStr(i + 3,42,RTC_DOW_STR[_date.RTC_WeekDay - 1],fnt5x7);
+			ST7541_Flush();
 
 			// This is wake-up from RTC, do BEEP and wait until it ends
 			BEEPER_Enable(1111,1);
 			while (_beep_duration);
 		}
+
+		// Clear the RTC wake-up timer flag
+		// The PWR peripheral must be enabled (in GetResetSource)
+		PWR->CR  |= PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers enabled
+		RTC->ISR &= ~RTC_ISR_WUTF;
+		PWR->CR  &= ~PWR_CR_DBP; // Access to RTC, RTC Backup and RCC CSR registers disabled
 
 		// Put MCU into STANDBY mode
 		PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
@@ -710,6 +739,10 @@ int main(void) {
 
 
 
+
+	// Enable DC-DC for LCD
+	PWR_LCD_ENABLE_H();
+//	PWR_LCD_ENABLE_L();
 
 	// Display SPI port initialization: 1-line TX
 //	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_256); // lowest speed (125kHz on 32MHz CPU)
@@ -1683,7 +1716,17 @@ int main(void) {
 	    	LCD_BL_TIM->CCR1 = lcd_backlight;
 	    }
 	    if (BTN[BTN_ESCAPE].state == BTN_Pressed) {
-	    	NVIC_SystemReset();
+	    	// Reset the MCU
+//	    	NVIC_SystemReset();
+
+	    	// Setup partial display mode
+			ST7541_SetDisplayPartial(32,0,64);
+			ST7541_Contrast(5,5,10);
+
+	    	// Put MCU into STANDBY mode
+	    	PWR->CSR |= PWR_CSR_EWUP1; // Enable WKUP pin 1 (PA0)
+	    	PWR->CSR |= PWR_CSR_EWUP2; // Enable WKUP pin 2 (PC13)
+	    	SleepStandby();
 	    }
 	}
 //*/

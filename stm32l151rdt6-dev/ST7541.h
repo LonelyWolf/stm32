@@ -93,6 +93,7 @@ extern uint16_t scr_height;
 // Function prototypes
 void ST7541_data(uint8_t data);
 
+void ST7541_InitGPIO(void);
 void ST7541_Init(void);
 void ST7541_Reset(void);
 

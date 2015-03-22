@@ -50,11 +50,8 @@ void ST7541_data(uint8_t data) {
 	SPIx_Send(ST7541_SPI_PORT,data);
 }
 
-// Initialize SPI peripheral and ST7541 display
-// note: SPI peripheral must be initialized before
-//       Delay must be initialized before
-void ST7541_Init(void) {
-	uint8_t i;
+// Initialize the display control GPIO pins
+void ST7541_InitGPIO(void) {
 	GPIO_InitTypeDef PORT;
 
 	// Enable the GPIO peripheral(s) clock
@@ -66,12 +63,27 @@ void ST7541_Init(void) {
 	PORT.GPIO_PuPd = GPIO_PuPd_UP;
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
 
+	ST7541_CS_H();
 	PORT.GPIO_Pin = ST7541_CS_PIN;
 	GPIO_Init(ST7541_CS_PORT,&PORT);
-	PORT.GPIO_Pin = ST7541_RST_PIN;
-	GPIO_Init(ST7541_RST_PORT,&PORT);
+
+	ST7541_RS_L();
 	PORT.GPIO_Pin = ST7541_RS_PIN;
 	GPIO_Init(ST7541_RS_PORT,&PORT);
+
+	ST7541_RST_H();
+	PORT.GPIO_Pin = ST7541_RST_PIN;
+	GPIO_Init(ST7541_RST_PORT,&PORT);
+}
+
+// Initialize SPI peripheral and ST7541 display
+// note: SPI peripheral must be initialized before
+//       Delay must be initialized before
+void ST7541_Init(void) {
+	uint8_t i;
+
+	// Initialize the display GPIO
+	ST7541_InitGPIO();
 
 	// Reset display
 	ST7541_CS_H();
