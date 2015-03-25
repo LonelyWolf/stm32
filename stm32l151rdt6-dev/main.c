@@ -169,13 +169,6 @@ RTC_TimeTypeDef _time;
 RTC_DateTypeDef _date;
 
 // LCD debug
-// 7,7,24
-// 6,6,32
-// 5,6,26
-uint8_t lcd_res_ratio = 7;
-uint8_t lcd_lcd_bias = 7;
-uint8_t lcd_el_vol = 24;
-uint8_t lcd_changing = 2;
 uint8_t lcd_char = 33;
 uint8_t lcd_backlight = 10;
 
@@ -209,7 +202,7 @@ uint32_t GetResetSource(void) {
 
 	// Enable the PWR peripheral to deal with it CSR register
 	RCC->APB1ENR |= RCC_APB1ENR_PWREN;
-//	#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
+	__DSB();
 
 	// WKUP pin or RTC alarm
 	reg = PWR->CSR;
@@ -224,7 +217,7 @@ uint32_t GetResetSource(void) {
 
 		// Determine state of the WKUP# pins
 		RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOCEN;
-//		#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
+		__DSB();
 		if (GPIOA->IDR & GPIO_IDR_IDR_0)  result |= RESET_SRC_STBY_WP1;
 		if (GPIOC->IDR & GPIO_IDR_IDR_13) result |= RESET_SRC_STBY_WP2;
 
@@ -244,11 +237,6 @@ void Button_Inquiry(BTN_TypeDef *button) {
 			button->hold_cntr = 0;
 			if (button->state != BTN_Hold) button->cntr++;
 			button->state = BTN_Released;
-
-			// LCD debug
-			lcd_changing++;
-			if (lcd_changing > 2) lcd_changing = 0;
-
 			// Disable sleep-on-exit (return to main loop from IRQ)
 			SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 
@@ -257,6 +245,7 @@ void Button_Inquiry(BTN_TypeDef *button) {
 			// Button pressed
 			button->hold_cntr = 0;
 			button->state = BTN_Pressed;
+
 			BEEPER_Enable(2000,1);
 		}
 	} else {
@@ -265,29 +254,6 @@ void Button_Inquiry(BTN_TypeDef *button) {
 			button->hold_cntr = 0;
 			if (button->state != BTN_Hold) button->cntr++;
 			button->state = BTN_Released;
-
-			switch (lcd_changing) {
-				case 0:
-					// res_ratio
-					if (button == &BTN[BTN_UP]) lcd_res_ratio++; else lcd_res_ratio--;
-					if (lcd_res_ratio > 7) lcd_res_ratio = 0;
-					break;
-				case 1:
-					// lcd_bias
-					if (button == &BTN[BTN_UP]) lcd_lcd_bias++; else lcd_lcd_bias--;
-					if (lcd_lcd_bias > 7) lcd_lcd_bias = 0;
-					break;
-				case 2:
-					// el_vol
-					if (button == &BTN[BTN_UP]) lcd_el_vol++; else lcd_el_vol--;
-					if (lcd_el_vol > 63) lcd_el_vol = 0;
-					break;
-				default:
-					break;
-			}
-			ST7541_Contrast(lcd_res_ratio,lcd_lcd_bias,lcd_el_vol);
-			printf("ST7541: RES=%u BIAS=%u ELVOL=%u\r\n",lcd_res_ratio,lcd_lcd_bias,lcd_el_vol);
-
 			// Disable sleep-on-exit (return to main loop from IRQ)
 			SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
 
@@ -296,6 +262,7 @@ void Button_Inquiry(BTN_TypeDef *button) {
 			// Button pressed
 			button->hold_cntr = 0;
 			button->state = BTN_Pressed;
+
 			BEEPER_Enable(2000,1);
 		}
 	}
@@ -350,41 +317,59 @@ void EXTI0_IRQHandler(void) {
 void EXTI1_IRQHandler(void) {
 	nRF24_RX_PCKT_TypeDef RX_status;
 	uint8_t CRC_local;
-	uint16_t wake_cntr, wake_diff, vbat;
+	uint16_t wake_diff;
+	uint16_t *ptr = (uint16_t *)&nRF24_RX_Buf;
 
 	if (EXTI->PR & nRF24_IRQ_EXTI) {
 		RX_status = nRF24_RXPacket(nRF24_RX_Buf,nRF24_RX_PAYLOAD);
 		if (RX_status == nRF24_RX_PCKT_PIPE0) {
+			// Bytes of 16-bit values must be swapped due to different endianness of STM8L and STM32
+/*
+			nRF24_Packet.cntr_SPD  =  (nRF24_RX_Buf[0] << 8) | nRF24_RX_Buf[1];
+			nRF24_Packet.tim_SPD   =  (nRF24_RX_Buf[2] << 8) | nRF24_RX_Buf[3];
+			nRF24_Packet.tim_CDC   =  (nRF24_RX_Buf[4] << 8) | nRF24_RX_Buf[5];
+			nRF24_Packet.vrefint   = ((nRF24_RX_Buf[6] << 8) | nRF24_RX_Buf[7]) & 0x03ff;
+			nRF24_Packet.cntr_wake =  (nRF24_RX_Buf[8] << 8) | nRF24_RX_Buf[9];
+			nRF24_Packet.CRC8      =   nRF24_RX_Buf[10];
+*/
+			// This code looks cooler and its size is 40 bytes less
+			nRF24_Packet.cntr_SPD  = __builtin_bswap16(*ptr++);
+			nRF24_Packet.tim_SPD   = __builtin_bswap16(*ptr++);
+			nRF24_Packet.tim_CDC   = __builtin_bswap16(*ptr++);
+			nRF24_Packet.vrefint   = __builtin_bswap16(*ptr++);
+			nRF24_Packet.cntr_wake = __builtin_bswap16(*ptr++);
+			nRF24_Packet.CRC8 = nRF24_RX_Buf[10];
+
 			CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
-			if (CRC_local == nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) {
-				wake_cntr = (nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9];
-				if (_prev_wake_cntr == 0xDEADBEEF) _prev_wake_cntr = wake_cntr;
-				if (wake_cntr < _prev_wake_cntr) _prev_wake_cntr = wake_cntr;
-				wake_diff = wake_cntr - _prev_wake_cntr;
-				vbat = ((nRF24_RX_Buf[6] << 8) + nRF24_RX_Buf[7]) & 0x03ff;
-				printf("wake: %u[%u] diff: %u vbat=%u.%uV pkts: %u\\%u [%u%%]\r\n",
-						wake_cntr,
+			if (CRC_local == nRF24_Packet.CRC8) {
+				if (_prev_wake_cntr == 0xDEADBEEF) _prev_wake_cntr = nRF24_Packet.cntr_wake;
+				if (nRF24_Packet.cntr_wake < _prev_wake_cntr) _prev_wake_cntr = nRF24_Packet.cntr_wake;
+				wake_diff = nRF24_Packet.cntr_wake - _prev_wake_cntr;
+				printf("wake: %u[%u] diff: %u vbat=%u.%02uV pkts: %u\\%u [%u%%]\r\n",
+						nRF24_Packet.cntr_wake,
 						_prev_wake_cntr,
 						wake_diff,
-						vbat / 100,vbat % 100,
+						nRF24_Packet.vrefint / 100,nRF24_Packet.vrefint % 100,
 						_packets_rcvd,
 						_packets_lost,
 						(_packets_lost * 100) / (_packets_rcvd + _packets_lost)
 				);
-				_prev_wake_cntr = wake_cntr;
+				_prev_wake_cntr = nRF24_Packet.cntr_wake;
 				if (wake_diff > 1) {
 					_packets_lost += wake_diff - 1;
 //					BEEPER_Enable(1700,1);
 				}
 			} else {
-				printf("CRC: %02X <> %02X [%s]\r\n",nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1],CRC_local,(nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1] == CRC_local) ? "OK" : "BAD");
+				printf("CRC: %02X <> %02X [%s]\r\n",nRF24_Packet.CRC8,CRC_local,(nRF24_Packet.CRC8 == CRC_local) ? "OK" : "BAD");
 //				BEEPER_Enable(333,1);
 			}
 			_packets_rcvd++;
 			_new_packet = TRUE;
 		} else {
+			printf("nRF24_RXPacket:%02X (not a PIPE0)\r\n",(uint8_t)RX_status);
 //			BEEPER_Enable(5000,3);
 		}
+
 
 		// Disable sleep-on-exit (return to main loop from IRQ)
 		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -509,7 +494,7 @@ int main(void) {
 	// The LED backlight PWM output must be tied to ground ASAP
 	// Configure PB4 as GPIO
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-//	#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
+	__DSB();
 	GPIOB->MODER &= ~GPIO_MODER_MODER4; // Input
 	GPIOB->PUPDR &= ~GPIO_PUPDR_PUPDR4; // No pull-up, pull-down
 
@@ -528,8 +513,8 @@ int main(void) {
 		RCC->ICSCR = i | RCC_ICSCR_MSIRANGE_6; // Set MSI range 6 (around 4.194MHz)
 
 		// Enable the PWR peripheral to deal with it CSR register
-//		#WARNING: WHAT ERRATA SAYS ABOUT DELAY AFTER AN RCC PERIPHERAL CLOCK ENABLING?
 		RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+		__DSB();
 
 		// Compute the actual MCU clock speed (for proper BEEPER initialization)
 		SystemCoreClockUpdate();
@@ -546,6 +531,7 @@ int main(void) {
 
 			// Enable the accelerometer IRQ GPIO pin and wait until it becomes low
 			RCC->AHBENR |= ACC_IRQ_PERIPH; // Enable GPIO port peripheral
+			__DSB();
 			ACC_IRQ_PORT->MODER &= ~GPIO_MODER_MODER13; // Input mode (reset state)
 			ACC_IRQ_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR13; // Floating (clear bits)
 			while (ACC_IRQ_PORT->IDR & ACC_IRQ_PIN);
@@ -741,8 +727,8 @@ int main(void) {
 
 
 	// Enable DC-DC for LCD
-	PWR_LCD_ENABLE_H();
-//	PWR_LCD_ENABLE_L();
+//	PWR_LCD_ENABLE_H();
+	PWR_LCD_ENABLE_L();
 
 	// Display SPI port initialization: 1-line TX
 //	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_256); // lowest speed (125kHz on 32MHz CPU)
@@ -752,6 +738,7 @@ int main(void) {
 //	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_16);  // 2MHz on 32MHz CPU
 
 	// Initialize display and clear screen
+	ST7541_InitGPIO();
 	ST7541_Init();
 	ST7541_Contrast(7,7,24);
 	ST7541_Fill(0x0000);
@@ -1647,11 +1634,8 @@ int main(void) {
 			for (i = 1; i < 127; i++) {
 				x += ca;
 				y += sa;
-				if (lcd_changing % 2) {
-					Pixel(i,j,((((int8_t)x >> 3) & 1) ^ (((int8_t)y >> 3) & 1)) ? gs_black : gs_white); // Black and white checker board
-				} else {
-					Pixel(i,j,(((int8_t)x >> 3) & 3) ^ (((int8_t)y >> 3) & 3)); // 2-bit XOR texture
-				}
+//				Pixel(i,j,((((int8_t)x >> 3) & 1) ^ (((int8_t)y >> 3) & 1)) ? gs_black : gs_white); // Black and white checker board
+				Pixel(i,j,(((int8_t)x >> 3) & 3) ^ (((int8_t)y >> 3) & 3)); // 2-bit XOR texture
 			}
 			xrow += -sa;
 			yrow +=  ca;
@@ -1993,7 +1977,7 @@ int main(void) {
 		if (_new_packet) {
 			RT = (nRF24_RX_Buf[0] << 8) | nRF24_RX_Buf[1]; // Temperature
 			Vrefint = (nRF24_RX_Buf[6] << 8) + nRF24_RX_Buf[7]; // Sensor voltage
-			printf("[#%u TEMP: %d.%dC VREF: %u.%uV LSI: %uHz OTX: %u/%u %02u:%02u:%02u %02u.%02u.20%02u]\r\n",
+			printf("[#%u TEMP: %d.%dC VREF: %u.%02uV LSI: %uHz OTX: %u/%u %02u:%02u:%02u %02u.%02u.20%02u]\r\n",
 					(uint32_t)((nRF24_RX_Buf[2] << 24)|(nRF24_RX_Buf[3] << 16)|(nRF24_RX_Buf[4] << 8)|(nRF24_RX_Buf[5])), /* Packet number */
 					RT / 10, RT % 10,
 					Vrefint / 100, Vrefint % 100,
@@ -2049,12 +2033,9 @@ int main(void) {
 		// WBC packet
 		printf("NRF: %upkts%s",_packets_rcvd,(_new_packet) ? " " : "\r\n");
 		if (_new_packet) {
-			i = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
-			j = ((nRF24_RX_Buf[6] & 0x03) << 8) + nRF24_RX_Buf[7];
-			printf("[CRC: %02X%c%02X VBAT: %u.%uV WAKE: %u]\r\n",
-					i,(i == nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1]) ? '=' : '!',nRF24_RX_Buf[nRF24_RX_PAYLOAD - 1],
-					j / 100, j % 100,
-					(nRF24_RX_Buf[8] << 8) + nRF24_RX_Buf[9]);
+			printf("[VBAT: %u.%02uV WAKE: %u]\r\n",
+					nRF24_Packet.vrefint / 100, nRF24_Packet.vrefint % 100,
+					nRF24_Packet.cntr_wake);
 			_new_packet = FALSE;
 		}
 #endif
@@ -2071,26 +2052,6 @@ int main(void) {
 
 	    ST7541_Fill(0x0000);
 
-	    PutIntU(10,1,lcd_res_ratio,fnt5x7);
-	    PutStr(28,1,"RES_RATIO",fnt5x7);
-	    PutIntU(10,9,lcd_lcd_bias,fnt5x7);
-	    PutStr(28,9,"LCD_BIAS",fnt5x7);
-	    PutIntU(10,17,lcd_el_vol,fnt5x7);
-	    PutStr(28,17,"CONTRAST",fnt5x7);
-	    HLine(0,127,26,gs_black);
-	    switch (lcd_changing) {
-			case 0:
-				FillRect(2,0,6,7,gs_black);
-				break;
-			case 1:
-				FillRect(2,8,6,15,gs_black);
-				break;
-			case 2:
-				FillRect(2,16,6,23,gs_black);
-				break;
-			default:
-				break;
-		}
 /*
 		// Gray shades
 	    FillRect(0,100,31,127,gs_black);

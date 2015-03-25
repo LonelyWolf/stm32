@@ -14,7 +14,6 @@ uint16_t                  scr_height      = SCR_H; // Screen height
 ScrOrientation_TypeDef    scr_orientation = scr_normal; // Screen orientation
 
 // Display buffer
-//uint8_t vRAM[(SCR_W * SCR_H) >> 2];
 uint8_t vRAM[(SCR_W * SCR_H) >> 2] __attribute__((aligned(4)));
 
 // Grayscale palette (PWM values for white, light gray, dark gray, black)
@@ -82,9 +81,6 @@ void ST7541_InitGPIO(void) {
 void ST7541_Init(void) {
 	uint8_t i;
 
-	// Initialize the display GPIO
-	ST7541_InitGPIO();
-
 	// Reset display
 	ST7541_CS_H();
 	ST7541_RST_L();
@@ -131,11 +127,11 @@ void ST7541_Init(void) {
 //	ST7541_cmd_double(0x38,0x14); // Frame rate 51Hz, Booster efficiency level 2
 //	ST7541_cmd_double(0x38,0x74); // Frame rate 70Hz, Booster efficiency level 2
 
-//	ST7541_cmd(0x2e); // Power control: VC,VR,VF = 1,1,0 (internal voltage booster)
-	ST7541_cmd(0x2a); // Power control: VC,VR,VF = 0,1,0 (external LCD bias supply)
+	ST7541_cmd(0x2e); // Power control: VC,VR,VF = 1,1,0 (internal voltage booster)
+//	ST7541_cmd(0x2a); // Power control: VC,VR,VF = 0,1,0 (external LCD bias supply)
 	Delay_ms(10);
-//	ST7541_cmd(0x2f); // Power control: VC,VR,VF = 1,1,1 (internal voltage booster)
-	ST7541_cmd(0x2b); // Power control: VC,VR,VF = 0,1,1 (external LCD bias supply)
+	ST7541_cmd(0x2f); // Power control: VC,VR,VF = 1,1,1 (internal voltage booster)
+//	ST7541_cmd(0x2b); // Power control: VC,VR,VF = 0,1,1 (external LCD bias supply)
 
 //	ST7541_cmd(0x64); // DC-DC converter: 3 times boosting circuit
 //	ST7541_cmd(0x65); // DC-DC converter: 4 times boosting circuit
@@ -321,9 +317,7 @@ void ST7541_Flush(void) {
 	SPIx_SendBuf16(ST7541_SPI_PORT,(uint16_t *)&vRAM[0],(SCR_W * SCR_H) >> 3);
 	ST7541_CS_H();
 	// Disable the SPI peripheral, set 8-bit data frame format and then enable the SPI back
-	ST7541_SPI_PORT->CR1 &= ~SPI_CR1_SPE;
-	ST7541_SPI_PORT->CR1 &= ~SPI_CR1_DFF;
-//	ST7541_SPI_PORT->CR1 &= ~(SPI_CR1_DFF | SPI_CR1_SPE); // Is it correct to do this in one move?
+	ST7541_SPI_PORT->CR1 &= ~(SPI_CR1_DFF | SPI_CR1_SPE);
 	ST7541_SPI_PORT->CR1 |= SPI_CR1_SPE;
 
 /*

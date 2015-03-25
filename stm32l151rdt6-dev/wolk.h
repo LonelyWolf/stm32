@@ -73,11 +73,12 @@ typedef enum {
 
 // Structure for data packet received from sensor
 typedef struct {
-	uint16_t cntr_SPD;         // SPD impulses counter
-	uint16_t tim_CDC;          // CDC interval
-	uint16_t tim_SPD;          // SPD interval
-	uint16_t vrefint;          // VrefInt of sensor MCU
-	uint16_t cntr_wake;        // Wake-ups counter
+	uint16_t cntr_SPD;  // SPD impulses counter
+	uint16_t tim_SPD;   // SPD interval
+	uint16_t tim_CDC;   // CDC interval
+	uint16_t vrefint;   // VrefInt of sensor MCU
+	uint16_t cntr_wake; // Wake counter
+	uint8_t  CRC8;      // 8-bit CRC
 } nRF24_Packet_TypeDef;
 
 // Structure for current data
