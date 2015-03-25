@@ -101,14 +101,14 @@ typedef enum {
 
 // RX packet pipe
 typedef enum {
-	nRF24_RX_PCKT_PIPE0 = (uint8_t)0x00,
-	nRF24_RX_PCKT_PIPE1 = (uint8_t)0x01,
-	nRF24_RX_PCKT_PIPE2 = (uint8_t)0x02,
-	nRF24_RX_PCKT_PIPE3 = (uint8_t)0x03,
-	nRF24_RX_PCKT_PIPE4 = (uint8_t)0x04,
-	nRF24_RX_PCKT_PIPE5 = (uint8_t)0x05,
-	nRF24_RX_PCKT_EMPTY = (uint8_t)0xfe,
-	nRF24_RX_PCKT_ERROR = (uint8_t)0xff
+	nRF24_RX_PCKT_PIPE0  = (uint8_t)0x00, // Received packet from PIPE#0
+	nRF24_RX_PCKT_PIPE1  = (uint8_t)0x01, // Received packet from PIPE#1
+	nRF24_RX_PCKT_PIPE2  = (uint8_t)0x02, // Received packet from PIPE#2
+	nRF24_RX_PCKT_PIPE3  = (uint8_t)0x03, // Received packet from PIPE#3
+	nRF24_RX_PCKT_PIPE4  = (uint8_t)0x04, // Received packet from PIPE#4
+	nRF24_RX_PCKT_PIPE5  = (uint8_t)0x05, // Received packet from PIPE#5
+	nRF24_RX_PCKT_EMPTY  = (uint8_t)0xfe, // RX payload is empty
+	nRF24_RX_PCKT_ERROR  = (uint8_t)0xff  // Some error
 } nRF24_RX_PCKT_TypeDef;
 
 // TX packet result
@@ -116,7 +116,7 @@ typedef enum {
 	nRF24_TX_SUCCESS,   // Packet transmitted successfully
 	nRF24_TX_TIMEOUT,   // It was timeout during packet transmit
 	nRF24_TX_MAXRT,     // Transmit failed with maximum auto retransmit count
-	nRF24_TX_ERROR      // Some error happens
+	nRF24_TX_ERROR      // Some error
 } nRF24_TX_PCKT_TypeDef;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -196,7 +196,7 @@ void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_
 		uint8_t RX_PAYLOAD, nRF24_TXPower_TypeDef TXPower);
 void nRF24_SetPipeAddr(nRF24_RX_PIPE_TypeDef PIPE, uint8_t *Addr, uint8_t Addr_Width);
 
-uint8_t nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD);
+nRF24_TX_PCKT_TypeDef nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD);
 nRF24_RX_PCKT_TypeDef nRF24_RXPacket(uint8_t * pBuf, uint8_t RX_PAYLOAD);
 
 void nRF24_ClearIRQFlags(void);

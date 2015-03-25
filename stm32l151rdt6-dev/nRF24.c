@@ -58,7 +58,7 @@ void nRF24_Init() {
 //   value - new value
 void nRF24_WriteReg(uint8_t reg, uint8_t value) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register
+	SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_WREG | reg); // Select register
 	SPIx_SendRecv(nRF24_SPI_PORT,value); // Write value to register
 	nRF24_CSN_H();
 }
@@ -86,7 +86,7 @@ uint8_t nRF24_ReadReg(uint8_t reg) {
 void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L();
 	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register to read from
-	while (count--) *pBuf++ = SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_NOP);
+	SPIx_RecvBuf(nRF24_SPI_PORT,pBuf,count,nRF24_CMD_NOP);
 	nRF24_CSN_H();
 }
 
@@ -95,10 +95,11 @@ void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 //   reg - register number
 //   pBuf - pointer to buffer
 //   count - bytes count
+// note: data buffer will be filled with value of STATUS register after send
 void nRF24_WriteBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register
-	while (count--) SPIx_SendRecv(nRF24_SPI_PORT,*pBuf++);
+	SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_WREG | reg); // Select register
+	SPIx_SendRecvBuf(nRF24_SPI_PORT,pBuf,count);
 	nRF24_CSN_H();
 }
 
@@ -111,7 +112,7 @@ uint8_t nRF24_Check(void) {
 	uint8_t *ptr = (uint8_t *)nRF24_TEST_ADDR;
 	uint8_t i;
 
-	nRF24_WriteBuf(nRF24_CMD_WREG | nRF24_REG_TX_ADDR,ptr,5); // Write fake TX address
+	nRF24_WriteBuf(nRF24_REG_TX_ADDR,ptr,5); // Write fake TX address
 	nRF24_ReadBuf(nRF24_REG_TX_ADDR,rxbuf,5); // Read TX_ADDR register
 	for (i = 0; i < 5; i++) if (rxbuf[i] != *ptr++) return 0;
 
@@ -123,7 +124,7 @@ uint8_t nRF24_Check(void) {
 //   RFChannel - Frequency channel (0..127) (frequency = 2400 + RFChan [MHz])
 // Note, what part of the OBSERVER_TX register called "PLOS_CNT" will be cleared!
 void nRF24_SetRFChannel(uint8_t RFChannel) {
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_RF_CH,RFChannel);
+	nRF24_WriteReg(nRF24_REG_RF_CH,RFChannel);
 }
 
 // Flush nRF24L01 TX FIFO buffer
@@ -151,14 +152,14 @@ void nRF24_TXMode(uint8_t RetrCnt, uint8_t RetrDelay, uint8_t RFChan, nRF24_Data
 		nRF24_TXPower_TypeDef TXPower, nRF24_CRC_TypeDef CRCS, nRF24_PWR_TypeDef Power, uint8_t *TX_Addr,
 		uint8_t TX_Addr_Width) {
 	nRF24_CE_L();
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_SETUP_RETR,((RetrDelay << 4) & 0xf0) | (RetrCnt & 0x0f)); // Auto retransmit settings
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // Setup register
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | (uint8_t)Power | nRF24_PRIM_TX); // Config register
+	nRF24_WriteReg(nRF24_REG_SETUP_RETR,((RetrDelay << 4) & 0xf0) | (RetrCnt & 0x0f)); // Auto retransmit settings
+	nRF24_WriteReg(nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // Setup register
+	nRF24_WriteReg(nRF24_REG_CONFIG,(uint8_t)CRCS | (uint8_t)Power | nRF24_PRIM_TX); // Config register
 	nRF24_SetRFChannel(RFChan); // Set frequency channel (OBSERVER_TX part PLOS_CNT will be cleared)
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_EN_AA,0x01); // Enable ShockBurst for data pipe 0 to receive ACK packet
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_SETUP_AW,TX_Addr_Width); // Set address width
-	nRF24_WriteBuf(nRF24_CMD_WREG | nRF24_REG_TX_ADDR,TX_Addr,TX_Addr_Width); // Set static TX address
-	nRF24_WriteBuf(nRF24_CMD_WREG | nRF24_REG_RX_ADDR_P0,TX_Addr,TX_Addr_Width); // Static RX address on PIPE0 must same as TX address for auto ACK
+	nRF24_WriteReg(nRF24_REG_EN_AA,0x01); // Enable ShockBurst for data pipe 0 to receive ACK packet
+	nRF24_WriteReg(nRF24_REG_SETUP_AW,TX_Addr_Width); // Set address width
+	nRF24_WriteBuf(nRF24_REG_TX_ADDR,TX_Addr,TX_Addr_Width); // Set static TX address
+	nRF24_WriteBuf(nRF24_REG_RX_ADDR_P0,TX_Addr,TX_Addr_Width); // Static RX address on PIPE0 must same as TX address for auto ACK
 }
 
 // Put nRF24L01 in RX mode
@@ -180,13 +181,13 @@ void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_
 	nRF24_CE_L();
 	nRF24_ReadReg(nRF24_CMD_NOP); // Dummy read
 	rreg = nRF24_ReadReg(nRF24_REG_EN_RXADDR);
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_EN_RXADDR,rreg | (1 << (uint8_t)PIPE)); // Enable given data pipe
-	nRF24_WriteReg(nRF24_CMD_WREG | RX_PW_PIPES[(uint8_t)PIPE],RX_PAYLOAD); // Set RX payload length
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // SETUP register
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,(uint8_t)CRCS | nRF24_PWR_Up | nRF24_PRIM_RX); // Config register
+	nRF24_WriteReg(nRF24_REG_EN_RXADDR,rreg | (1 << (uint8_t)PIPE)); // Enable given data pipe
+	nRF24_WriteReg(RX_PW_PIPES[(uint8_t)PIPE],RX_PAYLOAD); // Set RX payload length
+	nRF24_WriteReg(nRF24_REG_RF_SETUP,(uint8_t)DataRate | (uint8_t)TXPower); // SETUP register
+	nRF24_WriteReg(nRF24_REG_CONFIG,(uint8_t)CRCS | nRF24_PWR_Up | nRF24_PRIM_RX); // Config register
 	nRF24_SetRFChannel(RFChan); // Set frequency channel
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_SETUP_AW,RX_Addr_Width - 2); // Set of address widths (common for all data pipes)
-	nRF24_WriteBuf(nRF24_CMD_WREG | RX_ADDR_PIPES[(uint8_t)PIPE],RX_Addr,RX_Addr_Width); // Set static RX address for given data pipe
+	nRF24_WriteReg(nRF24_REG_SETUP_AW,RX_Addr_Width - 2); // Set of address widths (common for all data pipes)
+	nRF24_WriteBuf(RX_ADDR_PIPES[(uint8_t)PIPE],RX_Addr,RX_Addr_Width); // Set static RX address for given data pipe
 	rreg = nRF24_ReadReg(nRF24_REG_EN_AA);
 	if (PIPE_AA != nRF24_ENAA_OFF) {
 		// Enable auto acknowledgment for given data pipe
@@ -195,7 +196,7 @@ void nRF24_RXMode(nRF24_RX_PIPE_TypeDef PIPE, nRF24_ENAA_TypeDef PIPE_AA, uint8_
 		// Disable auto acknowledgment for given data pipe
 		rreg &= ~(1 << (uint8_t)PIPE);
 	}
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_EN_AA,rreg);
+	nRF24_WriteReg(nRF24_REG_EN_AA,rreg);
 	nRF24_ClearIRQFlags();
 	nRF24_FlushRX();
 	nRF24_CE_H(); // RX mode
@@ -226,19 +227,18 @@ nRF24_TX_PCKT_TypeDef nRF24_TXPacket(uint8_t * pBuf, uint8_t TX_PAYLOAD) {
 	// Read the status register
 	status = nRF24_ReadReg(nRF24_REG_STATUS);
 	// Clear pending IRQ flags
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70);
+	nRF24_WriteReg(nRF24_REG_STATUS,status | 0x70);
+
+	// Auto retransmit counter exceeds the programmed maximum limit (FIFO is not removed)
 	if (status & nRF24_MASK_MAX_RT) {
-		// Auto retransmit counter exceeds the programmed maximum limit. FIFO is not removed.
+		// Clear the TX FIFO
 		nRF24_FlushTX();
 
 		return nRF24_TX_MAXRT;
 	};
-	if (status & nRF24_MASK_TX_DS) {
-		// Transmit successful
-//		nRF24_FlushTX(); // Flush TX FIFO buffer (is it really must be here?)
 
-		return nRF24_TX_SUCCESS;
-	}
+	// Transmit successful
+	if (status & nRF24_MASK_TX_DS) return nRF24_TX_SUCCESS;
 
 	// Some banana happens
 	nRF24_FlushTX();
@@ -267,7 +267,7 @@ nRF24_RX_PCKT_TypeDef nRF24_RXPacket(uint8_t * pBuf, uint8_t RX_PAYLOAD) {
 			// Read received payload from RX FIFO buffer
 			nRF24_ReadBuf(nRF24_CMD_R_RX_PAYLOAD,pBuf,RX_PAYLOAD);
 			// Clear pending IRQ flags
-			nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70);
+			nRF24_WriteReg(nRF24_REG_STATUS,status | 0x70);
 			// Check if RX FIFO is empty and flush it if not
 			status = nRF24_ReadReg(nRF24_REG_FIFO_STATUS);
 			if (status & nRF24_FIFO_RX_EMPTY) nRF24_FlushRX();
@@ -280,7 +280,7 @@ nRF24_RX_PCKT_TypeDef nRF24_RXPacket(uint8_t * pBuf, uint8_t RX_PAYLOAD) {
 	}
 
 	// Some banana happens
-	nRF24_FlushRX(); // Flush the RX FIFO buffer
+	nRF24_FlushRX();
 	nRF24_ClearIRQFlags();
 
 	return result;
@@ -291,7 +291,7 @@ void nRF24_ClearIRQFlags(void) {
 	uint8_t status;
 
 	status = nRF24_ReadReg(nRF24_REG_STATUS);
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_STATUS,status | 0x70);
+	nRF24_WriteReg(nRF24_REG_STATUS,status | 0x70);
 }
 
 // Put nRF24 in Power Down mode
@@ -301,7 +301,7 @@ void nRF24_PowerDown(void) {
 	nRF24_CE_L(); // CE pin to low
 	conf  = nRF24_ReadReg(nRF24_REG_CONFIG);
 	conf &= ~(1<<1); // Clear PWR_UP bit
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,conf); // Go Power down mode
+	nRF24_WriteReg(nRF24_REG_CONFIG,conf); // Go Power down mode
 }
 
 // Wake nRF24 from Power Down mode
@@ -310,7 +310,7 @@ void nRF24_Wake(void) {
 	uint8_t conf;
 
 	conf = nRF24_ReadReg(nRF24_REG_CONFIG) | (1<<1); // Set PWR_UP bit
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_CONFIG,conf); // Wake-up
+	nRF24_WriteReg(nRF24_REG_CONFIG,conf); // Wake-up
 }
 
 // Configure RF output power in TX mode
@@ -321,5 +321,5 @@ void nRF24_SetTXPower(nRF24_TXPower_TypeDef TXPower) {
 
 	rf_setup  = nRF24_ReadReg(nRF24_REG_RF_SETUP);
 	rf_setup &= 0xf9; // Clear RF_PWR bits
-	nRF24_WriteReg(nRF24_CMD_WREG | nRF24_REG_RF_SETUP,rf_setup | (uint8_t)TXPower);
+	nRF24_WriteReg(nRF24_REG_RF_SETUP,rf_setup | (uint8_t)TXPower);
 }
