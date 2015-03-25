@@ -104,7 +104,6 @@ void SPIx_Init(SPI_TypeDef *SPI, uint16_t SPI_direction, uint16_t SPI_prescaler)
 	SPI->CR1 = SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_prescaler;
 	if (SPI_direction == SPI_DIR_RX) SPI->CR1 |= SPI_CR1_RXONLY;
 	SPI->I2SCFGR &= ~SPI_I2SCFGR_I2SMOD; // Clear I2SMOD bit - SPI mode
-	SPI->CRCPR = 7; // Polynomial for CRC calculation (must be set when the SPE bit cleared in the CR1 register)
 	SPI->CR1 |= SPI_CR1_SPE; // Enable the specified SPI peripheral
 }
 
@@ -124,6 +123,7 @@ void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler) {
 // input:
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   data - byte to send
+// note: TX only mode
 void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
 	while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
 	SPI->DR = data; // Send byte to SPI (TXE cleared)
@@ -135,6 +135,7 @@ void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
 //   SPI - pointer to the SPI port
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
+// note: TX only mode
 void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	do {
 		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
@@ -148,6 +149,7 @@ void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 //   SPI - pointer to the SPI port
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
+// note: TX only mode
 void SPIx_SendBuf16(SPI_TypeDef *SPI, uint16_t *pBuf, uint32_t length) {
 	do {
 		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
@@ -161,18 +163,52 @@ void SPIx_SendBuf16(SPI_TypeDef *SPI, uint16_t *pBuf, uint32_t length) {
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   data - byte to send
 // return: byte received by SPI
+// note: full duplex mode
 uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data) {
 	SPI->DR = data; // Send byte to SPI (TXE cleared)
 	while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
 
-	return SPI->DR; // Received byte
+	return SPI->DR; // Return received byte
+}
+
+// Receive block of data into specified data buffer
+// input:
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   pBuf - pointer to the data buffer
+//   length - length of the data buffer
+//   dummy - dummy byte to send
+// note: receive only in full duplex mode
+void SPIx_RecvBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length, uint8_t dummy) {
+	while (length--) {
+		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->DR = dummy; // Send dummy byte (TXE cleared)
+		while (!(SPI->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
+		*pBuf++ = SPI->DR; // Read received byte
+	}
+	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+}
+
+// Transmit block of data from specified data buffer and receive data in same buffer
+// input:
+//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   pBuf - pointer to the data buffer
+//   length - length of the data buffer
+// note: receive only in full duplex mode
+void SPIx_SendRecvBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+	while (length--) {
+		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->DR = *pBuf; // Send byte (TXE cleared)
+		while (!(SPI->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
+		*pBuf++ = SPI->DR; // Read received byte
+	}
+	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
 
 // Initialize the DMA peripheral for SPI
 // input:
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   pBuf - pointer to the data buffer
-//   length - length of the buffer size
+//   length - length of the data buffer
 // note: the corresponding DMA peripheral clock must be already enabled
 void SPIx_Configure_DMA_TX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	DMA_Channel_TypeDef *DMAx_Ch;
@@ -195,7 +231,7 @@ void SPIx_Configure_DMA_TX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 // input:
 //   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
 //   pBuf - pointer to the data buffer
-//   length - length of the buffer size
+//   length - length of the data buffer
 // note: the corresponding DMA peripheral clock must be already enabled
 void SPIx_Configure_DMA_RX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	DMA_Channel_TypeDef *DMAx_Ch;
