@@ -1,11 +1,7 @@
 #include <misc.h> // NVIC
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
-//#include <stm32l1xx_dma.h>
 #include <uart.h>
-
-
-uint8_t USART_FIFO[USART_FIFO_SIZE];       // DMA FIFO receive buffer from USART
 
 
 // Initialize and configure UART peripheral with specified baudrate
@@ -53,7 +49,7 @@ void UARTx_Init(USART_TypeDef* USARTx, uint32_t baudrate) {
 
 	// Configure the USART: 8-bit frame, no parity check, TX and RX enabled
 	USARTx->CR1 &= ~(USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE);
-	USARTx->CR1 |= USART_CR1_TE | USART_CR1_RE; // Transmitter and receiver enabled
+	USARTx->CR1 |=  USART_CR1_TE | USART_CR1_RE; // Transmitter and receiver enabled
 
 	// Configure the USART: CTS and RTS hardware flow control disabled
 	USARTx->CR3 &= ~(USART_CR3_CTSE | USART_CR3_RTSE);
@@ -115,45 +111,114 @@ void UARTx_InitRxIRQ(USART_TypeDef* USARTx, uint8_t priority) {
 		NVICInit.NVIC_IRQChannel = USART1_IRQn;
 	} else if (USARTx == USART2) {
 		NVICInit.NVIC_IRQChannel = USART2_IRQn;
+	} else if (USARTx == USART3) {
+		NVICInit.NVIC_IRQChannel = USART3_IRQn;
 	}
 	NVICInit.NVIC_IRQChannelCmd = ENABLE;
 	NVICInit.NVIC_IRQChannelPreemptionPriority = priority;
 	NVIC_Init(&NVICInit);
 }
 
-/*
-// Initialize UART RX DMA
+// Configure the UART TX/RX DMA channels
 // input:
 //   USARTx - pointer to the USART port (USART1, USART2, etc.)
-//   priority - NVIC DMA IRQ preemption priority
-void UARTx_InitRxDMA(USART_TypeDef* USARTx, uint8_t priority) {
-	NVIC_InitTypeDef NVICInit;
-	DMA_InitTypeDef  DMAInit;
+//   DMA_DIR - DMA direction (combination of USART_DMA_xx values)
+//   pBuf - pointer to the data buffer
+//   length - length of the data buffer
+// note: the corresponding DMA peripheral clock must be already enabled
+void UARTx_Configure_DMA(USART_TypeDef* USARTx, uint8_t DMA_DIR, uint8_t *pBuf, uint32_t length) {
+	DMA_Channel_TypeDef *DMAx_Ch;
 
-	// USART RX DMA configuration
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1,ENABLE); // Enable DMA1 peripheral clock
-	DMAInit.DMA_BufferSize = USART_FIFO_SIZE;
-	DMAInit.DMA_DIR = DMA_DIR_PeripheralSRC; // Copy from peripheral
-	DMAInit.DMA_M2M = DMA_M2M_Disable; // Memory-to-memory disable
-	DMAInit.DMA_MemoryBaseAddr = (uint32_t)&USART_FIFO[0]; // Pointer to memory buffer
-	DMAInit.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte; // Write bytes to memory
-	DMAInit.DMA_MemoryInc = DMA_MemoryInc_Enable; // Enable memory counter per write
-	DMAInit.DMA_Mode = DMA_Mode_Normal; // Non-circular mode
-	DMAInit.DMA_PeripheralBaseAddr = (uint32_t)(&USARTx->DR); // Pointer to USART_DR register
-	DMAInit.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte; // Read bytes from peripheral
-	DMAInit.DMA_PeripheralInc = DMA_PeripheralInc_Disable; // Do not increment peripheral pointer
-	DMAInit.DMA_Priority = DMA_Priority_VeryHigh; // Highest priority
-	DMA_Init(DMA1_Channel6,&DMAInit); // USART2_RX connected to DMA1_Channel6 (from datasheet table 54)
-	DMA1_Channel6->CCR |= DMA_CCR6_TCIE; // Enable DMA channel6 transfer complete interrupt
-	DMA1_Channel6->CCR |= DMA_CCR6_EN; // Enable DMA channel6
-
-	// USART2 DMA interrupt
-	NVICInit.NVIC_IRQChannel = DMA1_Channel6_IRQn;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = priority;
-	NVIC_Init(&NVICInit);
+	if (DMA_DIR & USART_DMA_RX) {
+		// USART DMA RX channel
+		if (USARTx == USART1) {
+			DMAx_Ch = USART1_DMA_CH_RX;
+		} else if (USARTx == USART2) {
+			DMAx_Ch = USART2_DMA_CH_RX;
+		} else if (USARTx == USART3) {
+			DMAx_Ch = USART3_DMA_CH_RX;
+		}
+		// DMA: peripheral -> memory, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
+		DMAx_Ch->CCR   = DMA_CCR1_MINC | DMA_CCR1_PL_0;
+		DMAx_Ch->CPAR  = (uint32_t)(&(USARTx->DR)); // Address of the peripheral data register
+		DMAx_Ch->CMAR  = (uint32_t)pBuf; // Memory address
+		DMAx_Ch->CNDTR = length; // Number of DMA transactions
+	}
+	if (DMA_DIR & USART_DMA_TX) {
+		// USART DMA TX channel
+		if (USARTx == USART1) {
+			DMAx_Ch = USART1_DMA_CH_RX;
+		} else if (USARTx == USART2) {
+			DMAx_Ch = USART2_DMA_CH_RX;
+		} else if (USARTx == USART3) {
+			DMAx_Ch = USART3_DMA_CH_RX;
+		}
+		// DMA: memory -> peripheral, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
+		DMAx_Ch->CCR   = DMA_CCR1_DIR | DMA_CCR1_MINC | DMA_CCR1_PL_0;
+		DMAx_Ch->CPAR  = (uint32_t)(&(USARTx->DR)); // Address of the peripheral data register
+		DMAx_Ch->CMAR  = (uint32_t)pBuf; // Memory address
+		DMAx_Ch->CNDTR = length; // Number of DMA transactions
+	}
 }
-*/
+
+// Enable/disable the USART RX/TX DMA channels
+// input:
+//   USARTx - pointer to the USART port (USART1, USART2, etc.)
+//   DMA_DIR - DMA direction (combination of USART_DMA_xx values)
+//   NewState - new state of the channels (ENABLE/DISABLE)
+void UARTx_SetDMA(USART_TypeDef* USARTx, uint8_t DMA_DIR, FunctionalState NewState) {
+	if (NewState == ENABLE) {
+		// Clear DMA interrupt flags and enable RX/TX DMA channels
+		if (USARTx == USART1) {
+			if (DMA_DIR & USART_DMA_TX) {
+				USART1_DMA_PERIPH->IFCR = USART1_DMA_CH_TX_F;
+				USART1_DMA_CH_TX->CCR |= DMA_CCR1_EN;
+			}
+			if (DMA_DIR & USART_DMA_RX) {
+				USART1_DMA_PERIPH->IFCR = USART1_DMA_CH_RX_F;
+				USART1_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+			}
+		} else if (USARTx == USART2) {
+			if (DMA_DIR & USART_DMA_TX) {
+				USART2_DMA_PERIPH->IFCR = USART1_DMA_CH_TX_F;
+				USART2_DMA_CH_TX->CCR |= DMA_CCR1_EN;
+			}
+			if (DMA_DIR & USART_DMA_RX) {
+				USART2_DMA_PERIPH->IFCR = USART1_DMA_CH_RX_F;
+				USART2_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+			}
+		} else if (USARTx == USART3) {
+			if (DMA_DIR & USART_DMA_TX) {
+				USART3_DMA_PERIPH->IFCR = USART1_DMA_CH_TX_F;
+				USART3_DMA_CH_TX->CCR |= DMA_CCR1_EN;
+			}
+			if (DMA_DIR & USART_DMA_RX) {
+				USART3_DMA_PERIPH->IFCR = USART1_DMA_CH_RX_F;
+				USART3_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+			}
+		}
+		// Enable the USART TX DMA
+		if (DMA_DIR & USART_DMA_TX) USARTx->CR2 |= USART_CR3_DMAT;
+		// Enable the USART RX DMA
+		if (DMA_DIR & USART_DMA_RX) USARTx->CR2 |= USART_CR3_DMAR;
+	} else {
+		// Disable the RX/TX DMA channels
+		if (USARTx == USART1) {
+			if (DMA_DIR & USART_DMA_TX) USART1_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
+			if (DMA_DIR & USART_DMA_RX) USART1_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		} else if (USARTx == USART2) {
+			if (DMA_DIR & USART_DMA_TX) USART2_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
+			if (DMA_DIR & USART_DMA_RX) USART2_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		} else if (USARTx == USART3) {
+			if (DMA_DIR & USART_DMA_TX) USART3_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
+			if (DMA_DIR & USART_DMA_RX) USART3_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		}
+		// Disable the USART RX DMA
+		if (DMA_DIR & USART_DMA_RX) USARTx->CR2 &= ~USART_CR3_DMAR;
+		// Disable the USART TX DMA
+		if (DMA_DIR & USART_DMA_TX) USARTx->CR2 &= ~USART_CR3_DMAT;
+	}
+}
 
 // Send single character to UART
 // input:
