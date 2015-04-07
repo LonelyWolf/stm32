@@ -22,6 +22,7 @@
 #include "nRF24.h"
 #include "uart.h"
 #include "ST7541.h"
+#include "GPS.h"
 
 // USB stuff
 #include "usb_lib.h"
@@ -175,6 +176,11 @@ uint8_t lcd_backlight = 10;
 // Flags
 volatile bool _new_time = FALSE;
 
+// USART
+#define USART_FIFO_SIZE    128        // USART FIFO buffer size (must be power of 2)
+uint8_t USART_FIFO[USART_FIFO_SIZE];  // USART FIFO receive buffer
+uint16_t USART_FIFO_pos;                   // Last value of the UART RX DMA counter (to track RX timeout)
+
 // SPL
 GPIO_InitTypeDef PORT;
 NVIC_InitTypeDef NVICInit;
@@ -304,6 +310,89 @@ void RTC_Alarm_IRQHandler(void) {
 	}
 }
 
+// USART2 IRQ handler
+void USART2_IRQHandler(void) {
+	uint32_t SR;
+	uint16_t rcvd;
+
+	// Read the USART status register
+	SR = GPS_USART_PORT->SR;
+
+	// USART byte received
+	if (SR & USART_SR_RXNE) {
+		// Clear the RXNE flag
+		GPS_USART_PORT->SR &= ~USART_SR_RXNE;
+	}
+
+	// USART IDLE line detected
+	if (SR & USART_SR_IDLE) {
+		// Clear the RXNE flag (read SR register followed by a read DR register)
+		(void)GPS_USART_PORT->DR;
+
+		// Copy received data from the USART FIFO buffer to the GPS buffer
+		rcvd = USART_FIFO_SIZE - USART_FIFO_pos - (uint16_t)DMA1_Channel6->CNDTR; // Amount of received data
+		if (rcvd >= (USART_FIFO_SIZE >> 1)) rcvd -= (USART_FIFO_SIZE >> 1); // Data in last half of FIFO
+		// Trim GPS data counter to prevent overflow
+		if (GPS_buf_cntr + rcvd > GPS_BUFFER_SIZE - 1) rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
+		memcpy(&GPS_buf[GPS_buf_cntr],&USART_FIFO[USART_FIFO_pos],rcvd);
+		USART_FIFO_pos += rcvd;
+		GPS_buf_cntr += rcvd;
+		GPS_new_data = TRUE;
+
+//		printf("IDLE: %u %u %u\r\n",GPS_buf_cntr,USART_FIFO_pos,rcvd);
+///*
+		for (rcvd = 0; rcvd < GPS_buf_cntr; rcvd++) {
+			VCP_SendChar(GPS_buf[rcvd]);
+		}
+//*/
+//		memset(USART_FIFO,'#',USART_FIFO_SIZE);
+	}
+
+	// USART overrun error
+	if (SR & USART_SR_ORE) {
+		// Clear the overrun flag (read SR register followed by a read DR register)
+		(void)GPS_USART_PORT->DR;
+
+		printf("OVERRUN %u\r\n",GPS_buf_cntr);
+		GPS_buf_cntr = 0;
+	}
+}
+
+
+// DMA1 channel6 IRQ handler (USART_RX)
+void DMA1_Channel6_IRQHandler() {
+	uint16_t rcvd;
+
+	// Channel6 half-transfer
+	if (DMA1->ISR & DMA_ISR_HTIF6) {
+		// Clear the DMA1 channel6 half-transfer flag
+		DMA1->IFCR = DMA_IFCR_CHTIF6;
+
+		// Copy first half of the FIFO buffer to the GPS buffer
+		rcvd = (USART_FIFO_SIZE >> 1) - USART_FIFO_pos; // Amount of received data
+		// Trim GPS data counter to prevent overflow
+		if (GPS_buf_cntr + rcvd > GPS_BUFFER_SIZE - 1) rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
+		memcpy(&GPS_buf[GPS_buf_cntr],&USART_FIFO[USART_FIFO_pos],rcvd);
+		USART_FIFO_pos = (USART_FIFO_SIZE >> 1);
+		GPS_buf_cntr += rcvd;
+	}
+
+
+	// Channel6 transfer complete
+	if (DMA1->ISR & DMA_ISR_TCIF6) {
+		// Clear the DMA1 channel6 transfer complete flag
+		DMA1->IFCR = DMA_IFCR_CTCIF6;
+
+		// Copy last half of the FIFO buffer to the GPS buffer
+		rcvd = USART_FIFO_SIZE - USART_FIFO_pos; // Amount of received data
+		// Trim GPS data counter to prevent overflow
+		if (GPS_buf_cntr + rcvd > GPS_BUFFER_SIZE - 1) rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
+		memcpy(&GPS_buf[GPS_buf_cntr],&USART_FIFO[USART_FIFO_pos],rcvd);
+		USART_FIFO_pos = 0;
+		GPS_buf_cntr += rcvd;
+	}
+}
+
 // EXTI0 line IRQ handler
 void EXTI0_IRQHandler(void) {
 	if (EXTI->PR & BTN3_EXTI) {
@@ -316,8 +405,6 @@ void EXTI0_IRQHandler(void) {
 // EXTI1 line IRQ handler
 void EXTI1_IRQHandler(void) {
 	nRF24_RX_PCKT_TypeDef RX_status;
-	uint8_t CRC_local;
-	uint16_t wake_diff;
 	uint16_t *ptr = (uint16_t *)&nRF24_RX_Buf;
 
 	if (EXTI->PR & nRF24_IRQ_EXTI) {
@@ -340,6 +427,9 @@ void EXTI1_IRQHandler(void) {
 			nRF24_Packet.cntr_wake = __builtin_bswap16(*ptr++);
 			nRF24_Packet.CRC8 = nRF24_RX_Buf[10];
 
+			_new_packet = TRUE;
+
+/*
 			CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
 			if (CRC_local == nRF24_Packet.CRC8) {
 				if (_prev_wake_cntr == 0xDEADBEEF) _prev_wake_cntr = nRF24_Packet.cntr_wake;
@@ -364,12 +454,10 @@ void EXTI1_IRQHandler(void) {
 //				BEEPER_Enable(333,1);
 			}
 			_packets_rcvd++;
-			_new_packet = TRUE;
+*/
 		} else {
-			printf("nRF24_RXPacket:%02X (not a PIPE0)\r\n",(uint8_t)RX_status);
 //			BEEPER_Enable(5000,3);
 		}
-
 
 		// Disable sleep-on-exit (return to main loop from IRQ)
 		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -480,6 +568,35 @@ uint32_t InterquartileMean(uint16_t *array, uint32_t numOfSamples) {
 	return (sum / (numOfSamples >> 1));
 }
 
+// Parse the GPS data buffer
+void ParseGPS(void) {
+//	BEEPER_Enable(222,1);
+	GPS_InitData(); // Clear previously parsed GPS data
+	while (GPS_msg.end < GPS_buf_cntr) {
+		GPS_FindSentence(&GPS_msg,GPS_buf,GPS_msg.end,GPS_buf_cntr);
+		if (GPS_msg.type != NMEA_BAD) {
+			GPS_sentences_parsed++;
+			GPS_ParseSentence(GPS_buf,&GPS_msg);
+		} else GPS_sentences_unknown++;
+	}
+	GPS_buf_cntr = 0;
+	if (GPS_sentences_parsed) {
+		GPS_CheckUsedSats();
+		if (GPSData.fix == 3) {
+			// GPS altitude makes sense only in case of 3D fix
+			CurData.GPSAlt = GPSData.altitude;
+			if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
+			if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
+		}
+		if (GPSData.fix == 2 || GPSData.fix == 3) {
+			// GPS speed makes sense only in case of 2D or 3D position fix
+			CurData.GPSSpeed = GPSData.speed;
+			if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
+		}
+		GPS_new_data = FALSE;
+		GPS_parsed = TRUE;
+	}
+}
 
 
 
@@ -593,6 +710,7 @@ int main(void) {
 
 	// Setup the microcontroller system
 	SystemInit();
+	SystemCoreClockUpdate();
 
 
 
@@ -604,7 +722,7 @@ int main(void) {
 
 
 /*
-	// NVIC: 2 bit for pre-emption priority, 2 bits for subpriority
+	// NVIC: 2 bit for preemption priority, 2 bits for subpriority
 	// WARNING: this stuff will be re-setup in USB init routine
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 */
@@ -618,9 +736,13 @@ int main(void) {
 
 
 
+///*
 	// UART port initialization
-	UARTx_Init(USART2,1382400);
-	UART_SendStr(USART2,"--- STM32L151RDT6 ---\r\n");
+//	UARTx_Init(GPS_USART_PORT,USART_RX | USART_TX,1382400);
+//	UARTx_Init(GPS_USART_PORT,USART_RX | USART_TX,9600);
+	UARTx_Init(GPS_USART_PORT,USART_RX | USART_TX,115200);
+	UART_SendStr(GPS_USART_PORT,"--- STM32L151RDT6 ---\r\n");
+//*/
 
 
 
@@ -740,7 +862,8 @@ int main(void) {
 	// Initialize display and clear screen
 	ST7541_InitGPIO();
 	ST7541_Init();
-	ST7541_Contrast(7,7,24);
+//	ST7541_Contrast(6,6,36); // External booster 10.6V
+	ST7541_Contrast(7,7,24); // Internal booster/External booster 12.5V
 	ST7541_Fill(0x0000);
 	ST7541_Flush();
 
@@ -817,14 +940,14 @@ int main(void) {
 
 	_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 
-/*
+///*
 	if (_USB_connected) {
 		// Configure the USB peripheral
 		USB_HWConfig();
 		// Initialize the USB device
 		USB_Init();
 	}
-*/
+//*/
 
 
 
@@ -1036,86 +1159,6 @@ int main(void) {
 
 
 
-	// nRF24 SPI port initialization: 2 lines full duplex, highest speed (16MHz at 32MHz CPU)
-	SPIx_Init(nRF24_SPI_PORT,SPI_DIR_DUPLEX,SPI_BR_2);
-
-	// Initialize and configure nRF24
-	nRF24_Init();
-	j = nRF24_Check();
-	printf("nRF24L01+: %s\r\n",(j) ? "PRESENT" : "FAIL");
-
-	// Dump nRF24L01+ registers
-	if (j) {
-		printf("nRF24L01+ registers:\r\n");
-		for (i = 0; i < 0x1d; i++) {
-			j = nRF24_ReadReg(i);
-			printf("R%02X=0x%02X%s",i,j,((i + 1) % 8) ? " " : "\r\n");
-		}
-
-		// Configure nRF24 IRQ EXTI line
-		EXTI->PR    =  nRF24_IRQ_EXTI; // Clear IT pending bit for EXTI
-		EXTI->IMR  |=  nRF24_IRQ_EXTI; // Enable interrupt request from EXTI
-		EXTI->EMR  &= ~nRF24_IRQ_EXTI; // Disable event on EXTI
-		EXTI->RTSR &= ~nRF24_IRQ_EXTI; // Trigger rising edge disabled
-		EXTI->FTSR |=  nRF24_IRQ_EXTI; // Trigger falling edge enabled
-
-		// PB1 as source input for EXTI1
-		SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI1; // Clear bits (PA[x] pin as input source)
-		SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI1_PB; // Set PB[x] pin as input source
-
-/*
-		// Enable the nRF24 IRQ pin interrupt
-		NVICInit.NVIC_IRQChannel = nRF24_IRQ_EXTI_N;
-		NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
-		NVICInit.NVIC_IRQChannelSubPriority = 0;
-		NVICInit.NVIC_IRQChannelCmd = ENABLE;
-		NVIC_Init(&NVICInit);
-*/
-
-		// Simple enable the nRF24 IRQ pin interrupt
-		NVIC_EnableIRQ(nRF24_IRQ_EXTI_N);
-
-		// Configure nRF24 receive mode
-		nRF24_Wake();
-#ifdef NRF24_SOLAR
-		// Solar powered temperature sensor
-		nRF24_RXMode(
-				nRF24_RX_PIPE0,           // RX on PIPE#0
-				nRF24_ENAA_P0,            // Auto acknowledgment enabled for PIPE#0
-				nRF24_RF_CHANNEL,         // RF Channel
-				nRF24_DataRate_1Mbps,     // Data rate
-				nRF24_CRC_2byte,          // CRC scheme
-				(uint8_t *)nRF24_RX_Addr, // RX address
-				nRF24_RX_Addr_Size,       // RX address size
-				nRF24_RX_PAYLOAD,         // Payload length
-				nRF24_TXPower_0dBm        // TX power for auto acknowledgment
-				);
-#else
-		// WBC
-		nRF24_RXMode(
-				nRF24_RX_PIPE0,           // RX on PIPE#0
-				nRF24_ENAA_OFF,           // Auto acknowledgment
-				nRF24_RF_CHANNEL,         // RF Channel
-				nRF24_DataRate_250kbps,   // Data rate
-				nRF24_CRC_2byte,          // CRC scheme
-				(uint8_t *)nRF24_RX_Addr, // RX address
-				nRF24_RX_Addr_Size,       // RX address size
-				nRF24_RX_PAYLOAD,         // Payload length
-				nRF24_TXPower_0dBm        // TX power for auto acknowledgment
-				);
-#endif
-	    nRF24_ClearIRQFlags();
-	    nRF24_FlushRX();
-
-//	    nRF24_PowerDown();
-
-	    printf("\r\n---------------------------------------------\r\n");
-	}
-
-
-
-
-///*
 	// Check Vbat measurement
 
 	// Enable the PORTA peripheral
@@ -1151,7 +1194,6 @@ int main(void) {
 	// Enable the ADC
 	ADC1->CR2 |= ADC_CR2_ADON;
 	while (!(ADC1->SR & ADC_SR_ADONS)); // Wait until ADC is on
-//*/
 
 
 
@@ -1168,8 +1210,8 @@ int main(void) {
 		printf("  ...ping BMC050A: %s\r\n",(I2Cx_IsDeviceReady(I2C1,BMC050_ACC_ADDR,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
 		printf("  ...ping BMC050M: %s\r\n",(I2Cx_IsDeviceReady(I2C1,BMC050_MAG_ADDR,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
 		printf("  ...ping   FAKE2: %s\r\n",(I2Cx_IsDeviceReady(I2C1,0xDD,10) == I2C_SUCCESS) ? "OK" : "NO RESPOND");
-	    printf("---------------------------------------------\r\n");
 	}
+    printf("---------------------------------------------\r\n");
 
 
 
@@ -1378,24 +1420,41 @@ int main(void) {
 
 /*
 		// DMA read speed test
-		d0 = 0; d1 = 0; k = 0; i = 0;
-		printf("Started------>\r\n");
-		do {
-			j = SD_ReadBlock_DMA(0,(uint32_t *)sector,512);
-			if (j == SDR_Success) {
-				j = SD_CheckRead(512);
-				if (j != SDR_Success) d0++;
-			} else d1++;
-			k += 512;
-			i++;
-		} while (k < 10485760); // 10MB read
-//		} while (k < 104857600); // 100MB read
-		printf("<--------Ended\r\n");
-		printf("Failed: %u[%u] from %u\r\n",d0,d1,i);
-	    printf("---------------------------------------------\r\n");
+	    RTC_SetWakeUp(10);
+	    _new_time = FALSE;
+	    uint32_t bc = 0; // Block counter
+	    uint32_t oc = 0; // 'Read OK' counter
+	    uint32_t fc = 0; // 'Read FAIL' counter
+	    while(1) {
+	    	while (!_new_time) {
+	    		j = SD_ReadBlock_DMA(0,(uint32_t *)sector,sizeof(sector));
+	    		if (j == SDR_Success) {
+	    			j = SD_CheckRead(sizeof(sector));
+	    			if (j == SDR_Success) oc++; else fc++;
+	    		} else fc++;
+	    		bc++;
+	    	}
+	    	j = (oc * sizeof(sector));
+	    	i = j / 10;
+	    	printf("DMA read (block = %ub): %u blocks [%u bytes] (%u OK / %u FAIL) SPEED: ~%u b/s\r\n",sizeof(sector),bc,j,oc,fc,i);
+	    	_new_time = FALSE;
+	    	oc = 0; fc = 0; bc = 0;
+	    }
+	    // Single block read (512b):
+	    // 16MHz 1-bit: 20850 blocks [10675200 bytes] (20850 OK / 0 FAIL) SPEED: ~1067520 b/s
+	    // 16MHz 4-bit: 34664 blocks [17747968 bytes] (34664 OK / 0 FAIL) SPEED: ~1774796 b/s
+	    // 24MHz 1-bit: 25415 blocks [13012480 bytes] (25415 OK / 0 FAIL) SPEED: ~1301248 b/s
+	    // 24MHz 4-bit: 37650 blocks [19276800 bytes] (37650 OK / 0 FAIL) SPEED: ~1927680 b/s
+	    // Multiple block read (2048b):
+	    // 16MHz 4-bit: 16611 blocks [34019328 bytes] (16611 OK / 0 FAIL) SPEED: ~3401932 b/s
+	    // 24MHz 4-bit: 16607 blocks [34011136 bytes] (16607 OK / 0 FAIL) SPEED: ~3401113 b/s
+	    // Multiple block read (8192b):
+	    // 24MHz 4-bit: 5716 blocks [46825472 bytes] (5716 OK / 0 FAIL) SPEED: ~4682547 b/s
+	    // Multiple block read (16384b):
+	    // 24MHz 4-bit: 3050 blocks [49971200 bytes] (3050 OK / 0 FAIL) SPEED: ~4997120 b/s
+	    // Multiple block read (32768b):
+	    // 24MHz 4-bit: 1578 blocks [51707904 bytes] (1578 OK / 0 FAIL) SPEED: ~5170790 b/s
 */
-
-//		while(1);
 
 /*
 		// Write block test
@@ -1523,7 +1582,7 @@ int main(void) {
 				while (!DFS_GetNext(&vi,&di,&de)) {
 					if (de.name[0]) {
 						// Warning: there is no zero terminator in name
-						printf("file: \"%s\" [%c%c%c%c%c] %10u\r\n",
+						printf("\"%s\" [%c%c%c%c%c] %10u\r\n",
 								de.name,
 								(de.attr & ATTR_DIRECTORY) ? 'D' : '-',
 								(de.attr & ATTR_READ_ONLY) ? 'R' : '-',
@@ -1542,7 +1601,7 @@ int main(void) {
 				while (!DFS_GetNext(&vi,&di,&de)) {
 					if (de.name[0]) {
 						// Warning: there is no zero terminator in name
-						printf("file: \"%s\" [%c%c%c%c%c] %10u\r\n",
+						printf("\"%s\" [%c%c%c%c%c] %10u\r\n",
 								de.name,
 								(de.attr & ATTR_DIRECTORY) ? 'D' : '-',
 								(de.attr & ATTR_READ_ONLY) ? 'R' : '-',
@@ -1557,16 +1616,157 @@ int main(void) {
 
 		// END OF SD CARD THESTS
 	}
-
-
-
-
     printf("---------------------------------------------\r\n");
 
 
 
 
+	// nRF24 SPI port initialization: 2 lines full duplex, highest speed (16MHz at 32MHz CPU)
+	SPIx_Init(nRF24_SPI_PORT,SPI_DIR_DUPLEX,SPI_BR_2);
+
+	// Initialize and configure nRF24
+	nRF24_Init();
+	j = nRF24_Check();
+	printf("nRF24L01+: %s\r\n",(j) ? "PRESENT" : "FAIL");
+
+	// Dump nRF24L01+ registers
+	if (j) {
+		printf("nRF24L01+ registers:\r\n");
+		for (i = 0; i < 0x1d; i++) {
+			j = nRF24_ReadReg(i);
+			printf("R%02X=0x%02X%s",i,j,((i + 1) % 8) ? " " : "\r\n");
+		}
+		printf("\r\n");
+
+		// Configure nRF24 IRQ EXTI line
+		EXTI->PR    =  nRF24_IRQ_EXTI; // Clear IT pending bit for EXTI
+		EXTI->IMR  |=  nRF24_IRQ_EXTI; // Enable interrupt request from EXTI
+		EXTI->EMR  &= ~nRF24_IRQ_EXTI; // Disable event on EXTI
+		EXTI->RTSR &= ~nRF24_IRQ_EXTI; // Trigger rising edge disabled
+		EXTI->FTSR |=  nRF24_IRQ_EXTI; // Trigger falling edge enabled
+
+		// PB1 as source input for EXTI1
+		SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI1; // Clear bits (PA[x] pin as input source)
+		SYSCFG->EXTICR[0] |=  SYSCFG_EXTICR1_EXTI1_PB; // Set PB[x] pin as input source
+
+/*
+		// Enable the nRF24 IRQ pin interrupt
+		NVICInit.NVIC_IRQChannel = nRF24_IRQ_EXTI_N;
+		NVICInit.NVIC_IRQChannelPreemptionPriority = 2;
+		NVICInit.NVIC_IRQChannelSubPriority = 0;
+		NVICInit.NVIC_IRQChannelCmd = ENABLE;
+		NVIC_Init(&NVICInit);
+*/
+
+		// Simple enable the nRF24 IRQ pin interrupt
+		NVIC_EnableIRQ(nRF24_IRQ_EXTI_N);
+
+		// Configure nRF24 receive mode
+		nRF24_Wake();
+#ifdef NRF24_SOLAR
+		// Solar powered temperature sensor
+		nRF24_RXMode(
+				nRF24_RX_PIPE0,           // RX on PIPE#0
+				nRF24_ENAA_P0,            // Auto acknowledgment enabled for PIPE#0
+				nRF24_RF_CHANNEL,         // RF Channel
+				nRF24_DataRate_1Mbps,     // Data rate
+				nRF24_CRC_2byte,          // CRC scheme
+				(uint8_t *)nRF24_RX_Addr, // RX address
+				nRF24_RX_Addr_Size,       // RX address size
+				nRF24_RX_PAYLOAD,         // Payload length
+				nRF24_TXPower_0dBm        // TX power for auto acknowledgment
+				);
+#else
+		// WBC
+		nRF24_RXMode(
+				nRF24_RX_PIPE0,           // RX on PIPE#0
+				nRF24_ENAA_OFF,           // Auto acknowledgment
+				nRF24_RF_CHANNEL,         // RF Channel
+				nRF24_DataRate_250kbps,   // Data rate
+				nRF24_CRC_2byte,          // CRC scheme
+				(uint8_t *)nRF24_RX_Addr, // RX address
+				nRF24_RX_Addr_Size,       // RX address size
+				nRF24_RX_PAYLOAD,         // Payload length
+				nRF24_TXPower_0dBm        // TX power for auto acknowledgment
+				);
+#endif
+	    nRF24_ClearIRQFlags();
+	    nRF24_FlushRX();
+
+//	    nRF24_PowerDown();
+
+	}
+    printf("---------------------------------------------\r\n");
+
+
+
+
+    // GPS
+	printf("GPS enable...\r\n");
+
+	// Reset GPS variables
+	USART_FIFO_pos = 0;
+	GPS_buf_cntr = 0;
+	GPS_new_data = FALSE;
+	GPS_parsed = FALSE;
+	GPS_sentences_parsed = 0;
+	GPS_sentences_unknown = 0;
+
+	// Enable power to the GPS module
+	PWR_GPS_ENABLE_H();
+
+	// The GPS USART port initialization
+	UARTx_Init(GPS_USART_PORT,USART_TX | USART_RX,9600); // Use slow speed at startup
+//	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_RXNE,0x0c); // Enable the USART RXNE IRQ with 0x0C priority
+//	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_RXNE,0xff); // Enable the USART RXNE IRQ with standard priority
+	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_IDLE,0xff); // Enable the USART IDLE IRQ with standard priority
+//	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_RXNE | USART_IRQ_IDLE,0xff); // Enable the USART RXNE and IDLE IRQs with standard priority
+
+	// Configure the GPS USART DMA
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
+	UARTx_ConfigureDMA(GPS_USART_PORT,USART_DMA_RX,USART_DMA_BUF_CIRC,USART_FIFO,USART_FIFO_SIZE); // Configure the USART RX DMA channel
+	DMA1_Channel6->CCR |= DMA_CCR6_TCIE | DMA_CCR6_HTIE; // Enable the DMA channel6 HT/TC IRQs
+	NVIC_EnableIRQ(DMA1_Channel6_IRQn); // Enable the DMA channel6 IRQ
+
+	// Enable the USART receiver DMA
+//	UARTx_SetDMA(GPS_USART_PORT,USART_DMA_RX,ENABLE); // Same as the three following lines, but adds 440 bytes of code
+	DMA1->IFCR = DMA_IFCR_CGIF6 | DMA_IFCR_CHTIF6 | DMA_IFCR_CTCIF6 | DMA_IFCR_CTEIF6; // Clear the DMA channel6 IRQ flags
+	DMA1_Channel6->CCR |= DMA_CCR1_EN; // Enable the DMA channel6
+	GPS_USART_PORT->CR3 |= USART_CR3_DMAR; // Enable the USART receiver DMA
+
+	// Initialize GPS module
+//	GPS_Init();
+
+
+
+
+	printf("---------------------------------------------\r\n");
 	BEEPER_Enable(2500,1);
+
+
+
+
+/*
+	while (1) {
+		// Get charger STAT pin state
+		i = 0;
+		CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
+		printf("FL=%u ",(unsigned int)((CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) ? 1 : 0));
+		if (CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) i++;
+
+		CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
+		CHRG_STAT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR2_0; // Pull-up
+		printf("PU=%u ",(unsigned int)((CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) ? 1 : 0));
+
+		CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
+		CHRG_STAT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR2_1; // Pull-down
+		printf("PD=%u\r\n",(unsigned int)((CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) ? 1 : 0));
+
+		CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
+
+		Delay_ms(5000);
+	}
+*/
 
 
 
@@ -1610,6 +1810,10 @@ int main(void) {
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
 
 ///*
+	// This for nRF24 packet handling
+	uint8_t CRC_local;
+	uint16_t wake_diff;
+
 	// GFX Demo (rotozoomer with checkerboard or XOR texture)
 	float ca,sa;
 	float scalee = 0.5;
@@ -1628,7 +1832,7 @@ int main(void) {
 		sa = scalee * sinf(angle);
 		xrow = sa;
 		yrow = ca;
-		for (j = 31; j < 127; j++) {
+		for (j = 48; j < 127; j++) {
 			x = xrow;
 			y = yrow;
 			for (i = 1; i < 127; i++) {
@@ -1643,8 +1847,8 @@ int main(void) {
 		angle += 0.05;
 		scalee += ((scalee <= 0.10) || (scalee >= 1.3)) ? dscalee *= -1: dscalee;
 
-		Rect(0,30,127,127,gs_black);
-		FillRect(0,0,127,29,gs_white);
+		Rect(0,47,127,127,gs_black);
+		FillRect(0,0,127,46,gs_white);
 
 		// Draw FPS with shadow effect
 		lcd_color = gs_ltgray;
@@ -1681,14 +1885,83 @@ int main(void) {
 		i += PutIntLZ(i,22,_date.RTC_Year,2,fnt5x7);
 		PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay - 1],fnt5x7);
 
+		// GPS info
+		i = 0;
+		i += PutStr(i,30,"NMEA:",fnt5x7) - 1;
+		i += PutIntU(i,30,GPS_sentences_parsed,fnt5x7) - 1;
+		i += DrawChar(i,30,'/',fnt5x7) - 1;
+		i += PutIntU(i,30,GPS_sentences_unknown,fnt5x7) + 5;
+		i += PutStr(i,30,"Fix:",fnt5x7) - 1;
+		i += PutIntU(i,30,GPSData.fix,fnt5x7) + 5;
+		i += DrawChar(i,30,GPSData.mode,fnt5x7);
+		i = 0;
+		i += PutStr(i,38,"Sat:",fnt5x7) - 1;
+		i += PutIntU(i,38,GPSData.sats_used,fnt5x7) - 1;
+		i += DrawChar(i,38,'/',fnt5x7) - 1;
+		i += PutIntU(i,38,GPSData.sats_view,fnt5x7) - 1;
+
 
 		ST7541_Flush_DMA();
 		k++;
+
+		if (GPS_new_data) {
+			// New GPS packets received
+			ParseGPS();
+		}
+
+		if (GPS_parsed) {
+			// GPS data parsed
+			printf("GPS parsed: PCKT=%s DT=%s FIX=%u %u DATE=%u %u\r\n--------\r\n",
+					GPSData.valid ? "VALID" : "INVALID",
+					GPSData.datetime_valid ? "VALID" : "INVALID",
+					GPSData.fix_time,
+					GPSData.fix_date,
+					GPSData.time,
+					GPSData.date
+			);
+			if (GPSData.datetime_valid) {
+				// Date and time obtained from GPS
+				_time.RTC_Hours   =  GPSData.time / 3600;
+				_time.RTC_Minutes = (GPSData.time / 60) % 60;
+				_time.RTC_Seconds =  GPSData.time % 60;
+				i = GPSData.date / 1000000;
+				_date.RTC_Date  = i;
+				_date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
+				_date.RTC_Year  = (GPSData.date % 10000) - 2000;
+//				RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
+				RTC_SetDateTime(&_time,&_date);
+			}
+			GPS_parsed = FALSE;
+		}
 
 		if (_new_time) {
 			d0 = k;
 			_new_time = FALSE;
 			k = 0;
+		}
+
+		if (_new_packet) {
+			CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
+			if (CRC_local == nRF24_Packet.CRC8) {
+				if (_prev_wake_cntr == 0xDEADBEEF) _prev_wake_cntr = nRF24_Packet.cntr_wake;
+				if (nRF24_Packet.cntr_wake < _prev_wake_cntr) _prev_wake_cntr = nRF24_Packet.cntr_wake;
+				wake_diff = nRF24_Packet.cntr_wake - _prev_wake_cntr;
+				printf("wake: %u[%u] diff: %u vbat=%u.%02uV pkts: %u\\%u [%u%%]\r\n",
+						nRF24_Packet.cntr_wake,
+						_prev_wake_cntr,
+						wake_diff,
+						nRF24_Packet.vrefint / 100,nRF24_Packet.vrefint % 100,
+						_packets_rcvd,
+						_packets_lost,
+						(_packets_lost * 100) / (_packets_rcvd + _packets_lost)
+				);
+				_prev_wake_cntr = nRF24_Packet.cntr_wake;
+				if (wake_diff > 1) {
+					_packets_lost += wake_diff - 1;
+				}
+			}
+			_packets_rcvd++;
+			_new_packet = FALSE;
 		}
 
 	    if (BTN[BTN_UP].state == BTN_Pressed) {
