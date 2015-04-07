@@ -349,9 +349,8 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
 
 		// Date of fix
 		if (buf[pos] != ',') {
-			GPSData.fix_date  = atos_len(&buf[pos],2) * 1000000;    // Day
-			GPSData.fix_date += atos_len(&buf[pos + 2],2) * 100000; // Month
-//			GPSData.fix_date += atos_len(&buf[pos + 4],2) + 2000;   // Year (two digits)
+			GPSData.fix_date  = atos_len(&buf[pos],2) * 1000000; // Day
+			GPSData.fix_date += atos_len(&buf[pos + 2],2) * 10000; // Month
 			i = atos_len(&buf[pos + 4],2); // Year (two digits)
 			// Some receivers report date year as 70 or 80 when their internal clock has
 			// not yet synchronized with the satellites
