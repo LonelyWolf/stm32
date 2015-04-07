@@ -107,5 +107,6 @@ void RTC_ITConfig(uint32_t IT, FunctionalState NewState);
 uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t offset);
+RTC_CalcDOW(RTC_DateTypeDef *date);
 
 #endif // __RTC_H

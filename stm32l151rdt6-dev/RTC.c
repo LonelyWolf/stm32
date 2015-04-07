@@ -459,3 +459,17 @@ void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t off
 	epoch = RTC_ToEpoch(time,date) + (offset * 3600);
 	RTC_FromEpoch(epoch,time,date);
 }
+
+// Day Of Week calculation from specified date
+// input:
+//   date - pointer to RTC_Date structure with date
+// return: RTC_WeekDay field of date structure will be modified
+RTC_CalcDOW(RTC_DateTypeDef *date) {
+	int16_t adjustment, mm, yy;
+
+	adjustment = (14 - date->RTC_Month) / 12;
+	mm = date->RTC_Month + (12 * adjustment) - 2;
+	yy = date->RTC_Year - adjustment;
+
+	date->RTC_WeekDay = (date->RTC_Date + ((13 * mm - 1) / 5) + yy + (yy / 4) - (yy / 100) + (yy / 400)) % 7;
+}
