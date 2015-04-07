@@ -1,7 +1,7 @@
-#include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
+#include <stm32l1xx_gpio.h>
 
-#include <i2c.h>
+#include "i2c.h"
 
 
 // Wait for specified I2C event (combination of I2C flags)
@@ -80,37 +80,37 @@ I2C_Status I2Cx_Init(I2C_TypeDef* I2Cx, uint32_t Clock) {
 	RCC_ClocksTypeDef RCC_Clocks; // To compute I2C speed depending on current MCU clocking
 	uint16_t reg, spd, freq;
 
-	// Initialize I2C GPIO peripherals
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
 	PORT.GPIO_OType = GPIO_OType_OD;
 	PORT.GPIO_Mode  = GPIO_Mode_AF;
 	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
+
 	if (I2Cx == I2C1) {
-		// I2C1
-		RCC->AHBENR  |= I2C1_PERIPH;
-		RCC->APB1ENR |= I2C1_CLOCK;
+		// Enable the I2C1 peripheral clock
+		RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
 		// Reset the I2C1 peripheral to initial state
-		RCC->APB1RSTR |=  I2C1_CLOCK;
-		RCC->APB1RSTR &= ~I2C1_CLOCK;
-		// Change GPIO pins mapping to I2C
-		GPIO_PinAFConfig(I2C1_GPIO_PORT,I2C1_SCL_PIN_SRC,GPIO_AF_I2C1);
-		GPIO_PinAFConfig(I2C1_GPIO_PORT,I2C1_SDA_PIN_SRC,GPIO_AF_I2C1);
-		// Initialize I2C1 GPIO peripheral
-		PORT.GPIO_Pin = I2C1_SCL_PIN | I2C1_SDA_PIN;
+		RCC->APB1RSTR |=  RCC_APB1RSTR_I2C1RST;
+		RCC->APB1RSTR &= ~RCC_APB1RSTR_I2C1RST;
+		// Enable the I2Cx GPIO peripheral clock
+		RCC->AHBENR |= I2C1_GPIO_AHB;
+		// Initialize the I2C1 GPIO peripheral
+		PORT.GPIO_Pin = I2C1_GPIO_SCL | I2C1_GPIO_SDA;
 		GPIO_Init(I2C1_GPIO_PORT,&PORT);
+		GPIO_PinAFConfig(I2C1_GPIO_PORT,I2C1_GPIO_SCL_SRC,GPIO_AF_I2C1);
+		GPIO_PinAFConfig(I2C1_GPIO_PORT,I2C1_GPIO_SDA_SRC,GPIO_AF_I2C1);
 	} else {
-		// I2C2
-		RCC->AHBENR  |= I2C2_PERIPH;
-		RCC->APB1ENR |= I2C2_CLOCK;
+		// Enable the I2C2 peripheral clock
+		RCC->APB1ENR |= RCC_APB1ENR_I2C2EN;
 		// Reset the I2C2 peripheral to initial state
-		RCC->APB1RSTR |=  I2C2_CLOCK;
-		RCC->APB1RSTR &= ~I2C2_CLOCK;
-		// Change GPIO pins mapping to I2C
-		GPIO_PinAFConfig(I2C2_GPIO_PORT,I2C2_SCL_PIN_SRC,GPIO_AF_I2C2);
-		GPIO_PinAFConfig(I2C2_GPIO_PORT,I2C2_SDA_PIN_SRC,GPIO_AF_I2C2);
-		// Initialize I2C2 GPIO peripheral
-		PORT.GPIO_Pin = I2C2_SCL_PIN | I2C2_SDA_PIN;
+		RCC->APB1RSTR |=  RCC_APB1RSTR_I2C2RST;
+		RCC->APB1RSTR &= ~RCC_APB1RSTR_I2C2RST;
+		// Enable the I2Cx GPIO peripheral clock
+		RCC->AHBENR |= I2C2_GPIO_AHB;
+		// Initialize the I2C2 GPIO peripheral
+		PORT.GPIO_Pin = I2C2_GPIO_SCL | I2C2_GPIO_SDA;
 		GPIO_Init(I2C2_GPIO_PORT,&PORT);
+		GPIO_PinAFConfig(I2C2_GPIO_PORT,I2C2_GPIO_SCL_SRC,GPIO_AF_I2C2);
+		GPIO_PinAFConfig(I2C2_GPIO_PORT,I2C2_GPIO_SDA_SRC,GPIO_AF_I2C2);
 	}
 
 	// Configure the I2C peripheral

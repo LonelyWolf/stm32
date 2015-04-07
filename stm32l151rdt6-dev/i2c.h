@@ -6,22 +6,20 @@
 // I2C HAL
 
 // I2C1
-#define I2C1_SCL_PIN      GPIO_Pin_6  // PB6
-#define I2C1_SDA_PIN      GPIO_Pin_7  // PB7
-#define I2C1_SCL_PIN_SRC  GPIO_PinSource6
-#define I2C1_SDA_PIN_SRC  GPIO_PinSource7
-#define I2C1_GPIO_PORT    GPIOB
-#define I2C1_CLOCK        RCC_APB1Periph_I2C1
-#define I2C1_PERIPH       RCC_AHBPeriph_GPIOB
+#define I2C1_GPIO_AHB      RCC_AHBENR_GPIOBEN
+#define I2C1_GPIO_PORT     GPIOB
+#define I2C1_GPIO_SCL      GPIO_Pin_6 // PB6
+#define I2C1_GPIO_SDA      GPIO_Pin_7 // PB7
+#define I2C1_GPIO_SCL_SRC  GPIO_PinSource6
+#define I2C1_GPIO_SDA_SRC  GPIO_PinSource7
 
 // I2C2
-#define I2C2_SCL_PIN      GPIO_Pin_10 // PB10
-#define I2C2_SDA_PIN      GPIO_Pin_11 // PB11
-#define I2C2_SCL_PIN_SRC  GPIO_PinSource10
-#define I2C2_SDA_PIN_SRC  GPIO_PinSource11
-#define I2C2_GPIO_PORT    GPIOB
-#define I2C2_CLOCK        RCC_APB1Periph_I2C2
-#define I2C2_PERIPH       RCC_AHBPeriph_GPIOB
+#define I2C2_GPIO_AHB      RCC_AHBENR_GPIOBEN
+#define I2C2_GPIO_PORT     GPIOB
+#define I2C2_GPIO_SCL      GPIO_Pin_10 // PB10
+#define I2C2_GPIO_SDA      GPIO_Pin_11 // PB11
+#define I2C2_GPIO_SCL_SRC  GPIO_PinSource10
+#define I2C2_GPIO_SDA_SRC  GPIO_PinSource11
 
 
 // Result of I2C procedures
