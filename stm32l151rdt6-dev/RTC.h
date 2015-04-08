@@ -62,8 +62,9 @@
 
 static const uint16_t week_day[] = { 0x4263, 0xA8BD, 0x42BF, 0x4370, 0xABBF, 0xA8BF, 0x43B2 };
 
-// Days of week text notation
+// Days of week text notation (first element is empty, because RTC count days from '1')
 static char const * const RTC_DOW_STR[] = {
+		"",
 		"MON",
 		"TUE",
 		"WED",

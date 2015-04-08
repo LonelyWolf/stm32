@@ -428,7 +428,7 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	tm = t1;    t1 = tm / 60; min  = tm - (t1 * 60);
 	tm = t1;    t1 = tm / 24; hour = tm - (t1 * 24);
 
-	dow   = JDN % 7;
+	dow   = (JDN % 7) + 1;
 	a     = JDN + 32044;
 	b     = ((4 * a) + 3) / 146097;
 	c     = a - ((146097 * b) / 4);
