@@ -2,6 +2,7 @@
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_syscfg.h>
 #include <misc.h>
+#include <string.h>
 #include <math.h> // Don't forget to add '-lm' linker option (damn CoIDE)
 
 // Debug
@@ -34,6 +35,7 @@
 // Resources
 #include <font5x7.h>
 #include <font7x10.h>
+#include <slender_head.h>
 
 
 
@@ -326,9 +328,6 @@ void USART2_IRQHandler(void) {
 
 	// USART IDLE line detected
 	if (SR & USART_SR_IDLE) {
-		// Clear the RXNE flag (read SR register followed by a read DR register)
-		(void)GPS_USART_PORT->DR;
-
 		// Copy received data from the USART FIFO buffer to the GPS buffer
 		rcvd = USART_FIFO_SIZE - USART_FIFO_pos - (uint16_t)DMA1_Channel6->CNDTR; // Amount of received data
 		if (rcvd >= (USART_FIFO_SIZE >> 1)) rcvd -= (USART_FIFO_SIZE >> 1); // Data in last half of FIFO
@@ -339,22 +338,17 @@ void USART2_IRQHandler(void) {
 		GPS_buf_cntr += rcvd;
 		GPS_new_data = TRUE;
 
-//		printf("IDLE: %u %u %u\r\n",GPS_buf_cntr,USART_FIFO_pos,rcvd);
-///*
-		for (rcvd = 0; rcvd < GPS_buf_cntr; rcvd++) {
-			VCP_SendChar(GPS_buf[rcvd]);
-		}
-//*/
-//		memset(USART_FIFO,'#',USART_FIFO_SIZE);
+		// Clear the RXNE flag (read SR register followed by a read DR register)
+		(void)GPS_USART_PORT->DR;
 	}
 
 	// USART overrun error
 	if (SR & USART_SR_ORE) {
-		// Clear the overrun flag (read SR register followed by a read DR register)
-		(void)GPS_USART_PORT->DR;
-
 		printf("OVERRUN %u\r\n",GPS_buf_cntr);
 		GPS_buf_cntr = 0;
+
+		// Clear the overrun flag (read SR register followed by a read DR register)
+		(void)GPS_USART_PORT->DR;
 	}
 }
 
@@ -365,9 +359,6 @@ void DMA1_Channel6_IRQHandler() {
 
 	// Channel6 half-transfer
 	if (DMA1->ISR & DMA_ISR_HTIF6) {
-		// Clear the DMA1 channel6 half-transfer flag
-		DMA1->IFCR = DMA_IFCR_CHTIF6;
-
 		// Copy first half of the FIFO buffer to the GPS buffer
 		rcvd = (USART_FIFO_SIZE >> 1) - USART_FIFO_pos; // Amount of received data
 		// Trim GPS data counter to prevent overflow
@@ -375,14 +366,14 @@ void DMA1_Channel6_IRQHandler() {
 		memcpy(&GPS_buf[GPS_buf_cntr],&USART_FIFO[USART_FIFO_pos],rcvd);
 		USART_FIFO_pos = (USART_FIFO_SIZE >> 1);
 		GPS_buf_cntr += rcvd;
+
+		// Clear the DMA1 channel6 half-transfer flag
+		DMA1->IFCR = DMA_IFCR_CHTIF6;
 	}
 
 
 	// Channel6 transfer complete
 	if (DMA1->ISR & DMA_ISR_TCIF6) {
-		// Clear the DMA1 channel6 transfer complete flag
-		DMA1->IFCR = DMA_IFCR_CTCIF6;
-
 		// Copy last half of the FIFO buffer to the GPS buffer
 		rcvd = USART_FIFO_SIZE - USART_FIFO_pos; // Amount of received data
 		// Trim GPS data counter to prevent overflow
@@ -390,6 +381,9 @@ void DMA1_Channel6_IRQHandler() {
 		memcpy(&GPS_buf[GPS_buf_cntr],&USART_FIFO[USART_FIFO_pos],rcvd);
 		USART_FIFO_pos = 0;
 		GPS_buf_cntr += rcvd;
+
+		// Clear the DMA1 channel6 transfer complete flag
+		DMA1->IFCR = DMA_IFCR_CTCIF6;
 	}
 }
 
@@ -685,7 +679,7 @@ int main(void) {
 			i += PutIntLZ(i,42,_date.RTC_Month,2,fnt5x7);
 			i += DrawChar(i,42,'.',fnt5x7);
 			i += PutIntLZ(i,42,_date.RTC_Year,2,fnt5x7);
-			PutStr(i + 3,42,RTC_DOW_STR[_date.RTC_WeekDay - 1],fnt5x7);
+			PutStr(i + 3,42,RTC_DOW_STR[_date.RTC_WeekDay],fnt5x7);
 			ST7541_Flush();
 
 			// This is wake-up from RTC, do BEEP and wait until it ends
@@ -848,6 +842,9 @@ int main(void) {
 
 
 
+	// Enable the DMA1 peripheral clock
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+
 	// Enable DC-DC for LCD
 //	PWR_LCD_ENABLE_H();
 	PWR_LCD_ENABLE_L();
@@ -865,7 +862,7 @@ int main(void) {
 //	ST7541_Contrast(6,6,36); // External booster 10.6V
 	ST7541_Contrast(7,7,24); // Internal booster/External booster 12.5V
 	ST7541_Fill(0x0000);
-	ST7541_Flush();
+	ST7541_Flush_DMA();
 
 	// Initialize the display backlight
 
@@ -1711,9 +1708,7 @@ int main(void) {
 	GPS_parsed = FALSE;
 	GPS_sentences_parsed = 0;
 	GPS_sentences_unknown = 0;
-
-	// Enable power to the GPS module
-	PWR_GPS_ENABLE_H();
+	GPS_InitData();
 
 	// The GPS USART port initialization
 	UARTx_Init(GPS_USART_PORT,USART_TX | USART_RX,9600); // Use slow speed at startup
@@ -1727,12 +1722,12 @@ int main(void) {
 	UARTx_ConfigureDMA(GPS_USART_PORT,USART_DMA_RX,USART_DMA_BUF_CIRC,USART_FIFO,USART_FIFO_SIZE); // Configure the USART RX DMA channel
 	DMA1_Channel6->CCR |= DMA_CCR6_TCIE | DMA_CCR6_HTIE; // Enable the DMA channel6 HT/TC IRQs
 	NVIC_EnableIRQ(DMA1_Channel6_IRQn); // Enable the DMA channel6 IRQ
-
-	// Enable the USART receiver DMA
-//	UARTx_SetDMA(GPS_USART_PORT,USART_DMA_RX,ENABLE); // Same as the three following lines, but adds 440 bytes of code
 	DMA1->IFCR = DMA_IFCR_CGIF6 | DMA_IFCR_CHTIF6 | DMA_IFCR_CTCIF6 | DMA_IFCR_CTEIF6; // Clear the DMA channel6 IRQ flags
 	DMA1_Channel6->CCR |= DMA_CCR1_EN; // Enable the DMA channel6
 	GPS_USART_PORT->CR3 |= USART_CR3_DMAR; // Enable the USART receiver DMA
+
+	// Enable power to the GPS module
+	PWR_GPS_ENABLE_H();
 
 	// Initialize GPS module
 //	GPS_Init();
@@ -1806,14 +1801,197 @@ int main(void) {
 
 
 
-	// Measure LCD performance
-	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
-
-///*
 	// This for nRF24 packet handling
 	uint8_t CRC_local;
 	uint16_t wake_diff;
 
+	// Slender head
+	int16_t hX = (SCR_W / 2) - 6;
+	int16_t hY = (SCR_H / 2) - 12;
+	int16_t dX = 1;
+	int16_t dY = 1;
+	uint8_t sprite = 0;
+	int8_t  dspr   = 1;
+	uint32_t duty  = 0;
+
+	d0 = 0;
+	while(1) {
+		while (!GPS_new_data && !_new_packet) {
+			ST7541_Fill(0x0000);
+
+			// Draw FPS with shadow effect
+			lcd_color = gs_ltgray;
+			i = PutIntF(3,3,d0,1,fnt7x10) + 4;
+			PutStr(i,3,"FPS",fnt7x10);
+			lcd_color = gs_black;
+			i = PutIntF(2,2,d0,1,fnt7x10) + 4;
+			PutStr(i,2,"FPS",fnt7x10);
+
+			// Draw packets count
+			i = 64;
+			i += PutStr(i,2,"Pkts:",fnt5x7);
+			PutIntU(i,2,_packets_rcvd,fnt5x7);
+			i = 64;
+			i += PutStr(i,10,"Lost:",fnt5x7);
+			PutIntU(i,10,_packets_lost,fnt5x7);
+
+			// Draw time
+			RTC_GetDateTime(&_time,&_date);
+			i = 0;
+			i += PutIntLZ(i,22,_time.RTC_Hours,2,fnt5x7);
+			i += DrawChar(i,22,':',fnt5x7);
+			i += PutIntLZ(i,22,_time.RTC_Minutes,2,fnt5x7);
+			i += DrawChar(i,22,':',fnt5x7);
+			i += PutIntLZ(i,22,_time.RTC_Seconds,2,fnt5x7);
+			i += 3;
+			i += PutIntLZ(i,22,_date.RTC_Date,2,fnt5x7);
+			i += DrawChar(i,22,'.',fnt5x7);
+			i += PutIntLZ(i,22,_date.RTC_Month,2,fnt5x7);
+			i += DrawChar(i,22,'.',fnt5x7);
+			i += PutIntLZ(i,22,_date.RTC_Year,2,fnt5x7);
+			PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay],fnt5x7);
+
+			// GPS info
+			i = 0;
+			i += PutStr(i,30,"NMEA:",fnt5x7) - 1;
+			i += PutIntU(i,30,GPS_sentences_parsed,fnt5x7) - 1;
+			i += DrawChar(i,30,'/',fnt5x7) - 1;
+			i += PutIntU(i,30,GPS_sentences_unknown,fnt5x7) + 5;
+			i += PutStr(i,30,"Size:",fnt5x7) - 1;
+			i += PutIntU(i,30,GPS_buf_cntr,fnt5x7);
+
+			i = 0;
+			i += PutStr(i,38,"Sat:",fnt5x7) - 1;
+			i += PutIntU(i,38,GPSData.sats_used,fnt5x7) - 1;
+			i += DrawChar(i,38,'/',fnt5x7) - 1;
+			i += PutIntU(i,38,GPSData.sats_view,fnt5x7) + 5;
+
+			i += PutStr(i,38,"Fix:",fnt5x7) - 1;
+			i += PutIntU(i,38,GPSData.fix,fnt5x7) + 5;
+			i += DrawChar(i,38,GPSData.mode,fnt5x7);
+
+			// Draw Slender's head
+			DrawBitmap(hX,hY,12,24,&slender[sprite * 36]);
+
+			// Move and animate Slender's head every 5th frame
+			if ((k % 5) == 0) {
+				sprite += dspr;
+				if ((sprite > 4) || (sprite < 1)) dspr *= -1;
+
+				hX += dX;
+				hY += dY;
+				if ((hX <  1) || (hX > SCR_W - 12)) dX *= -1;
+				if ((hY < 46) || (hY > SCR_H - 24)) dY *= -1;
+			}
+
+			ST7541_Flush_DMA();
+			k++;
+
+			if (_new_time) {
+				d0 = k;
+				k = 0;
+				_new_time = FALSE;
+			}
+
+			if (BTN[BTN_UP].state == BTN_Pressed) {
+		    	if (lcd_backlight < 95) lcd_backlight += 5; else lcd_backlight = 100;
+		    	LCD_BL_TIM->CCR1 = lcd_backlight;
+		    }
+		    if (BTN[BTN_DOWN].state == BTN_Pressed) {
+		    	if (lcd_backlight > 5) lcd_backlight -= 5; else lcd_backlight = 0;
+		    	LCD_BL_TIM->CCR1 = lcd_backlight;
+		    }
+		}
+
+		if (GPS_new_data) {
+			// Dump a GPS data to the USB VCP
+			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+
+			// Parse received data
+			ParseGPS();
+		}
+
+		if (GPS_parsed) {
+			// GPS data parsed
+			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" PCKT=\"%sVALID\" ",
+					GPS_sentences_parsed,
+					GPS_sentences_unknown,
+					GPSData.sats_used,
+					GPSData.sats_view,
+					GPSData.fix,
+					GPSData.mode,
+					GPSData.valid ? "" : "IN"
+			);
+			printf("DFIX=%u %u DATE=%u %u DT=\"%sVALID\"  ...  ",
+					GPSData.fix_time,
+					GPSData.fix_date,
+					GPSData.time,
+					GPSData.date,
+					GPSData.datetime_valid ? "" : "IN"
+			);
+
+			// Date and time obtained from GPS
+			_time.RTC_Hours   =  GPSData.fix_time / 3600;
+			_time.RTC_Minutes = (GPSData.fix_time / 60) % 60;
+			_time.RTC_Seconds =  GPSData.fix_time % 60;
+			i = GPSData.fix_date / 1000000;
+			_date.RTC_Date  = i;
+			_date.RTC_Month = (GPSData.fix_date - (i * 1000000)) / 10000;
+			if (GPSData.fix_date % 10000 > 1980) {
+				_date.RTC_Year = (GPSData.fix_date % 10000) - 2000;
+			} else {
+				_date.RTC_Year = (GPSData.fix_date % 10000) - 1900;
+			}
+			RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
+//			RTC_CalcDOW(&_date);
+			RTC_SetDateTime(&_time,&_date);
+
+			printf("_time: %02u:%02u:%02u _date: %02u.%02u.%02u %s\r\n",
+					_time.RTC_Hours,
+					_time.RTC_Minutes,
+					_time.RTC_Seconds,
+					_date.RTC_Date,
+					_date.RTC_Month,
+					_date.RTC_Year,
+					RTC_DOW_STR[_date.RTC_WeekDay]);
+
+			GPS_parsed = FALSE;
+		}
+
+		if (_new_packet) {
+			CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
+			if (CRC_local == nRF24_Packet.CRC8) {
+				if (_prev_wake_cntr == 0xDEADBEEF) _prev_wake_cntr = nRF24_Packet.cntr_wake;
+				if (nRF24_Packet.cntr_wake < _prev_wake_cntr) _prev_wake_cntr = nRF24_Packet.cntr_wake;
+				wake_diff = nRF24_Packet.cntr_wake - _prev_wake_cntr;
+
+				printf("wake: %u[%u] diff: %u vbat=%u.%02uV pkts: %u\\%u [%u%%]\r\n",
+						nRF24_Packet.cntr_wake,
+						_prev_wake_cntr,
+						wake_diff,
+						nRF24_Packet.vrefint / 100,nRF24_Packet.vrefint % 100,
+						_packets_rcvd,
+						_packets_lost,
+						(_packets_lost * 100) / (_packets_rcvd + _packets_lost)
+				);
+
+				_prev_wake_cntr = nRF24_Packet.cntr_wake;
+				if (wake_diff > 1) {
+					_packets_lost += wake_diff - 1;
+				}
+			}
+			_packets_rcvd++;
+			_new_packet = FALSE;
+		}
+
+		printf("---------------------------------------------\r\n");
+	}
+
+
+
+
+	// Measure LCD performance
+///*
 	// GFX Demo (rotozoomer with checkerboard or XOR texture)
 	float ca,sa;
 	float scalee = 0.5;
@@ -1883,7 +2061,7 @@ int main(void) {
 		i += PutIntLZ(i,22,_date.RTC_Month,2,fnt5x7);
 		i += DrawChar(i,22,'.',fnt5x7);
 		i += PutIntLZ(i,22,_date.RTC_Year,2,fnt5x7);
-		PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay - 1],fnt5x7);
+		PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay],fnt5x7);
 
 		// GPS info
 		i = 0;
@@ -1905,7 +2083,12 @@ int main(void) {
 		k++;
 
 		if (GPS_new_data) {
-			// New GPS packets received
+			// New GPS packet received
+
+			// Dump a GPS data to the USB VCP
+			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+
+			// Parse received data
 			ParseGPS();
 		}
 
@@ -1919,6 +2102,33 @@ int main(void) {
 					GPSData.time,
 					GPSData.date
 			);
+
+			// Date and time obtained from GPS
+			_time.RTC_Hours   =  GPSData.fix_time / 3600;
+			_time.RTC_Minutes = (GPSData.fix_time / 60) % 60;
+			_time.RTC_Seconds =  GPSData.fix_time % 60;
+			i = GPSData.fix_date / 1000000;
+			_date.RTC_Date  = i;
+			_date.RTC_Month = (GPSData.fix_date - (i * 1000000)) / 10000;
+			if (GPSData.fix_date % 10000 > 1980) {
+				_date.RTC_Year = (GPSData.fix_date % 10000) - 2000;
+			} else {
+				_date.RTC_Year = (GPSData.fix_date % 10000) - 1900;
+			}
+//			RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
+			RTC_CalcDOW(&_date);
+			RTC_SetDateTime(&_time,&_date);
+
+			printf("_time: %02u:%02u:%02u _date: %02u.%02u.%02u %s\r\n",
+					_time.RTC_Hours,
+					_time.RTC_Minutes,
+					_time.RTC_Seconds,
+					_date.RTC_Date,
+					_date.RTC_Month,
+					_date.RTC_Year,
+					RTC_DOW_STR[_date.RTC_WeekDay]);
+
+/*
 			if (GPSData.datetime_valid) {
 				// Date and time obtained from GPS
 				_time.RTC_Hours   =  GPSData.time / 3600;
@@ -1928,9 +2138,10 @@ int main(void) {
 				_date.RTC_Date  = i;
 				_date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
 				_date.RTC_Year  = (GPSData.date % 10000) - 2000;
-//				RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
+				RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
 				RTC_SetDateTime(&_time,&_date);
 			}
+*/
 			GPS_parsed = FALSE;
 		}
 
@@ -2031,7 +2242,7 @@ int main(void) {
 		i = PutIntF(2,2,k,1,fnt7x10) + 2;
 		PutStr(i,2,"FPS",fnt7x10);
 		printf("DTM: %s, %02u:%02u:%02u %02u.%02u.20%02u\r\n",
-				RTC_DOW_STR[_date.RTC_WeekDay - 1],
+				RTC_DOW_STR[_date.RTC_WeekDay],
 				_time.RTC_Hours,
 				_time.RTC_Minutes,
 				_time.RTC_Seconds,
@@ -2081,7 +2292,7 @@ int main(void) {
 		// Date/time
 		RTC_GetDateTime(&_time,&_date);
 		printf("DTM: %s, %02u:%02u:%02u %02u.%02u.20%02u\r\n",
-				RTC_DOW_STR[_date.RTC_WeekDay - 1],
+				RTC_DOW_STR[_date.RTC_WeekDay],
 				_time.RTC_Hours,
 				_time.RTC_Minutes,
 				_time.RTC_Seconds,
