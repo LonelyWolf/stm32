@@ -464,7 +464,7 @@ void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t off
 // input:
 //   date - pointer to RTC_Date structure with date
 // return: RTC_WeekDay field of date structure will be modified
-RTC_CalcDOW(RTC_DateTypeDef *date) {
+void RTC_CalcDOW(RTC_DateTypeDef *date) {
 	int16_t adjustment, mm, yy;
 
 	adjustment = (14 - date->RTC_Month) / 12;
