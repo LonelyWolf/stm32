@@ -831,3 +831,22 @@ uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 
     return intLen * (Font->font_Width + 1);
 }
+
+// Draw bitmap
+// input:
+//   X, Y - top left corner coordinates of bitmap
+//   W, H - width and height of bitmap in pixels
+//   pBMP - pointer to array containing bitmap
+void DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP) {
+	uint8_t i,j;
+
+	for (i = 0; i < W; i++) {
+		for (j = 0; j < H; j++) {
+			if ((pBMP[i + (j / 8) * W] >> (j % 8)) & 0x01) {
+				Pixel(X + i, Y + j,lcd_color);
+			} else {
+//				Pixel(X + i, Y + j,gs_white);
+			}
+		}
+	}
+}
