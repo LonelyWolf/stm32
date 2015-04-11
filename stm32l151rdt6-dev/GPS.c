@@ -60,6 +60,9 @@ void GPS_Send(char *cmd) {
 	UART_SendChar(GPS_USART_PORT,HEX_CHARS[cmd_CRC & 0x0f]);
 	UART_SendChar(GPS_USART_PORT,'\r');
 	UART_SendChar(GPS_USART_PORT,'\n');
+
+	// Wait for an USART transmit complete
+	while (!(GPS_USART_PORT->SR & USART_SR_TC));
 }
 
 // Find end of the GPS sentence
@@ -673,6 +676,7 @@ void GPS_InitData(void) {
 	GPS_sentences_unknown = 0;
 
 	memset(&GPS_msg,0,sizeof(GPS_msg));
+	memset(&GPS_PMTK,0,sizeof(GPS_PMTK));
 }
 
 // Check which satellites in view is used in location fix
@@ -693,30 +697,162 @@ void GPS_CheckUsedSats(void) {
 // Initialize the GPS module
 void GPS_Init(void) {
 	uint32_t wait;
+	uint32_t baud = 9600;
+	uint32_t BC; // FIXME: debug remove this
+	uint32_t trials = 5;
 
-	// Clear PMTK response results
-	memset(&GPS_PMTK,0,sizeof(GPS_PMTK));
+	// Reset all GPS related variables
+	GPS_InitData();
 
-	// Assume what UART speed of GPS module is 9600bps after power-up
-	UARTx_SetSpeed(GPS_USART_PORT,9600);
-	Delay_ms(500); // Give time for GPS to boot up
-	GPS_Send(PMTK_SET_NMEA_BAUDRATE_115200); // Ask GPS chip to set 115200 baudrate
-	UARTx_SetSpeed(GPS_USART_PORT,115200); // GPS must now talking at higher speed
-	Delay_ms(50); // Wait some time
+	// After first power-on with no backup the Quectel L80 baud rate will be 9600bps
+	// After power-on with backup the baud rate remains same as it was before power-off
+	// What the hell to do with this shit?
 
-	GPS_Send(PMTK_CMD_HOT_START); // GPS hot start
+	// Set USART baud rate to 9600pbs and wait some time for a NMEA sentence
+	// It must be "$PMTK011,MTKGPS" followed by "$PMTK010,001"
+	// In case of timeout we decide what there are no GPS receiver?
+	UARTx_SetSpeed(GPS_USART_PORT,baud);
 
-	// Wait for $PMTK010 sentence
-	wait = 0x00ffffff;
-	while (GPS_PMTK.PMTK010 != 2 && --wait);
+	while (trials--) {
+		wait = 0x00300000; // Magic number, about 1.5s on 32MHz CPU
+		while (!GPS_new_data && --wait);
+		if (wait) {
+			// No timeout, USART IDLE frame detected
 
-	// Configure MTK chip if it responded correctly
-	if (GPS_PMTK.PMTK010 == 2) {
-//		GPS_Send(PMTK_SET_NMEA_OUTPUT_ALLDATA); // All supported sentences
+			// FIXME: Output data for debug purposes
+			BC = GPS_buf_cntr;
+			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+
+			// Parse contents of GPS buffer
+			GPS_Parse();
+
+			// FIXME: Output data for debug purposes
+			printf("\r\nPMTK: BOOT=%s PMTK010=%u CMD=%u FLAG=%u | B=%u SC=%u/%u [BR=%u] %X\r\n",
+					(GPS_PMTK.PMTK_BOOT) ? "TRUE" : "FALSE",
+					GPS_PMTK.PMTK010,
+					GPS_PMTK.PMTK001_CMD,
+					GPS_PMTK.PMTK001_FLAG,
+					BC,
+					GPS_sentences_parsed,
+					GPS_sentences_unknown,
+					baud,
+					wait
+					);
+
+			if (baud == 9600) {
+				if (GPS_sentences_parsed) {
+					// Known NMEA sentences were detected on 9600 baud rate
+					// Send command to the GPS receiver to switch to higher baud rate
+					// And do this only after GPS receiver finish the boot sequence
+					if ((!GPS_PMTK.PMTK_BOOT) && (GPS_PMTK.PMTK010 != 2)) {
+						GPS_Send(PMTK_SET_NMEA_BAUDRATE_38400);
+						baud = 38400;
+						UARTx_SetSpeed(GPS_USART_PORT,baud);
+					}
+				} else {
+					// Known NMEA sentences were not detected, set USART baud rate to 38400 and try again
+					baud = 38400;
+					UARTx_SetSpeed(GPS_USART_PORT,baud);
+				}
+			}
+
+			if (GPS_sentences_parsed && (baud == 38400)) {
+				// Known NMEA sentences were detected on 38400 baud rate, thats's all
+				break;
+			}
+		} else {
+			// GPS timeout
+			baud = 0;
+			break;
+		}
+
+		printf("---------------------------------------------\r\n");
+	}
+
+	// There is no result after several trials, count this as no GPS present
+	if (!trials) baud = 0;
+
+	if (baud) {
+		// FIXME: here must be a little delay, before sending PMTK commands!
+		printf("--->>> It's time to configure <<<---\r\n");
+
+		// Looks like an initialization completed, configure the GPS receiver
 		GPS_Send(PMTK_SET_NMEA_OUTPUT_EFFICIENT); // Efficient sentences only
 		GPS_Send(PMTK_SET_AIC_ENABLED); // Enable AIC (enabled by default)
 		GPS_Send(PMTK_API_SET_STATIC_NAV_THD_OFF); // Disable speed threshold
 		GPS_Send(PMTK_EASY_ENABLE); // Enable EASY (for MT3339)
 		GPS_Send(PMTK_SET_PERIODIC_MODE_NORMAL); // Disable periodic mode
+
+		// FIXME: just for debug, remove this
+		trials = 4;
+		while (trials--) {
+			wait = 0x00300000; // Magic number, about 1.5s on 32MHz CPU
+			while (!GPS_new_data && --wait);
+			if (wait) {
+				// No timeout, USART IDLE frame detected
+
+				// Output data for debug purposes
+				BC = GPS_buf_cntr;
+				VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+
+				// Parse GPS buffer
+				GPS_Parse();
+
+				// Output data for debug purposes
+				printf("\r\nPMTK: BOOT=%s PMTK010=%u CMD=%u FLAG=%u | B=%u SC=%u/%u [BR=%u] %X\r\n",
+						(GPS_PMTK.PMTK_BOOT) ? "TRUE" : "FALSE",
+						GPS_PMTK.PMTK010,
+						GPS_PMTK.PMTK001_CMD,
+						GPS_PMTK.PMTK001_FLAG,
+						BC,
+						GPS_sentences_parsed,
+						GPS_sentences_unknown,
+						baud,
+						wait
+						);
+			}
+		}
+
+	} else {
+		// No proper communication with GPS receiver
+		printf("GPS_Init timeout\r\n");
 	}
+
+	// FIXME: return some value here, no VOID
+}
+
+// Parse the GPS data buffer
+void GPS_Parse(void) {
+	// Clear previously parsed GPS data
+	GPS_InitData();
+
+	// Find all sentences and parse known
+	while (GPS_msg.end < GPS_buf_cntr) {
+		GPS_FindSentence(&GPS_msg,GPS_buf,GPS_msg.end,GPS_buf_cntr);
+		if (GPS_msg.type != NMEA_BAD) {
+			GPS_sentences_parsed++;
+			GPS_ParseSentence(GPS_buf,&GPS_msg);
+		} else GPS_sentences_unknown++;
+	}
+
+	// Update related variables if at least one known sentence was parsed
+	if (GPS_sentences_parsed) {
+		GPS_CheckUsedSats();
+		if (GPSData.fix == 3) {
+			// GPS altitude makes sense only in case of 3D fix
+			CurData.GPSAlt = GPSData.altitude;
+			if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
+			if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
+		}
+		if (GPSData.fix == 2 || GPSData.fix == 3) {
+			// GPS speed makes sense only in case of 2D or 3D position fix
+			CurData.GPSSpeed = GPSData.speed;
+			if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
+		}
+		GPS_parsed = TRUE;
+	}
+
+	// Reset the new GPS data flag and reset the GPS buffer counter
+	GPS_new_data = FALSE;
+	GPS_buf_cntr = 0;
 }

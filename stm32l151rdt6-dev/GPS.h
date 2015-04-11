@@ -13,7 +13,9 @@
 #define PMTK_TEST                       "$PMTK000*" // MTK test packet (MTK should respond with "$PMTK001,0,3*30")
 #define PMTK_SET_NMEA_OUTPUT_ALLDATA    "$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*" // All supported NMEA sentences
 #define PMTK_SET_NMEA_OUTPUT_EFFICIENT  "$PMTK314,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0*" // Efficient NMEA sentences (no GLL and VTG sentences)
-#define PMTK_SET_NMEA_BAUDRATE_115200   "$PMTK251,115200*" // Set NMEA baudrate to 115200bps
+#define PMTK_SET_NMEA_BAUDRATE_115200   "$PMTK251,115200*" // Set NMEA baud rate 115200bps
+#define PMTK_SET_NMEA_BAUDRATE_38400    "$PMTK251,38400*"  // Set NMEA baud rate 38400bps
+#define PMTK_SET_NMEA_BAUDRATE_9600     "$PMTK251,9600*"   // Set NMEA baud rate 9600bps
 #define PMTK_CMD_HOT_START              "$PMTK101*" // Hot start the GPS module
 #define PMTK_CMD_STANDBY_MODE           "$PMTK161,0*" // Enter standby mode
 #define PMTK_SET_AIC_ENABLED            "$PMTK286,1*" // Enable AIC multi-tone Active Interference Cancellation
@@ -139,5 +141,6 @@ void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence);
 void GPS_InitData(void);
 void GPS_CheckUsedSats(void);
 void GPS_Init(void);
+void GPS_Parse(void);
 
 #endif // __GPS_H
