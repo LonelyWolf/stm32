@@ -33,10 +33,10 @@
 #include "dosfs.h"
 
 // Resources
-#include <font5x7.h>
-#include <font7x10.h>
-#include <slender_head.h>
-
+#include "font5x7.h"
+#include "font7x10.h"
+#include "slender_head.h"
+#include "toppler.h"
 
 
 
@@ -179,7 +179,7 @@ uint8_t lcd_backlight = 10;
 volatile bool _new_time = FALSE;
 
 // USART
-#define USART_FIFO_SIZE    128        // USART FIFO buffer size (must be power of 2)
+#define USART_FIFO_SIZE     64        // USART FIFO buffer size (must be power of 2)
 uint8_t USART_FIFO[USART_FIFO_SIZE];  // USART FIFO receive buffer
 uint16_t USART_FIFO_pos;                   // Last value of the UART RX DMA counter (to track RX timeout)
 
@@ -314,17 +314,12 @@ void RTC_Alarm_IRQHandler(void) {
 
 // USART2 IRQ handler
 void USART2_IRQHandler(void) {
-	uint32_t SR;
+	uint16_t SR;
 	uint16_t rcvd;
 
-	// Read the USART status register
+	// Read the USART SR register and then DR to clean all possible flags
 	SR = GPS_USART_PORT->SR;
-
-	// USART byte received
-	if (SR & USART_SR_RXNE) {
-		// Clear the RXNE flag
-		GPS_USART_PORT->SR &= ~USART_SR_RXNE;
-	}
+	(void)GPS_USART_PORT->DR;
 
 	// USART IDLE line detected
 	if (SR & USART_SR_IDLE) {
@@ -337,19 +332,27 @@ void USART2_IRQHandler(void) {
 		USART_FIFO_pos += rcvd;
 		GPS_buf_cntr += rcvd;
 		GPS_new_data = TRUE;
-
-		// Clear the RXNE flag (read SR register followed by a read DR register)
-		(void)GPS_USART_PORT->DR;
 	}
 
 	// USART overrun error
 	if (SR & USART_SR_ORE) {
-		printf("OVERRUN %u\r\n",GPS_buf_cntr);
+		printf(">>> OE: %u\r\n",GPS_buf_cntr);
 		GPS_buf_cntr = 0;
-
-		// Clear the overrun flag (read SR register followed by a read DR register)
-		(void)GPS_USART_PORT->DR;
 	}
+
+/*
+	// USART noise error
+	if (SR & USART_SR_NE) {
+		printf(">>> NE: %u\r\n",GPS_buf_cntr);
+		GPS_buf_cntr = 0;
+	}
+
+	// USART framing error
+	if (SR & USART_SR_FE) {
+		printf(">>> FE: %u\r\n",GPS_buf_cntr);
+		GPS_buf_cntr = 0;
+	}
+*/
 }
 
 
@@ -364,7 +367,7 @@ void DMA1_Channel6_IRQHandler() {
 		// Trim GPS data counter to prevent overflow
 		if (GPS_buf_cntr + rcvd > GPS_BUFFER_SIZE - 1) rcvd = GPS_BUFFER_SIZE - GPS_buf_cntr;
 		memcpy(&GPS_buf[GPS_buf_cntr],&USART_FIFO[USART_FIFO_pos],rcvd);
-		USART_FIFO_pos = (USART_FIFO_SIZE >> 1);
+		USART_FIFO_pos = USART_FIFO_SIZE >> 1;
 		GPS_buf_cntr += rcvd;
 
 		// Clear the DMA1 channel6 half-transfer flag
@@ -562,35 +565,6 @@ uint32_t InterquartileMean(uint16_t *array, uint32_t numOfSamples) {
 	return (sum / (numOfSamples >> 1));
 }
 
-// Parse the GPS data buffer
-void ParseGPS(void) {
-//	BEEPER_Enable(222,1);
-	GPS_InitData(); // Clear previously parsed GPS data
-	while (GPS_msg.end < GPS_buf_cntr) {
-		GPS_FindSentence(&GPS_msg,GPS_buf,GPS_msg.end,GPS_buf_cntr);
-		if (GPS_msg.type != NMEA_BAD) {
-			GPS_sentences_parsed++;
-			GPS_ParseSentence(GPS_buf,&GPS_msg);
-		} else GPS_sentences_unknown++;
-	}
-	GPS_buf_cntr = 0;
-	if (GPS_sentences_parsed) {
-		GPS_CheckUsedSats();
-		if (GPSData.fix == 3) {
-			// GPS altitude makes sense only in case of 3D fix
-			CurData.GPSAlt = GPSData.altitude;
-			if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
-			if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
-		}
-		if (GPSData.fix == 2 || GPSData.fix == 3) {
-			// GPS speed makes sense only in case of 2D or 3D position fix
-			CurData.GPSSpeed = GPSData.speed;
-			if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
-		}
-		GPS_new_data = FALSE;
-		GPS_parsed = TRUE;
-	}
-}
 
 
 
@@ -730,13 +704,11 @@ int main(void) {
 
 
 
-///*
+/*
 	// UART port initialization
-//	UARTx_Init(GPS_USART_PORT,USART_RX | USART_TX,1382400);
-//	UARTx_Init(GPS_USART_PORT,USART_RX | USART_TX,9600);
-	UARTx_Init(GPS_USART_PORT,USART_RX | USART_TX,115200);
-	UART_SendStr(GPS_USART_PORT,"--- STM32L151RDT6 ---\r\n");
-//*/
+	UARTx_Init(USART2,USART_RX | USART_TX,1382400);
+	UART_SendStr(USART2,"--- STM32L151RDT6 ---\r\n");
+*/
 
 
 
@@ -862,6 +834,20 @@ int main(void) {
 //	ST7541_Contrast(6,6,36); // External booster 10.6V
 	ST7541_Contrast(7,7,24); // Internal booster/External booster 12.5V
 	ST7541_Fill(0x0000);
+
+	// Draw big gray-scaled toppler (logo)
+	uint8_t xx,yy,bb;
+	ST7541_Contrast(6,6,30); // Internal booster/External booster 12.5V
+	ST7541_Fill(0x0000);
+	for (yy = 0; yy < 48; yy++) {
+		for (xx = 0; xx < 12; xx++) {
+			bb = ~toppler_big[(yy * 12) + xx];
+			for (i = 4; i--; ) {
+				Pixel(40 + (xx << 2) + i,40 + yy,(bb & 0x03));
+				bb >>= 2;
+			}
+		}
+	}
 	ST7541_Flush_DMA();
 
 	// Initialize the display backlight
@@ -1699,23 +1685,18 @@ int main(void) {
 
 
     // GPS
-	printf("GPS enable...\r\n");
+	printf("GPS initialization...\r\n");
 
 	// Reset GPS variables
 	USART_FIFO_pos = 0;
 	GPS_buf_cntr = 0;
 	GPS_new_data = FALSE;
 	GPS_parsed = FALSE;
-	GPS_sentences_parsed = 0;
-	GPS_sentences_unknown = 0;
 	GPS_InitData();
 
 	// The GPS USART port initialization
 	UARTx_Init(GPS_USART_PORT,USART_TX | USART_RX,9600); // Use slow speed at startup
-//	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_RXNE,0x0c); // Enable the USART RXNE IRQ with 0x0C priority
-//	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_RXNE,0xff); // Enable the USART RXNE IRQ with standard priority
 	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_IDLE,0xff); // Enable the USART IDLE IRQ with standard priority
-//	UARTx_InitIRQ(GPS_USART_PORT,USART_IRQ_RXNE | USART_IRQ_IDLE,0xff); // Enable the USART RXNE and IDLE IRQs with standard priority
 
 	// Configure the GPS USART DMA
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN; // Enable the DMA1 peripheral clock
@@ -1730,7 +1711,7 @@ int main(void) {
 	PWR_GPS_ENABLE_H();
 
 	// Initialize GPS module
-//	GPS_Init();
+	GPS_Init();
 
 
 
@@ -1806,9 +1787,9 @@ int main(void) {
 	uint16_t wake_diff;
 
 	// Slender head
-	int16_t hX = (SCR_W / 2) - 6;
-	int16_t hY = (SCR_H / 2) - 12;
-	int16_t dX = 1;
+	int16_t hX = (SCR_W / 2) - 8;
+	int16_t hY = (SCR_H / 2) - 8;
+	int16_t dX = -1;
 	int16_t dY = 1;
 	uint8_t sprite = 0;
 	int8_t  dspr   = 1;
@@ -1870,6 +1851,7 @@ int main(void) {
 			i += PutIntU(i,38,GPSData.fix,fnt5x7) + 5;
 			i += DrawChar(i,38,GPSData.mode,fnt5x7);
 
+/*
 			// Draw Slender's head
 			DrawBitmap(hX,hY,12,24,&slender[sprite * 36]);
 
@@ -1882,6 +1864,39 @@ int main(void) {
 				hY += dY;
 				if ((hX <  1) || (hX > SCR_W - 12)) dX *= -1;
 				if ((hY < 46) || (hY > SCR_H - 24)) dY *= -1;
+			}
+*/
+
+			// Draw walking toppler (stupid not optimizaed drawing, but it works ^_^)
+			for (yy = 0; yy < 16; yy++) {
+				for (xx = 0; xx < 4; xx++) {
+					if (dX > 0) {
+						// Toppler moves from left to right
+						bb = ~toppler_walk[(yy * 4) + xx + (sprite << 6)];
+						for (i = 4; i--; ) {
+							Pixel(hX + (xx << 2) + i,hY + yy,(bb & 0x03));
+							bb >>= 2;
+						}
+					} else {
+						// Toppler moves from right to left, must mirror sprite horizontally
+						bb = ~toppler_walk[(yy * 4) + 3 - xx + (sprite << 6)];
+						for (i = 4; i--; ) {
+							Pixel(hX + (xx << 2) + i,hY + yy,(bb & 0xc0) >> 6);
+							bb <<= 2;
+						}
+					}
+				}
+			}
+
+			// Move and animate toppler every 10th frame
+			if ((k % 10) == 0) {
+				sprite += dspr;
+				if ((sprite > 6) || (sprite < 1)) dspr *= -1;
+
+				hX += dX;
+				hY += dY;
+				if ((hX <  1) || (hX > SCR_W - 17)) dX *= -1;
+				if ((hY < 46) || (hY > SCR_H - 17)) dY *= -1;
 			}
 
 			ST7541_Flush_DMA();
@@ -1908,11 +1923,12 @@ int main(void) {
 			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
 
 			// Parse received data
-			ParseGPS();
+			GPS_Parse();
 		}
 
 		if (GPS_parsed) {
 			// GPS data parsed
+
 			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" PCKT=\"%sVALID\" ",
 					GPS_sentences_parsed,
 					GPS_sentences_unknown,
@@ -2089,7 +2105,7 @@ int main(void) {
 			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
 
 			// Parse received data
-			ParseGPS();
+			GPS_Parse();
 		}
 
 		if (GPS_parsed) {

@@ -117,7 +117,7 @@ void UARTx_Init(USART_TypeDef* USARTx, uint32_t USART_DIR, uint32_t baudrate) {
 	//   CTS and RTS hardware flow control disabled
 	USARTx->CR3 = 0x0000;
 
-	// Set given baudrate
+	// Set given baud rate
 	UARTx_SetSpeed(USARTx,baudrate);
 
 	// Enable the USART

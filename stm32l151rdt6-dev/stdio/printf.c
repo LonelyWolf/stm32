@@ -23,7 +23,7 @@ void PrintChar(char c)
 	   Transmit a char;
 	*/
 	VCP_SendChar(c);
-	UART_SendChar(USART2,c);
+//	UART_SendChar(USART2,c);
 }
 
 /** Maximum string size allowed (in bytes). */
