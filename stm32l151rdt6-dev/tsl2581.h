@@ -60,5 +60,6 @@ void TSL2581_SetTime(uint8_t time);
 uint16_t TSL2581_GetData0(void);
 uint16_t TSL2581_GetData1(void);
 void TSL2581_SetGain(uint8_t gain);
+uint8_t TSL2581_GetDeviceID(void);
 
 #endif // __TSL2581_H

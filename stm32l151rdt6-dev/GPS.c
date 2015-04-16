@@ -7,6 +7,17 @@
 #include <GPS.h>
 
 
+
+
+// FIXME: remove this after debugging
+// Debug output
+#include <stdio.h>
+#include "VCP.h"
+#pragma GCC diagnostic ignored "-Wformat"
+
+
+
+
 GPS_Data_TypeDef GPSData;                   // Parsed GPS information
 bool GPS_new_data;                          // TRUE if received new GPS packet
 bool GPS_parsed;                            // TRUE if GPS packets was parsed

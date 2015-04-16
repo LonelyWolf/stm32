@@ -9,6 +9,9 @@
 
 #include <stm32l1xx_rcc.h>
 
+// Virtual COM port
+#include "usb_lib.h"
+
 /**
  * @brief  Transmit a char, if you want to use printf(), 
  *         you need implement this function
@@ -18,12 +21,7 @@
  */
 void PrintChar(char c)
 {
-	/* Send a char like: 
-	   while(Transfer not completed);
-	   Transmit a char;
-	*/
 	VCP_SendChar(c);
-//	UART_SendChar(USART2,c);
 }
 
 /** Maximum string size allowed (in bytes). */
