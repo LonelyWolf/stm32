@@ -58,8 +58,8 @@ void nRF24_Init() {
 //   value - new value
 void nRF24_WriteReg(uint8_t reg, uint8_t value) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_WREG | reg); // Select register
-	SPIx_SendRecv(nRF24_SPI_PORT,value); // Write value to register
+	SPIx_SendRecv(&nRF24_SPI_PORT,nRF24_CMD_WREG | reg); // Select register
+	SPIx_SendRecv(&nRF24_SPI_PORT,value); // Write value to register
 	nRF24_CSN_H();
 }
 
@@ -71,8 +71,8 @@ uint8_t nRF24_ReadReg(uint8_t reg) {
 	uint8_t value;
 
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,reg & 0x1f); // Select register to read from
-	value = SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_NOP); // Read register value
+	SPIx_SendRecv(&nRF24_SPI_PORT,reg & 0x1f); // Select register to read from
+	value = SPIx_SendRecv(&nRF24_SPI_PORT,nRF24_CMD_NOP); // Read register value
 	nRF24_CSN_H();
 
 	return value;
@@ -85,8 +85,8 @@ uint8_t nRF24_ReadReg(uint8_t reg) {
 //   count - bytes count
 void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,reg); // Select register to read from
-	SPIx_RecvBuf(nRF24_SPI_PORT,pBuf,count,nRF24_CMD_NOP);
+	SPIx_SendRecv(&nRF24_SPI_PORT,reg); // Select register to read from
+	SPIx_RecvBuf(&nRF24_SPI_PORT,pBuf,count,nRF24_CMD_NOP);
 	nRF24_CSN_H();
 }
 
@@ -98,8 +98,8 @@ void nRF24_ReadBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 // note: data buffer will be filled with value of STATUS register after send
 void nRF24_WriteBuf(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L();
-	SPIx_SendRecv(nRF24_SPI_PORT,nRF24_CMD_WREG | reg); // Select register
-	SPIx_SendRecvBuf(nRF24_SPI_PORT,pBuf,count);
+	SPIx_SendRecv(&nRF24_SPI_PORT,nRF24_CMD_WREG | reg); // Select register
+	SPIx_SendRecvBuf(&nRF24_SPI_PORT,pBuf,count);
 	nRF24_CSN_H();
 }
 

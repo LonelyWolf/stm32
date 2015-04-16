@@ -17,7 +17,8 @@ ScrOrientation_TypeDef    scr_orientation = scr_normal; // Screen orientation
 uint8_t vRAM[(SCR_W * SCR_H) >> 2] __attribute__((aligned(4)));
 
 // Grayscale palette (PWM values for white, light gray, dark gray, black)
-uint8_t const GrayPalette[] = {0x00,0x00,0xaa,0xaa,0xdd,0xdd,0xff,0xff}; // 15PWM
+uint8_t const GrayPalette[] = {0x00,0x00,0x99,0x99,0xcc,0xcc,0xff,0xff}; // 15PWM
+//uint8_t const GrayPalette[] = {0x00,0x00,0xaa,0xaa,0xdd,0xdd,0xff,0xff}; // 15PWM
 //uint8_t const GrayPalette[] = {0x00,0x00,0xdd,0xdd,0xee,0xee,0xff,0xff}; // 15PWM
 //uint8_t const GrayPalette[] = {0x00,0x00,0x55,0x55,0xaa,0xaa,0xcc,0xcc}; // 12PWM
 //uint8_t const GrayPalette[] = {0x00,0x00,0x77,0x77,0x88,0x88,0x99,0x99}; // 9PWM
@@ -28,7 +29,7 @@ uint8_t const GrayPalette[] = {0x00,0x00,0xaa,0xaa,0xdd,0xdd,0xff,0xff}; // 15PW
 //   cmd - display command
 void ST7541_cmd(uint8_t cmd) {
 	ST7541_RS_L();
-	SPIx_Send(ST7541_SPI_PORT,cmd);
+	SPIx_Send(&ST7541_SPI_PORT,cmd);
 }
 
 // Send double byte command to display
@@ -37,8 +38,8 @@ void ST7541_cmd(uint8_t cmd) {
 //   cmd2 - first byte of display command
 void ST7541_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 	ST7541_RS_L();
-	SPIx_Send(ST7541_SPI_PORT,cmd1);
-	SPIx_Send(ST7541_SPI_PORT,cmd2);
+	SPIx_Send(&ST7541_SPI_PORT,cmd1);
+	SPIx_Send(&ST7541_SPI_PORT,cmd2);
 }
 
 // Send data byte to display
@@ -46,7 +47,7 @@ void ST7541_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 //   data - data byte
 void ST7541_data(uint8_t data) {
 	ST7541_RS_H();
-	SPIx_Send(ST7541_SPI_PORT,data);
+	SPIx_Send(&ST7541_SPI_PORT,data);
 }
 
 // Initialize the display control GPIO pins
@@ -135,8 +136,8 @@ void ST7541_Init(void) {
 
 //	ST7541_cmd(0x64); // DC-DC converter: 3 times boosting circuit
 //	ST7541_cmd(0x65); // DC-DC converter: 4 times boosting circuit
-//	ST7541_cmd(0x66); // DC-DC converter: 5 times boosting circuit
-	ST7541_cmd(0x67); // DC-DC converter: 6 times boosting circuit
+	ST7541_cmd(0x66); // DC-DC converter: 5 times boosting circuit
+//	ST7541_cmd(0x67); // DC-DC converter: 6 times boosting circuit
 
 //	ST7541_cmd(0x90); // FRC/PWM mode: 4FRC, 9PWM
 //	ST7541_cmd(0x92); // FRC/PWM mode: 4FRC, 12PWM
@@ -311,14 +312,14 @@ void ST7541_Flush(void) {
 	ST7541_CS_L();
 	ST7541_RS_H();
 	// Disable the SPI peripheral, set 16-bit data frame format and then enable the SPI back
-	ST7541_SPI_PORT->CR1 &= ~SPI_CR1_SPE;
-	ST7541_SPI_PORT->CR1 |= SPI_CR1_DFF | SPI_CR1_SPE;
+	ST7541_SPI_PORT.Instance->CR1 &= ~SPI_CR1_SPE;
+	ST7541_SPI_PORT.Instance->CR1 |= SPI_CR1_DFF | SPI_CR1_SPE;
 	// Send buffer
-	SPIx_SendBuf16(ST7541_SPI_PORT,(uint16_t *)&vRAM[0],(SCR_W * SCR_H) >> 3);
+	SPIx_SendBuf16(&ST7541_SPI_PORT,(uint16_t *)&vRAM[0],(SCR_W * SCR_H) >> 3);
 	ST7541_CS_H();
 	// Disable the SPI peripheral, set 8-bit data frame format and then enable the SPI back
-	ST7541_SPI_PORT->CR1 &= ~(SPI_CR1_DFF | SPI_CR1_SPE);
-	ST7541_SPI_PORT->CR1 |= SPI_CR1_SPE;
+	ST7541_SPI_PORT.Instance->CR1 &= ~(SPI_CR1_DFF | SPI_CR1_SPE);
+	ST7541_SPI_PORT.Instance->CR1 |= SPI_CR1_SPE;
 
 /*
 	// Send video buffer with SPI 8-bit frame
@@ -330,22 +331,36 @@ void ST7541_Flush(void) {
 */
 }
 
-// Send vRAM buffer into display with DMA
-void ST7541_Flush_DMA(void) {
+// Send vRAM buffer into display using DMA
+// input:
+//   blocking: blocking or non-blocking operation (BLOCK/NOBLOCK)
+// note: in case of blocking operation this function waits for the end of transmit
+//       in case of non-blocking operation the application must deassert the CS pin
+//       after end of transmit (or call the ST7541_Wait_Flush())
+void ST7541_Flush_DMA(BlockingState blocking) {
 	ST7541_SetAddr(0,0);
 	ST7541_CS_L();
 	ST7541_RS_H();
 	// Configure the DMA transfer
-	SPIx_Configure_DMA_TX(ST7541_SPI_PORT,vRAM,(SCR_W * SCR_H) >> 2);
+	SPIx_Configure_DMA_TX(&ST7541_SPI_PORT,vRAM,(SCR_W * SCR_H) >> 2);
 	// Enable the DMA channel
-	SPIx_SetDMA(ST7541_SPI_PORT,ENABLE);
+	SPIx_SetDMA(&ST7541_SPI_PORT,SPI_DMA_TX,ENABLE);
+	if (blocking == BLOCK) {
+		// Wait while DMA transaction ongoing
+		while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
+	}
+//	if (blocking == BLOCK) ST7541_Wait_Flush();
+}
+
+// Waits for the DMA transmission ends
+void ST7541_Wait_Flush(void) {
 	// Wait until DMA transfer is over
-	while (!(SPI1_DMA_PERIPH->ISR & SPI1_DMA_TX_TCIF));
+	while (!(ST7541_SPI_PORT.DMA_TX.Instance->ISR & ST7541_SPI_PORT.DMA_TX.TCIF));
 	// Disable the DMA channel
-	SPIx_SetDMA(ST7541_SPI_PORT,DISABLE);
+	SPIx_SetDMA(&ST7541_SPI_PORT,SPI_DMA_TX,DISABLE);
 	// Ensure that the SPI communication is complete
-	while (!(ST7541_SPI_PORT->SR & SPI_SR_TXE));
-	while (ST7541_SPI_PORT->SR & SPI_SR_BSY);
+	while (!(ST7541_SPI_PORT.Instance->SR & SPI_SR_TXE));
+	while (ST7541_SPI_PORT.Instance->SR & SPI_SR_BSY);
 	ST7541_CS_H();
 }
 
@@ -420,12 +435,6 @@ void HLine(uint8_t X1, uint8_t X2, uint8_t Y, GrayScale_TypeDef GS) {
 	do {
 		Pixel(X,Y,GS);
 	} while (X-- > eX);
-
-/*
-	uint8_t X;
-
-	for (X = X1; X <= X2; X++) Pixel(X,Y,GS);
-*/
 }
 
 // Draw vertical line
@@ -444,12 +453,6 @@ void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, GrayScale_TypeDef GS) {
 	do {
 		Pixel(X,Y,GS);
 	} while (Y-- > eY);
-
-/*
-	uint8_t Y;
-
-	for (Y = Y1; Y <= Y2; Y++) Pixel(X,Y,GS);
-*/
 }
 
 // Draw rectangle
@@ -640,7 +643,7 @@ uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
 //   str - pointer to zero-terminated string
 //   Font - pointer to font
 // return: string width in pixels
-uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
+uint16_t PutStr(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Font) {
 	uint8_t strLen = 0;
 
     while (*str) {
@@ -658,7 +661,7 @@ uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
 //   str - pointer to zero-terminated string
 //   Font - pointer to font
 // return: string width in pixels
-uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font) {
+uint16_t PutStrLF(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Font) {
 	uint8_t strLen = 0;
 
     while (*str) {
@@ -832,7 +835,7 @@ uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
     return intLen * (Font->font_Width + 1);
 }
 
-// Draw bitmap
+// Draw mono bitmap with lcd_color
 // input:
 //   X, Y - top left corner coordinates of bitmap
 //   W, H - width and height of bitmap in pixels
@@ -844,8 +847,6 @@ void DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP)
 		for (j = 0; j < H; j++) {
 			if ((pBMP[i + (j / 8) * W] >> (j % 8)) & 0x01) {
 				Pixel(X + i, Y + j,lcd_color);
-			} else {
-//				Pixel(X + i, Y + j,gs_white);
 			}
 		}
 	}

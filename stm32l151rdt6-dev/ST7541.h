@@ -14,7 +14,7 @@
 // ST7541 HAL
 
 // SPI port
-#define ST7541_SPI_PORT      SPI1
+#define ST7541_SPI_PORT      hSPI1
 
 // GPIO peripherals
 #define ST7541_GPIO_PERIPH   RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN;
@@ -53,6 +53,8 @@
 typedef enum {ON = 0, OFF = !ON} OnOffStatus;
 typedef enum {NORMAL = 0, INVERT = !NORMAL} InvertStatus;
 typedef enum {ENABLED = 0, DISABLED = !ENABLED} DisplayState;
+typedef enum {BLOCK = 0, NOBLOCK = !BLOCK} BlockingState;
+typedef enum {INTERNAL = 0, EXTERNAL = !INTERNAL} BoosterState;
 
 // Screen orientation
 typedef enum {
@@ -110,7 +112,9 @@ void ST7541_SetScrollLine(uint8_t line);
 void ST7541_Orientation(uint8_t orientation);
 
 void ST7541_Flush(void);
-void ST7541_Flush_DMA(void);
+void ST7541_Flush_DMA(BlockingState blocking);
+void ST7541_Wait_Flush(void);
+
 void ST7541_Fill(uint16_t pattern);
 
 void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS);
@@ -122,8 +126,8 @@ void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, GrayScale_TypeDef GS);
 void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, GrayScale_TypeDef GS);
 
 uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font);
-uint16_t PutStr(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
-uint16_t PutStrLF(uint8_t X, uint8_t Y, char *str, const Font_TypeDef *Font);
+uint16_t PutStr(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Font);
+uint16_t PutStrLF(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Font);
 uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font);
 uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
 uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font);

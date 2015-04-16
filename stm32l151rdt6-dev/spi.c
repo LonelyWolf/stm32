@@ -1,16 +1,155 @@
-
 #include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
 
 #include <spi.h>
 
 
+// SPI port handles
+#ifdef SPI_USE_1
+SPI_HandleTypeDef hSPI1;
+#endif
+
+#ifdef SPI_USE_2
+SPI_HandleTypeDef hSPI2;
+#endif
+
+#ifdef SPI_USE_3
+SPI_HandleTypeDef hSPI3;
+#endif
+
+
+#ifdef SPI_USE_1
+// Populate the SPI1 handle
+void SPI1_HandleInit(void) {
+	hSPI1.Instance = SPI1;
+	hSPI1.AF_SPI   = GPIO_AF_SPI1;
+
+	// SCK pin [PA5, PB3]
+	hSPI1.PIN_SCK.GPIO_AHB = RCC_AHBENR_GPIOAEN;
+	hSPI1.PIN_SCK.GPIO     = GPIOA;
+	hSPI1.PIN_SCK.GPIO_PIN = GPIO_Pin_5;
+	hSPI1.PIN_SCK.GPIO_SRC = GPIO_PinSource5;
+
+	// MISO pin [PA6, PB4, PA11]
+	hSPI1.PIN_MISO.GPIO_AHB = RCC_AHBENR_GPIOAEN;
+	hSPI1.PIN_MISO.GPIO     = GPIOA;
+	hSPI1.PIN_MISO.GPIO_PIN = GPIO_Pin_6;
+	hSPI1.PIN_MISO.GPIO_SRC = GPIO_PinSource6;
+
+	// MOSI pin [PA7, PB5, PA12]
+	hSPI1.PIN_MOSI.GPIO_AHB = RCC_AHBENR_GPIOAEN;
+	hSPI1.PIN_MOSI.GPIO     = GPIOA;
+	hSPI1.PIN_MOSI.GPIO_PIN = GPIO_Pin_7;
+	hSPI1.PIN_MOSI.GPIO_SRC = GPIO_PinSource7;
+
+	// DMA TX channel
+	hSPI1.DMA_TX.Instance = DMA1;
+	hSPI1.DMA_TX.Channel  = DMA1_Channel3;
+	hSPI1.DMA_TX.CF       = DMA_IFCR_CGIF3 | DMA_IFCR_CHTIF3 | DMA_IFCR_CTCIF3 | DMA_IFCR_CTEIF3;
+	hSPI1.DMA_TX.TCIF     = DMA_ISR_TCIF3;
+	hSPI1.DMA_TX.HTIF     = DMA_ISR_HTIF3;
+	hSPI1.DMA_TX.State    = DMA_STATE_RESET;
+
+	// DMA RX channel
+	hSPI1.DMA_RX.Instance = DMA1;
+	hSPI1.DMA_RX.Channel  = DMA1_Channel2;
+	hSPI1.DMA_RX.CF       = DMA_IFCR_CGIF2 | DMA_IFCR_CHTIF2 | DMA_IFCR_CTCIF2 | DMA_IFCR_CTEIF2;
+	hSPI1.DMA_RX.TCIF     = DMA_ISR_TCIF2;
+	hSPI1.DMA_RX.HTIF     = DMA_ISR_HTIF2;
+	hSPI1.DMA_RX.State    = DMA_STATE_RESET;
+}
+#endif // SPI_USE_1
+
+#ifdef SPI_USE_2
+// Populate the SPI2 handle
+void SPI2_HandleInit(void) {
+	hSPI2.Instance = SPI2;
+	hSPI2.AF_SPI   = GPIO_AF_SPI2;
+
+	// SCK pin [PB13]
+	hSPI2.PIN_SCK.GPIO_AHB = RCC_AHBENR_GPIOBEN;
+	hSPI2.PIN_SCK.GPIO     = GPIOB;
+	hSPI2.PIN_SCK.GPIO_PIN = GPIO_Pin_13;
+	hSPI2.PIN_SCK.GPIO_SRC = GPIO_PinSource13;
+
+	// MISO pin [PB14]
+	hSPI2.PIN_MISO.GPIO_AHB = RCC_AHBENR_GPIOBEN;
+	hSPI2.PIN_MISO.GPIO     = GPIOB;
+	hSPI2.PIN_MISO.GPIO_PIN = GPIO_Pin_14;
+	hSPI2.PIN_MISO.GPIO_SRC = GPIO_PinSource14;
+
+	// MOSI pin [PB15]
+	hSPI2.PIN_MOSI.GPIO_AHB = RCC_AHBENR_GPIOBEN;
+	hSPI2.PIN_MOSI.GPIO     = GPIOB;
+	hSPI2.PIN_MOSI.GPIO_PIN = GPIO_Pin_15;
+	hSPI2.PIN_MOSI.GPIO_SRC = GPIO_PinSource15;
+
+	// DMA TX channel
+	hSPI2.DMA_TX.Instance = DMA1;
+	hSPI2.DMA_TX.Channel  = DMA1_Channel5;
+	hSPI2.DMA_TX.CF       = DMA_IFCR_CGIF5 | DMA_IFCR_CHTIF5 | DMA_IFCR_CTCIF5 | DMA_IFCR_CTEIF5;
+	hSPI2.DMA_TX.TCIF     = DMA_ISR_TCIF5;
+	hSPI2.DMA_TX.HTIF     = DMA_ISR_HTIF5;
+	hSPI2.DMA_TX.State    = DMA_STATE_RESET;
+
+	// DMA RX channel
+	hSPI2.DMA_RX.Instance = DMA1;
+	hSPI2.DMA_RX.Channel  = DMA1_Channel4;
+	hSPI2.DMA_RX.CF       = DMA_IFCR_CGIF4 | DMA_IFCR_CHTIF4 | DMA_IFCR_CTCIF4 | DMA_IFCR_CTEIF4;
+	hSPI2.DMA_RX.TCIF     = DMA_ISR_TCIF4;
+	hSPI2.DMA_RX.HTIF     = DMA_ISR_HTIF4;
+	hSPI2.DMA_RX.State    = DMA_STATE_RESET;
+}
+#endif // SPI_USE_2
+
+#ifdef SPI_USE_3
+// Populate the SPI3 handle
+void SPI3_HandleInit(void) {
+	hSPI3.Instance = SPI3;
+	hSPI3.AF_SPI   = GPIO_AF_SPI3;
+
+	// SCK pin [PC10, PB3]
+	hSPI3.PIN_SCK.GPIO_AHB = RCC_AHBENR_GPIOBEN;
+	hSPI3.PIN_SCK.GPIO     = GPIOB;
+	hSPI3.PIN_SCK.GPIO_PIN = GPIO_Pin_3;
+	hSPI3.PIN_SCK.GPIO_SRC = GPIO_PinSource3;
+
+	// MISO pin [PB4, PB11]
+	hSPI3.PIN_MISO.GPIO_AHB = RCC_AHBENR_GPIOBEN;
+	hSPI3.PIN_MISO.GPIO     = GPIOB;
+	hSPI3.PIN_MISO.GPIO_PIN = GPIO_Pin_4;
+	hSPI3.PIN_MISO.GPIO_SRC = GPIO_PinSource4;
+
+	// MOSI pin [PB5, PB12]
+	hSPI3.PIN_MOSI.GPIO_AHB = RCC_AHBENR_GPIOBEN;
+	hSPI3.PIN_MOSI.GPIO     = GPIOB;
+	hSPI3.PIN_MOSI.GPIO_PIN = GPIO_Pin_5;
+	hSPI3.PIN_MOSI.GPIO_SRC = GPIO_PinSource5;
+
+	// DMA TX channel
+	hSPI3.DMA_TX.Instance = DMA2;
+	hSPI3.DMA_TX.Channel  = DMA2_Channel2;
+	hSPI3.DMA_TX.CF       = DMA_IFCR_CGIF2 | DMA_IFCR_CHTIF2 | DMA_IFCR_CTCIF2 | DMA_IFCR_CTEIF2;
+	hSPI3.DMA_TX.TCIF     = DMA_ISR_TCIF2;
+	hSPI3.DMA_TX.HTIF     = DMA_ISR_THIF2;
+	hSPI3.DMA_TX.State    = DMA_STATE_RESET;
+
+	// DMA RX channel
+	hSPI3.DMA_RX.Instance = DMA1;
+	hSPI3.DMA_RX.Channel  = DMA1_Channel1;
+	hSPI3.DMA_RX.CF       = DMA_IFCR_CGIF1 | DMA_IFCR_CHTIF1 | DMA_IFCR_CTCIF1 | DMA_IFCR_CTEIF1;
+	hSPI3.DMA_RX.TCIF     = DMA_ISR_TCIF1;
+	hSPI3.DMA_RX.HTIF     = DMA_ISR_HTIF1;
+	hSPI3.DMA_RX.State    = DMA_STATE_RESET;
+}
+#endif // SPI_USE_3
+
 // SPI peripheral initialization
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   SPI_direction - SPI lines configuration (one of SPI_DIR_XXX values)
 //   SPI_prescaler - SPI prescaler (SPI_BR_XXX)
-void SPIx_Init(SPI_TypeDef *SPI, uint16_t SPI_direction, uint16_t SPI_prescaler) {
+void SPIx_Init(const SPI_HandleTypeDef *SPI, uint16_t SPI_DIR, uint16_t prescaler) {
 	GPIO_InitTypeDef PORT;
 
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
@@ -18,78 +157,50 @@ void SPIx_Init(SPI_TypeDef *SPI, uint16_t SPI_direction, uint16_t SPI_prescaler)
 	PORT.GPIO_Mode  = GPIO_Mode_AF;
 	PORT.GPIO_PuPd  = GPIO_PuPd_NOPULL;
 
-	if (SPI == SPI1) {
+	// Reset the SPI peripheral
+#ifdef SPI_USE_1
+	if (SPI->Instance == SPI1) {
 		// Reset the SPI1 peripheral
 		RCC->APB2RSTR |=  RCC_APB2RSTR_SPI1RST;
 		RCC->APB2RSTR &= ~RCC_APB2RSTR_SPI1RST;
-		// Enable the SPI GPIO peripheral(s)
-		RCC->AHBENR |= SPI1_PERIPH;
-		// Enable the SPI1 peripheral
+		// Enable the SPI1 peripheral clock
 		RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-		// SCK pin
-		PORT.GPIO_Pin = SPI1_SCK_PIN;
-		GPIO_Init(SPI1_SCK_GPIO,&PORT);
-		GPIO_PinAFConfig(SPI1_SCK_GPIO,SPI1_SCK_PIN_SRC,GPIO_AF_SPI1);
-		if (SPI_direction != SPI_DIR_RX) {
-			// MOSI pin
-			PORT.GPIO_Pin = SPI1_MOSI_PIN;
-			GPIO_Init(SPI1_MOSI_GPIO,&PORT);
-			GPIO_PinAFConfig(SPI1_MOSI_GPIO,SPI1_MOSI_PIN_SRC,GPIO_AF_SPI1);
-		}
-		if (SPI_direction != SPI_DIR_TX) {
-			// MISO pin
-			PORT.GPIO_Pin = SPI1_MISO_PIN;
-			GPIO_Init(SPI1_MISO_GPIO,&PORT);
-			GPIO_PinAFConfig(SPI1_MISO_GPIO,SPI1_MISO_PIN_SRC,GPIO_AF_SPI1);
-		}
-	} else if (SPI == SPI2) {
+	}
+#endif
+#ifdef SPI_USE_2
+	if (SPI->Instance == SPI2) {
 		// Reset the SPI2 peripheral
 		RCC->APB1RSTR |=  RCC_APB1RSTR_SPI2RST;
 		RCC->APB1RSTR &= ~RCC_APB1RSTR_SPI2RST;
-		// Enable the SPI2 GPIO peripheral
-		RCC->AHBENR |= SPI2_PERIPH;
-		// Enable the SPI2 peripheral
+		// Enable the SPI2 peripheral clock
 		RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
-		// SCK pin
-		PORT.GPIO_Pin = SPI2_SCK_PIN;
-		GPIO_Init(SPI2_SCK_GPIO,&PORT);
-		GPIO_PinAFConfig(SPI2_SCK_GPIO,SPI2_SCK_PIN_SRC,GPIO_AF_SPI2);
-		if (SPI_direction != SPI_DIR_RX) {
-			// MOSI pin
-			PORT.GPIO_Pin = SPI2_MOSI_PIN;
-			GPIO_Init(SPI2_MOSI_GPIO,&PORT);
-			GPIO_PinAFConfig(SPI2_MOSI_GPIO,SPI2_MOSI_PIN_SRC,GPIO_AF_SPI2);
-		}
-		if (SPI_direction != SPI_DIR_TX) {
-			// MISO pin
-			PORT.GPIO_Pin = SPI2_MISO_PIN;
-			GPIO_Init(SPI2_MISO_GPIO,&PORT);
-			GPIO_PinAFConfig(SPI2_MISO_GPIO,SPI2_MISO_PIN_SRC,GPIO_AF_SPI2);
-		}
-	} else if (SPI == SPI3) {
+	}
+#endif
+#ifdef SPI_USE_3
+	if (SPI->Instance == SPI3) {
 		// Reset the SPI3 peripheral
 		RCC->APB1RSTR |=  RCC_APB1RSTR_SPI3RST;
 		RCC->APB1RSTR &= ~RCC_APB1RSTR_SPI3RST;
-		// Enable the SPI3 GPIO peripheral(s)
-		RCC->AHBENR |= SPI3_PERIPH;
-		// Enable the SPI3 peripheral
+		// Enable the SPI3 peripheral clock
 		RCC->APB1ENR |= RCC_APB1ENR_SPI3EN;
-		// SCK pin
-		PORT.GPIO_Pin = SPI3_SCK_PIN;
-		GPIO_Init(SPI3_SCK_GPIO,&PORT);
-		GPIO_PinAFConfig(SPI3_SCK_GPIO,SPI3_SCK_PIN_SRC,GPIO_AF_SPI3);
-		if (SPI_direction != SPI_DIR_RX) {
-			// MOSI pin
-			PORT.GPIO_Pin = SPI3_MOSI_PIN;
-			GPIO_Init(SPI3_MOSI_GPIO,&PORT);
-			GPIO_PinAFConfig(SPI3_MOSI_GPIO,SPI3_MOSI_PIN_SRC,GPIO_AF_SPI3);
-		}
-		if (SPI_direction != SPI_DIR_TX) {
-			// MISO pin
-			PORT.GPIO_Pin = SPI3_MISO_PIN;
-			GPIO_Init(SPI3_MISO_GPIO,&PORT);
-			GPIO_PinAFConfig(SPI3_MISO_GPIO,SPI3_MISO_PIN_SRC,GPIO_AF_SPI3);
-		}
+	}
+#endif
+
+	// SCK pin
+	PORT.GPIO_Pin = SPI->PIN_SCK.GPIO_PIN;
+	GPIO_Init(SPI->PIN_SCK.GPIO,&PORT);
+	GPIO_PinAFConfig(SPI->PIN_SCK.GPIO,SPI->PIN_SCK.GPIO_SRC,SPI->AF_SPI);
+	// MOSI pin
+	if (SPI_DIR != SPI_DIR_RX) {
+		PORT.GPIO_Pin = SPI->PIN_MOSI.GPIO_PIN;
+		GPIO_Init(SPI->PIN_MOSI.GPIO,&PORT);
+		GPIO_PinAFConfig(SPI->PIN_MOSI.GPIO,SPI->PIN_MOSI.GPIO_SRC,SPI->AF_SPI);
+	}
+	// MISO pin
+	if (SPI_DIR != SPI_DIR_TX) {
+		PORT.GPIO_Pin = SPI->PIN_MISO.GPIO_PIN;
+		GPIO_Init(SPI->PIN_MISO.GPIO,&PORT);
+		GPIO_PinAFConfig(SPI->PIN_MISO.GPIO,SPI->PIN_MISO.GPIO_SRC,SPI->AF_SPI);
 	}
 
 	// SPI settings:
@@ -101,33 +212,33 @@ void SPIx_Init(SPI_TypeDef *SPI, uint16_t SPI_direction, uint16_t SPI_prescaler)
 	//   - software NSS selection
 	//   - hardware CRC calculation disabled
 	//   - peripheral enabled
-	SPI->CR1 = SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | SPI_prescaler;
-	if (SPI_direction == SPI_DIR_RX) SPI->CR1 |= SPI_CR1_RXONLY;
-	SPI->I2SCFGR &= ~SPI_I2SCFGR_I2SMOD; // Clear I2SMOD bit - SPI mode
-	SPI->CR1 |= SPI_CR1_SPE; // Enable the specified SPI peripheral
+	SPI->Instance->CR1 = SPI_CR1_MSTR | SPI_CR1_SSI | SPI_CR1_SSM | prescaler;
+	if (SPI_DIR == SPI_DIR_RX) SPI->Instance->CR1 |= SPI_CR1_RXONLY;
+	SPI->Instance->I2SCFGR &= ~SPI_I2SCFGR_I2SMOD; // Clear I2SMOD bit - SPI mode
+	SPI->Instance->CR1 |= SPI_CR1_SPE; // Enable the specified SPI peripheral
 }
 
 // Set SPI speed
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   SPI_prescaler - SPI prescaler (SPI_BR_XXX)
-void SPIx_SetSpeed(SPI_TypeDef *SPI, uint16_t SPI_prescaler) {
+void SPIx_SetSpeed(SPI_HandleTypeDef *SPI, uint16_t SPI_prescaler) {
 	uint16_t reg;
 
-	reg  = SPI->CR1 & ~SPI_CR1_BR; // Clear SPI baud rate bits
+	reg  = SPI->Instance->CR1 & ~SPI_CR1_BR; // Clear SPI baud rate bits
 	reg |= SPI_prescaler; // Set SPI baud rate bits
-	SPI->CR1 = reg; // Update the SPI configuration
+	SPI->Instance->CR1 = reg; // Update the SPI configuration
 }
 
 // Send byte to SPI
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   data - byte to send
 // note: TX only mode
-void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
-	while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-	SPI->DR = data; // Send byte to SPI (TXE cleared)
-	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission is complete
+void SPIx_Send(SPI_HandleTypeDef *SPI, uint8_t data) {
+	while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+	SPI->Instance->DR = data; // Send byte to SPI (TXE cleared)
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait until the transmission is complete
 }
 
 // Send data buffer to SPI
@@ -136,12 +247,12 @@ void SPIx_Send(SPI_TypeDef *SPI, uint8_t data) {
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: TX only mode
-void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+void SPIx_SendBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	do {
-		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->DR = *pBuf++;
+		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->Instance->DR = *pBuf++;
 	} while (--length);
-	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
 
 // Send data buffer to SPI (16-bit frame)
@@ -150,143 +261,158 @@ void SPIx_SendBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: TX only mode
-void SPIx_SendBuf16(SPI_TypeDef *SPI, uint16_t *pBuf, uint32_t length) {
+void SPIx_SendBuf16(SPI_HandleTypeDef *SPI, uint16_t *pBuf, uint32_t length) {
 	do {
-		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->DR = *pBuf++;
+		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->Instance->DR = *pBuf++;
 	} while (--length);
-	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
 
 // Send byte to SPI and return received byte
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   data - byte to send
 // return: byte received by SPI
 // note: full duplex mode
-uint8_t SPIx_SendRecv(SPI_TypeDef *SPI, uint8_t data) {
-	SPI->DR = data; // Send byte to SPI (TXE cleared)
-	while (!(SPI->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
+uint8_t SPIx_SendRecv(SPI_HandleTypeDef *SPI, uint8_t data) {
+	SPI->Instance->DR = data; // Send byte to SPI (TXE cleared)
+	while (!(SPI->Instance->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
 
-	return SPI->DR; // Return received byte
+	return SPI->Instance->DR; // Return received byte
 }
 
 // Receive block of data into specified data buffer
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 //   dummy - dummy byte to send
 // note: receive only in full duplex mode
-void SPIx_RecvBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length, uint8_t dummy) {
+void SPIx_RecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length, uint8_t dummy) {
 	while (length--) {
-		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->DR = dummy; // Send dummy byte (TXE cleared)
-		while (!(SPI->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
-		*pBuf++ = SPI->DR; // Read received byte
+		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->Instance->DR = dummy; // Send dummy byte (TXE cleared)
+		while (!(SPI->Instance->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
+		*pBuf++ = SPI->Instance->DR; // Read received byte
 	}
-	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
 
 // Transmit block of data from specified data buffer and receive data in same buffer
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: receive only in full duplex mode
-void SPIx_SendRecvBuf(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+void SPIx_SendRecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	while (length--) {
-		while (!(SPI->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->DR = *pBuf; // Send byte (TXE cleared)
-		while (!(SPI->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
-		*pBuf++ = SPI->DR; // Read received byte
+		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->Instance->DR = *pBuf; // Send byte (TXE cleared)
+		while (!(SPI->Instance->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
+		*pBuf++ = SPI->Instance->DR; // Read received byte
 	}
-	while (SPI->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait until the transmission of the last byte is complete
 }
 
 // Initialize the DMA peripheral for SPI
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: the corresponding DMA peripheral clock must be already enabled
-void SPIx_Configure_DMA_TX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
-	DMA_Channel_TypeDef *DMAx_Ch;
-
-	if (SPI == SPI1) {
-		DMAx_Ch = SPI1_DMA_CH_TX;
-	} else if (SPI == SPI2) {
-		DMAx_Ch = SPI2_DMA_CH_TX;
-	} else if (SPI == SPI3) {
-		DMAx_Ch = SPI3_DMA_CH_TX;
-	}
+void SPIx_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	// DMA: memory -> SPI, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
-	DMAx_Ch->CCR   = DMA_CCR1_DIR | DMA_CCR1_MINC | DMA_CCR1_PL_0;
-	DMAx_Ch->CPAR  = (uint32_t)(&(SPI->DR)); // Address of the peripheral data register
-	DMAx_Ch->CMAR  = (uint32_t)pBuf; // Memory address
-	DMAx_Ch->CNDTR = length; // Number of data
+//	SPI->DMA_TX.Channel->CCR   = DMA_CCR1_DIR | DMA_CCR1_MINC | DMA_CCR1_PL_0;
+
+	// DMA: memory -> SPI, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
+	SPI->DMA_TX.Channel->CCR   = DMA_CCR1_DIR | DMA_CCR1_MINC | DMA_CCR1_PL_0 | DMA_CCR1_TCIE;    //  <------------- ENABLE TC IRQ
+
+	SPI->DMA_TX.Channel->CPAR  = (uint32_t)(&(SPI->Instance->DR)); // Address of the peripheral data register
+	SPI->DMA_TX.Channel->CMAR  = (uint32_t)pBuf; // Memory address
+	SPI->DMA_TX.Channel->CNDTR = length; // Number of data
+	SPI->DMA_TX.State = DMA_STATE_READY;
 }
 
 // Initialize the DMA peripheral for SPI
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: the corresponding DMA peripheral clock must be already enabled
-void SPIx_Configure_DMA_RX(SPI_TypeDef *SPI, uint8_t *pBuf, uint32_t length) {
-	DMA_Channel_TypeDef *DMAx_Ch;
-
-	if (SPI == SPI1) {
-		DMAx_Ch = SPI1_DMA_CH_RX;
-	} else if (SPI == SPI2) {
-		DMAx_Ch = SPI2_DMA_CH_RX;
-	} else if (SPI == SPI3) {
-		DMAx_Ch = SPI3_DMA_CH_RX;
-	}
+void SPIx_Configure_DMA_RX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 	// DMA: SPI -> memory, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
-	DMAx_Ch->CCR   = DMA_CCR1_MINC | DMA_CCR1_PL_0;
-	DMAx_Ch->CPAR  = (uint32_t)(&(SPI->DR)); // Address of the peripheral data register
-	DMAx_Ch->CMAR  = (uint32_t)pBuf; // Memory address
-	DMAx_Ch->CNDTR = length; // Number of data
+	SPI->DMA_RX.Channel->CCR   = DMA_CCR1_MINC | DMA_CCR1_PL_0;
+	SPI->DMA_RX.Channel->CPAR  = (uint32_t)(&(SPI->Instance->DR)); // Address of the peripheral data register
+	SPI->DMA_RX.Channel->CMAR  = (uint32_t)pBuf; // Memory address
+	SPI->DMA_RX.Channel->CNDTR = length; // Number of data
+	SPI->DMA_RX.State = DMA_STATE_READY;
 }
 
 // Enable/disable SPI RX/TX DMA channels
 // input:
-//   SPI - pointer to the SPI port (SPI1, SPI2, etc.)
+//   SPI - pointer to the SPI port handle
 //   NewState - new state of channels (ENABLE/DISABLE)
-void SPIx_SetDMA(SPI_TypeDef *SPI, FunctionalState NewState) {
+void SPIx_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState NewState) {
 	if (NewState == ENABLE) {
-		// Clear DMA interrupt flags and enable RX/TX DMA channels
-		if (SPI == SPI1) {
-			SPI1_DMA_PERIPH->IFCR = SPI1_DMA_CH_TX_F | SPI1_DMA_CH_RX_F;
-			SPI1_DMA_CH_TX->CCR |= DMA_CCR1_EN;
-//			SPI1_DMA_CH_RX->CCR |= DMA_CCR1_EN;
-		} else if (SPI == SPI2) {
-			SPI2_DMA_PERIPH->IFCR = SPI2_DMA_CH_TX_F | SPI2_DMA_CH_RX_F;
-			SPI2_DMA_CH_TX->CCR |= DMA_CCR1_EN;
-//			SPI2_DMA_CH_RX->CCR |= DMA_CCR1_EN;
-		} else if (SPI == SPI3) {
-			SPI3_DMA_PERIPH->IFCR = SPI3_DMA_CH_TX_F | SPI3_DMA_CH_RX_F;
-			SPI3_DMA_CH_TX->CCR |= DMA_CCR1_EN;
-//			SPI3_DMA_CH_RX->CCR |= DMA_CCR1_EN;
+		if (SPI_DMA_DIR & SPI_DMA_TX) {
+			// Clear DMA interrupt flag and enable TX DMA channel
+			SPI->DMA_TX.Instance->IFCR = SPI->DMA_TX.CF;
+			SPI->DMA_TX.Channel->CCR  |= DMA_CCR1_EN;
+			// Enable SPI TX DMA
+			SPI->Instance->CR2 |= SPI_CR2_TXDMAEN;
+			// Change state of DMA channel
+			SPI->DMA_TX.State = DMA_STATE_BUSY;
 		}
-		// Enable SPI RX/TX DMA
-		SPI->CR2 |= SPI_CR2_TXDMAEN;
-//		SPI->CR2 |= SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN;
+		if (SPI_DMA_DIR & SPI_DMA_RX) {
+			// Clear DMA interrupt flag and enable RX DMA channel
+			SPI->DMA_RX.Instance->IFCR = SPI->DMA_RX.CF;
+			SPI->DMA_RX.Channel->CCR  |= DMA_CCR1_EN;
+			// Enable SPI RX DMA
+			SPI->Instance->CR2 |= SPI_CR2_RXDMAEN;
+			// Change state of DMA channel
+			SPI->DMA_RX.State = DMA_STATE_BUSY;
+		}
 	} else {
-		// Disable RX/TX DMA channels
-		if (SPI == SPI1) {
-			SPI1_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
-//			SPI1_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
-		} else if (SPI == SPI2) {
-			SPI2_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
-//			SPI2_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
-		} else if (SPI == SPI3) {
-			SPI3_DMA_CH_TX->CCR &= ~DMA_CCR1_EN;
-//			SPI3_DMA_CH_RX->CCR &= ~DMA_CCR1_EN;
+		if (SPI_DMA_DIR & SPI_DMA_TX) {
+			// Disable TX DMA channel
+			SPI->DMA_TX.Channel->CCR &= ~DMA_CCR1_EN;
+			// Disable SPI TX DMA
+			SPI->Instance->CR2 &= ~SPI_CR2_TXDMAEN;
+			// Change state of DMA channel
+			SPI->DMA_TX.State = DMA_STATE_RESET;
 		}
-		// Disable SPI RX/TX DMA
-		SPI->CR2 &= ~SPI_CR2_TXDMAEN;
-//		SPI->CR2 &= ~(SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN);
+		if (SPI_DMA_DIR & SPI_DMA_RX) {
+			// Disable RX DMA channel
+			SPI->DMA_RX.Channel->CCR &= ~DMA_CCR1_EN;
+			// Disable SPI RX DMA
+			SPI->Instance->CR2 &= ~SPI_CR2_RXDMAEN;
+			// Change state of DMA channel
+			SPI->DMA_RX.State = DMA_STATE_RESET;
+		}
 	}
+}
+
+// Handle DMA interrupt request
+// input:
+//   SPI - pointer to the SPI port handle
+// note: must be called from a corresponding DMA IRQ handler
+void SPIx_DMA_Handler(DMA_HandleTypeDef *hDMA) {
+	uint16_t flags;
+
+	// Get DMA flags status
+	flags = hDMA->Instance->ISR;
+
+	if (flags & hDMA->HTIF) {
+		// Half transfer
+		hDMA->State = DMA_STATE_HT;
+	}
+
+	if (flags & hDMA->TCIF) {
+		// Transfer complete
+		hDMA->State = DMA_STATE_TC;
+	}
+
+	// Clear the DMA channel interrupt flags
+	hDMA->Instance->IFCR = hDMA->TCIF;
 }

@@ -40,6 +40,13 @@
 
 
 
+
+// Ignore 'format' compiler warnings
+#pragma GCC diagnostic ignored "-Wformat"
+
+
+
+
 // GPS enable (PC1)
 #define PWR_GPS_ENABLE_PORT       GPIOC
 #define PWR_GPS_ENABLE_PIN        GPIO_Pin_1
@@ -172,16 +179,15 @@ RTC_TimeTypeDef _time;
 RTC_DateTypeDef _date;
 
 // LCD debug
-uint8_t lcd_char = 33;
 uint8_t lcd_backlight = 10;
 
 // Flags
 volatile bool _new_time = FALSE;
 
 // USART
-#define USART_FIFO_SIZE     64        // USART FIFO buffer size (must be power of 2)
-uint8_t USART_FIFO[USART_FIFO_SIZE];  // USART FIFO receive buffer
-uint16_t USART_FIFO_pos;                   // Last value of the UART RX DMA counter (to track RX timeout)
+#define  USART_FIFO_SIZE         64    // USART FIFO buffer size (must be power of 2)
+uint8_t  USART_FIFO[USART_FIFO_SIZE];  // USART FIFO receive buffer
+uint16_t USART_FIFO_pos;               // Write position in USART FIFO
 
 // SPL
 GPIO_InitTypeDef PORT;
@@ -339,22 +345,7 @@ void USART2_IRQHandler(void) {
 		printf(">>> OE: %u\r\n",GPS_buf_cntr);
 		GPS_buf_cntr = 0;
 	}
-
-/*
-	// USART noise error
-	if (SR & USART_SR_NE) {
-		printf(">>> NE: %u\r\n",GPS_buf_cntr);
-		GPS_buf_cntr = 0;
-	}
-
-	// USART framing error
-	if (SR & USART_SR_FE) {
-		printf(">>> FE: %u\r\n",GPS_buf_cntr);
-		GPS_buf_cntr = 0;
-	}
-*/
 }
-
 
 // DMA1 channel6 IRQ handler (USART_RX)
 void DMA1_Channel6_IRQHandler() {
@@ -532,6 +523,19 @@ void EXTI15_10_IRQHandler(void) {
 	}
 }
 
+// DMA1 channel3 IRQ handler (display SPI DMA TX)
+void DMA1_Channel3_IRQHandler(void) {
+	// Handle the DMA IRQ
+	SPIx_DMA_Handler(&ST7541_SPI_PORT.DMA_TX);
+	// Disable the DMA channel
+	SPIx_SetDMA(&ST7541_SPI_PORT,SPI_DMA_TX,DISABLE);
+	// Ensure that the last SPI communication is complete
+	while (!(ST7541_SPI_PORT.Instance->SR & SPI_SR_TXE));
+	while (ST7541_SPI_PORT.Instance->SR & SPI_SR_BSY);
+	// Deassert the display CS pin
+	ST7541_CS_H();
+}
+
 // SDIO IRQ handler
 void SDIO_IRQHandler(void) {
 	printf("\r\n###> IRQ SDIO [%X] CNT=%u\r\n",SDIO->STA,SDIO->FIFOCNT);
@@ -626,7 +630,8 @@ int main(void) {
 			while (_beep_duration);
 		} else {
 			// Initialize display SPI port
-			SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);
+			SPI1_HandleInit();
+			SPIx_Init(&ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);
 
 			// Initialize display control pins
 			ST7541_InitGPIO();
@@ -635,6 +640,7 @@ int main(void) {
 			ST7541_cmd(0x2f); // Power control: VC,VR,VF = 1,1,1 (internal voltage booster)
 			ST7541_CS_H();
 
+			// Adjust partial display and lower contrast ratio
 			ST7541_SetDisplayPartial(32,0,64);
 			ST7541_Contrast(5,5,10);
 
@@ -808,7 +814,7 @@ int main(void) {
 	PORT.GPIO_OType = GPIO_OType_PP;
 	PORT.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOA,&PORT);
-	RCC_MCOConfig(RCC_MCOSource_PLLCLK,RCC_MCODiv_16);
+	RCC_MCOConfig(RCC_MCOSource_HSI,RCC_MCODiv_1);
 */
 
 
@@ -822,22 +828,28 @@ int main(void) {
 	PWR_LCD_ENABLE_L();
 
 	// Display SPI port initialization: 1-line TX
-//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_256); // lowest speed (125kHz on 32MHz CPU)
-//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);   // highest speed (16MHz on 32MHz CPU)
-	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_4);   // 8MHz on 32MHz CPU
-//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_8);   // 4MHz on 32MHz CPU
-//	SPIx_Init(ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_16);  // 2MHz on 32MHz CPU
+	SPI1_HandleInit();
+//	SPIx_Init(&ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_256); // lowest speed (125kHz on 32MHz CPU)
+//	SPIx_Init(&ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_2);   // highest speed (16MHz on 32MHz CPU)
+	SPIx_Init(&ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_4);   // 8MHz on 32MHz CPU
+//	SPIx_Init(&ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_8);   // 4MHz on 32MHz CPU
+//	SPIx_Init(&ST7541_SPI_PORT,SPI_DIR_TX,SPI_BR_16);  // 2MHz on 32MHz CPU
 
 	// Initialize display and clear screen
 	ST7541_InitGPIO();
 	ST7541_Init();
 //	ST7541_Contrast(6,6,36); // External booster 10.6V
-	ST7541_Contrast(7,7,24); // Internal booster/External booster 12.5V
+//	ST7541_Contrast(7,7,24); // Internal booster/External booster 12.5V
+	ST7541_Contrast(6,6,30); // Internal booster
 	ST7541_Fill(0x0000);
+
+	// Enable the display SPI port DMA TX interrupt
+	ST7541_SPI_PORT.DMA_TX.Channel->CCR |= DMA_CCR1_TCIE; // Enable the DMA TC IRQ
+//	DMA1_Channel3->CCR |= DMA_CCR3_TCIE; // Enable the DMA channel3 TC IRQ
+	NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 	// Draw big gray-scaled toppler (logo)
 	uint8_t xx,yy,bb;
-	ST7541_Contrast(6,6,30); // Internal booster/External booster 12.5V
 	ST7541_Fill(0x0000);
 	for (yy = 0; yy < 48; yy++) {
 		for (xx = 0; xx < 12; xx++) {
@@ -848,7 +860,7 @@ int main(void) {
 			}
 		}
 	}
-	ST7541_Flush_DMA();
+	ST7541_Flush_DMA(NOBLOCK);
 
 	// Initialize the display backlight
 
@@ -1605,7 +1617,8 @@ int main(void) {
 
 
 	// nRF24 SPI port initialization: 2 lines full duplex, highest speed (16MHz at 32MHz CPU)
-	SPIx_Init(nRF24_SPI_PORT,SPI_DIR_DUPLEX,SPI_BR_2);
+    SPI2_HandleInit();
+	SPIx_Init(&nRF24_SPI_PORT,SPI_DIR_DUPLEX,SPI_BR_2);
 
 	// Initialize and configure nRF24
 	nRF24_Init();
@@ -1793,11 +1806,14 @@ int main(void) {
 	int16_t dY = 1;
 	uint8_t sprite = 0;
 	int8_t  dspr   = 1;
-	uint32_t duty  = 0;
 
 	d0 = 0;
 	while(1) {
 		while (!GPS_new_data && !_new_packet) {
+
+			// Wait for DMA transaction completed before start new drawing
+			while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
+
 			ST7541_Fill(0x0000);
 
 			// Draw FPS with shadow effect
@@ -1888,8 +1904,8 @@ int main(void) {
 				}
 			}
 
-			// Move and animate toppler every 10th frame
-			if ((k % 10) == 0) {
+			// Move and animate toppler every 16th frame
+			if ((k % 16) == 0) {
 				sprite += dspr;
 				if ((sprite > 6) || (sprite < 1)) dspr *= -1;
 
@@ -1899,7 +1915,7 @@ int main(void) {
 				if ((hY < 46) || (hY > SCR_H - 17)) dY *= -1;
 			}
 
-			ST7541_Flush_DMA();
+			ST7541_Flush_DMA(NOBLOCK);
 			k++;
 
 			if (_new_time) {
@@ -2095,7 +2111,7 @@ int main(void) {
 		i += PutIntU(i,38,GPSData.sats_view,fnt5x7) - 1;
 
 
-		ST7541_Flush_DMA();
+		ST7541_Flush_DMA(NOBLOCK);
 		k++;
 
 		if (GPS_new_data) {
@@ -2228,7 +2244,7 @@ int main(void) {
     	k = !k;
     }
     Rect(0,0,127,127,gs_black);
-    ST7541_Flush_DMA();
+    ST7541_Flush_DMA(NOBLOCK);
     while(1);
 
 /*
@@ -2250,7 +2266,8 @@ int main(void) {
 	while(1) {
 		k = 0;
 		while (!_new_time) {
-			ST7541_Flush_DMA();
+			ST7541_Flush_DMA(NOBLOCK);
+//			ST7541_Flush_DMA(BLOCK);
 //			ST7541_Flush();
 			k++;
 		}
@@ -2575,7 +2592,7 @@ int main(void) {
 //*/
 
 	    Rect(0,0,127,127,gs_black);
-	    ST7541_Flush();
+	    ST7541_Flush_DMA(NOBLOCK);
 
 	    // Put MCU into SLEEP mode
 		SleepWait();

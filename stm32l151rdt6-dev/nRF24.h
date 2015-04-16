@@ -13,7 +13,7 @@
 
 
 // nRF24L01 SPI peripheral
-#define nRF24_SPI_PORT       SPI2
+#define nRF24_SPI_PORT       hSPI2
 
 // nRF24L01 GPIO peripherals
 #define nRF24_PORT_PERIPH    RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN
