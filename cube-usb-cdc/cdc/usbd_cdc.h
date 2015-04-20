@@ -7,10 +7,10 @@
 
 // CDC endpoints
 #define CDC_IN_EP                                   0x81 // EP1 for data IN
-#define CDC_OUT_EP                                  0x01 // EP1 for data OUT
+#define CDC_OUT_EP                                  0x03 // EP1 for data OUT
 #define CDC_CMD_EP                                  0x82 // EP2 for CDC commands
 
-// CDC Endpoints parameters: you can fine tune these values depending on the needed baudrates and performance.
+// CDC endpoints packet sizes
 #define CDC_DATA_HS_MAX_PACKET_SIZE                 512  // USB HighSpeed endpoint IN & OUT packet size
 #define CDC_DATA_FS_MAX_PACKET_SIZE                 64   // USB FullSpeed endpoint IN & OUT packet size
 #define CDC_CMD_PACKET_SIZE                         8    // Control endpoint packet size
@@ -35,6 +35,8 @@
 
 
 // Public type definitions
+
+// CDC line coding structure
 typedef struct {
 	uint32_t bitrate;
 	uint8_t  format;
@@ -42,6 +44,7 @@ typedef struct {
 	uint8_t  datatype;
 } USBD_CDC_LineCodingTypeDef;
 
+// CDC interface structure
 typedef struct _USBD_CDC_Itf {
 	int8_t (* Init)    (void);
 	int8_t (* DeInit)  (void);
@@ -49,8 +52,9 @@ typedef struct _USBD_CDC_Itf {
 	int8_t (* Receive) (uint8_t *, uint32_t *);
 } USBD_CDC_ItfTypeDef;
 
+// CDC class handle
 typedef struct {
-	uint32_t data[CDC_DATA_HS_MAX_PACKET_SIZE/4]; // Force 32bits alignment
+	uint32_t data[CDC_DATA_HS_MAX_PACKET_SIZE / 4]; // Force 32-bit alignment
 	uint8_t  CmdOpCode;
 	uint8_t  CmdLength;
 	uint8_t  *RxBuffer;
@@ -63,17 +67,13 @@ typedef struct {
 
 
 // Public variables
-extern USBD_ClassTypeDef  USBD_CDC;
-
-
-// Public defines
-#define USBD_CDC_CLASS    &USBD_CDC
+extern USBD_ClassTypeDef USBD_CDC;
 
 
 // Function prototypes
 uint8_t USBD_CDC_RegisterInterface(USBD_HandleTypeDef *pdev, USBD_CDC_ItfTypeDef *fops);
-uint8_t USBD_CDC_SetTxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pbuff, uint16_t length);
-uint8_t USBD_CDC_SetRxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pbuff);
+uint8_t USBD_CDC_SetTxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pBuf, uint16_t length);
+uint8_t USBD_CDC_SetRxBuffer(USBD_HandleTypeDef *pdev, uint8_t *pBuf);
 uint8_t USBD_CDC_ReceivePacket(USBD_HandleTypeDef *pdev);
 uint8_t USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev);
 

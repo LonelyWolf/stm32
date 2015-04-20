@@ -121,11 +121,11 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev) {
 	husb.Init.speed = USB_SPEED_FULL;
 	husb.Init.low_power_enable = 0;
 
-	// Link The driver to the stack
+	// Link the driver to the stack
 	husb.pData  = pdev;
 	pdev->pData = &husb;
 
-	// Initialize Low level Driver
+	// Initialize low level driver
 	HAL_USB_Init(pdev->pData);
 
 	// Initialize endpoints structures
@@ -151,7 +151,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev) {
 		husb.OUT_ep[i].xfer_len  = 0;
 	}
 
-	// Initialize USB Device
+	// Initialize USB device
 
 	// CNTR_FRES = 1
 	husb.Instance->CNTR = USB_CNTR_FRES;
@@ -173,12 +173,12 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev) {
 	husb.USB_Address = 0;
 	husb.State = USB_READY;
 
-	// Configure Endpoints
-	HAL_USB_PMAConfig(pdev->pData,0x00,USB_SNG_BUF,0x40);
-	HAL_USB_PMAConfig(pdev->pData,0x80,USB_SNG_BUF,0x80);
-	HAL_USB_PMAConfig(pdev->pData,CDC_IN_EP,USB_SNG_BUF,0xC0);
-	HAL_USB_PMAConfig(pdev->pData,CDC_OUT_EP,USB_SNG_BUF,0x110);
+	// Configure endpoints
+	HAL_USB_PMAConfig(pdev->pData,      0x00,USB_SNG_BUF,0x040);
+	HAL_USB_PMAConfig(pdev->pData,      0x80,USB_SNG_BUF,0x080);
+	HAL_USB_PMAConfig(pdev->pData, CDC_IN_EP,USB_SNG_BUF,0x0C0);
 	HAL_USB_PMAConfig(pdev->pData,CDC_CMD_EP,USB_SNG_BUF,0x100);
+	HAL_USB_PMAConfig(pdev->pData,CDC_OUT_EP,USB_SNG_BUF,0x110);
 
 	return USBD_OK;
 }
@@ -217,8 +217,7 @@ USBD_StatusTypeDef USBD_LL_Stop(USBD_HandleTypeDef *pdev) {
 //   ep_addr - endpoint address
 //   ep_mps - endpoint maximum packet size
 //   ep_type - endpoint type
-USBD_StatusTypeDef USBD_LL_OpenEP(USBD_HandleTypeDef *pdev, uint8_t ep_addr, uint8_t ep_type,
-		uint16_t ep_mps) {
+USBD_StatusTypeDef USBD_LL_OpenEP(USBD_HandleTypeDef *pdev, uint8_t ep_addr, uint8_t ep_type, uint16_t ep_mps) {
 	HAL_USB_EP_Open(pdev->pData,ep_addr,ep_mps,ep_type);
 
 	return USBD_OK;

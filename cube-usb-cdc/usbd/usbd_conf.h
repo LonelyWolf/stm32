@@ -21,7 +21,7 @@ extern USB_HandleTypeDef husb;
 #define MSC_MEDIA_PACKET             8192
 
 // CDC Class Config
-#define USBD_CDC_INTERVAL            2000
+#define USBD_CDC_INTERVAL            1000
 
 // DFU Class Config
 #define USBD_DFU_MAX_ITF_NUM         1

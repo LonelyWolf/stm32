@@ -45,6 +45,9 @@ void HAL_USB_DeInit(USB_HandleTypeDef *husb) {
 	// Disable the USB peripheral clock
 	RCC->APB1ENR &= RCC_APB1ENR_USBEN;
 
+	// Disable the USB interrupt
+	NVIC_DisableIRQ(USB_LP_IRQn);
+
 	// Change state
 	husb->State = USB_READY;
 }

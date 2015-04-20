@@ -10,4 +10,8 @@
 
 #include "usb_ll.h"
 
+#include "uart.h"
+
+#include "stdio.h"
+
 #endif // __MAIN_H

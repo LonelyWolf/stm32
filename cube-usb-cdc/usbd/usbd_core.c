@@ -34,7 +34,7 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev) {
 	pdev->dev_state = USBD_STATE_DEFAULT;
 
 	// Free class resources
-	pdev->pClass->DeInit(pdev, pdev->dev_config);
+	pdev->pClass->DeInit(pdev,pdev->dev_config);
 
     // Stop the low level driver
 	USBD_LL_Stop(pdev);
@@ -52,7 +52,7 @@ USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev) {
 USBD_StatusTypeDef USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDef *pclass) {
 	USBD_StatusTypeDef status = USBD_FAIL;
 
-	if (pclass != 0) {
+	if (pclass) {
 		// link the class to the USB Device handle
 		pdev->pClass = pclass;
 		status = USBD_OK;
@@ -66,8 +66,6 @@ USBD_StatusTypeDef USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDe
 //   pdev - pointer to the device instance
 USBD_StatusTypeDef USBD_Start(USBD_HandleTypeDef *pdev) {
 	// Start the low level driver
-
-	// Start the low level driver
 	USBD_LL_Start(pdev);
 
 	return USBD_OK;
@@ -77,8 +75,8 @@ USBD_StatusTypeDef USBD_Start(USBD_HandleTypeDef *pdev) {
 // input:
 //   pdev - pointer to the device instance
 USBD_StatusTypeDef USBD_Stop(USBD_HandleTypeDef *pdev) {
-	// Free Class Resources
-	pdev->pClass->DeInit(pdev, pdev->dev_config);
+	// Free class resources
+	pdev->pClass->DeInit(pdev,pdev->dev_config);
 
 	// Stop the low level driver
 	USBD_LL_Stop(pdev);
@@ -113,7 +111,7 @@ USBD_StatusTypeDef USBD_SetClassConfig(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 //   pdev - pointer to the device instance
 //   cfgidx - configuration index
 USBD_StatusTypeDef USBD_ClrClassConfig(USBD_HandleTypeDef *pdev, uint8_t cfgidx) {
-	// Clear configuration and De-initialize the Class process
+	// Clear configuration and deinitialize the class process
 	pdev->pClass->DeInit(pdev,cfgidx);
 
 	return USBD_OK;

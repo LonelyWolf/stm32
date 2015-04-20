@@ -6,12 +6,11 @@
 #include "usbd_cdc.h"
 
 
-// Periodically, the state of the buffer "UserTxBuffer" is checked
-// The period depends on CDC_POLLING_INTERVAL
-#define CDC_POLLING_INTERVAL             5 // in ms. The max is 65 and the min is 1
-
-
 // Public variables
-extern USBD_CDC_ItfTypeDef  USBD_CDC_fops;
+extern USBD_CDC_ItfTypeDef USBD_CDC_fops;
+
+
+// Function prototypes
+uint8_t CDC_Itf_Transmit(uint8_t* pBuf, uint16_t length);
 
 #endif // __USBD_CDC_IF_H
