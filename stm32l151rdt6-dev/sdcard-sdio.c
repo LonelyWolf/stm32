@@ -1,8 +1,6 @@
 #include <stm32l1xx_rcc.h>
 #include <stm32l1xx_gpio.h>
 
-#include "usb_lib.h"
-
 #include "sdcard-sdio.h"
 
 
@@ -520,18 +518,18 @@ void SD_GetCardInfo(void) {
 			dev_size |= (SDCard.CSD[8] & 0xc0) >> 6;
 			dev_size_mul  = (SDCard.CSD[ 9] & 0x03) << 1; // Device size multiplier
 			dev_size_mul |= (SDCard.CSD[10] & 0x80) >> 7;
-			SDCard.Capacity  = (dev_size + 1);
-			SDCard.Capacity *= (1 << (dev_size_mul + 2));
+			SDCard.BlockCount  = (dev_size + 1);
+			SDCard.BlockCount *= (1 << (dev_size_mul + 2));
 			SDCard.BlockSize =  1 << (rd_block_len);
-			SDCard.Capacity *= SDCard.BlockSize;
 		} else {
 			// CSD v2.00 (SDHC, SDXC)
 			dev_size  = (SDCard.CSD[7] & 0x3f) << 16;
 			dev_size |=  SDCard.CSD[8] << 8;
 			dev_size |=  SDCard.CSD[9];
 			SDCard.BlockSize = 512;
-			SDCard.Capacity = (dev_size + 1) * SDCard.BlockSize;
+			SDCard.BlockCount = dev_size + 1;
 		}
+		SDCard.Capacity = SDCard.BlockCount * SDCard.BlockSize;
 	} else {
 		// MMC
 		SDCard.MaxBusClkFreq = SDCard.CSD[3];
@@ -541,7 +539,8 @@ void SD_GetCardInfo(void) {
 		dev_size += SDCard.CSD[8] >> 6;
 		SDCard.BlockSize = 1 << (SDCard.CSD[5] & 0x0f); // MMC read block length
 		dev_size_mul = ((SDCard.CSD[9] & 0x03) << 1) + ((SDCard.CSD[10] & 0x80) >> 7);
-		SDCard.Capacity = (dev_size + 1) * (1 << (dev_size_mul + 2)) * SDCard.BlockSize;
+		SDCard.BlockCount = (dev_size + 1) * (1 << (dev_size_mul + 2));
+		SDCard.Capacity = SDCard.BlockCount * SDCard.BlockSize;
 	}
 
 	// Parse the CID register
@@ -611,7 +610,7 @@ SDResult SD_ReadBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t response;
 	uint32_t blk_count = length / 512; // Sectors in block
-	uint32_t STA; // to speed up SDIO flags checking
+	register uint32_t STA; // to speed up SDIO flags checking
 	uint32_t STA_mask; // mask for SDIO flags checking
 
 	// Initialize the data control register
@@ -692,7 +691,7 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t response; // SDIO command response
 	uint32_t blk_count = length / 512; // Sectors in block
-	uint32_t STA; // To speed up SDIO flags checking
+	register uint32_t STA; // To speed up SDIO flags checking
 	uint32_t STA_mask; // Mask for SDIO flags checking
 	uint32_t bsent = 0; // Counter of transferred bytes
 	uint32_t w_left; // Words counter in last portion of data
@@ -827,9 +826,6 @@ void SD_Cofigure_DMA(uint8_t direction, uint32_t *pBuf, uint32_t length) {
 	reg |= (DMA_CCR4_MINC | DMA_CCR4_PL | DMA_CCR4_MSIZE_1 | DMA_CCR4_PSIZE_1 | DMA_CCR4_EN);
 	if (direction != SD_DMA_RX) reg |= DMA_CCR4_DIR; // DMA will read from memory
 
-	// Enable IRQ
-//	reg |= (DMA_CCR4_TCIE | DMA_CCR4_TEIE);
-
 	SDIO_DMA_CH->CCR = reg;
 }
 
@@ -873,7 +869,7 @@ SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SD_Cofigure_DMA(SD_DMA_RX,pBuf,length);
 
 	// Data transfer: DMA enable, block, card -> controller, size: 2^9 = 512bytes, enable transfer
-	SDIO->DCTRL  = SDIO_DCTRL_DMAEN | SDIO_DCTRL_DTDIR | (9 << 4) | SDIO_DCTRL_DTEN;
+	SDIO->DCTRL = SDIO_DCTRL_DMAEN | SDIO_DCTRL_DTDIR | (9 << 4) | SDIO_DCTRL_DTEN;
 
 	return cmd_res;
 }
@@ -931,32 +927,12 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// Data transfer: DMA enable, block, controller -> card, size: 2^9 = 512bytes, enable transfer
 	SDIO->DCTRL = SDIO_DCTRL_DMAEN | (9 << 4) | SDIO_DCTRL_DTEN;
 
-	// Datasheet says: after a data write, data cannot be written to the CLKCR register for three SDIOCLK (48 MHz)
-	// clock periods plus two PCLK2 clock periods.
-	// But this is not enough and experience has shown that at 32MHz system clock there must be at least 96 NOP's
-	// Do dummy delay here
-	for (response = 9; response--;) asm volatile ("nop"); // This equals to 96 pure "NOP", but less code
-
-/*
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-	asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop");
-*/
+	// Wait until the SDIO FIFO buffer is half full
+	while (SDIO->STA & SDIO_STA_TXFIFOHE);
 
 	// Enable the SDIO_CK clock output
 	SDIO_CLKCR_CLKEN_BB = 1;
 #endif
-
-//	printf("INB4: STA=%X DCOUNT=%u FIFOCNT=%u DMA=%u DMA2=%X\r\n",SDIO->STA,SDIO->DCOUNT,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,DMA2->ISR);
 
 	return cmd_res;
 }
@@ -973,14 +949,10 @@ SDResult SD_CheckRead(uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length / 512; // Sectors in block
 	uint32_t wait = SDIO_DATA_R_TIMEOUT;
-	uint32_t SDIO_active;
 	uint32_t STA;
 
-	// Wait for DMA/SDIO transfer end or error occurred
-	do {
-		STA = SDIO->STA;
-		SDIO_active = (STA & SDIO_STA_RXACT) ? 1 : 0;
-	} while (SDIO_active && --wait);
+	// Wait for SDIO receive complete or error occurred
+	while (!((STA = SDIO->STA) & SDIO_XFER_FLAGS) && --wait);
 
 	// Disable the DMA channel
 	SDIO_DMA_CH->CCR &= ~DMA_CCR4_EN;
@@ -1015,27 +987,11 @@ SDResult SD_CheckWrite(uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length / 512; // Sectors in block
 	uint32_t wait = SDIO_DATA_W_TIMEOUT;
-	uint32_t SDIO_active;
-	uint32_t STA;
 	uint8_t card_state; // Card state
+	uint32_t STA;
 
-	// Wait for DMA/SDIO transfer end or error occurred
-//	wait = 100;
-	do {
-		STA = SDIO->STA;
-		SDIO_active = (STA & SDIO_STA_TXACT) ? 1 : 0;
-//		printf("[%X %u %u %u %X] ",STA,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,SDIO->DCOUNT,DMA2->ISR);
-	} while (SDIO_active && --wait);
-
-/*
-	printf("\r\nCheckWrite: STA=%X DCOUNT=%u FIFOCNT=%u DMA=%u DMA2=%X wait=%u",STA,SDIO->DCOUNT,SDIO->FIFOCNT,SDIO_DMA_CH->CNDTR,DMA2->ISR,wait);
-	printf(" [%s%s%s%s]\r\n", \
-			(STA & SDIO_STA_DTIMEOUT) ? "DTIMEOUT " : "", \
-			(STA & SDIO_STA_DCRCFAIL) ? "DCRCFAIL " : "", \
-			(STA & SDIO_STA_TXUNDERR) ? "TXUNDERR " : "", \
-			(STA & SDIO_STA_STBITERR) ? "STBITERR"  : ""  \
-					);
-*/
+	// Wait for SDIO transmit complete or error occurred
+	while (!((STA = SDIO->STA) & SDIO_XFER_FLAGS) && --wait);
 
 	// Disable the DMA channel
 	SDIO_DMA_CH->CCR &= ~DMA_CCR4_EN;

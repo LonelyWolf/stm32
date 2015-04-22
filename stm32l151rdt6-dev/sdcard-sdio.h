@@ -151,6 +151,10 @@
 #define SD_BUS_4BIT                   SDIO_CLKCR_WIDBUS_0 // 4-bit wide bus (SDIO_D[3:0] used)
 #define SD_BUS_8BIT                   SDIO_CLKCR_WIDBUS_1 // 8-bit wide bus (SDIO_D[7:0] used)
 
+// SDIO transfer control flags
+#define SDIO_XFER_FLAGS               (SDIO_STA_TXUNDERR | SDIO_STA_DCRCFAIL | SDIO_STA_DTIMEOUT | \
+		                               SDIO_STA_STBITERR | SDIO_STA_DBCKEND  | SDIO_STA_DATAEND)
+
 
 // SDIO DMA direction
 enum {
@@ -222,6 +226,7 @@ typedef enum {
 typedef struct {
 	uint8_t     Type;            // Card type (detected by SD_Init())
 	uint32_t    Capacity;        // Card capacity (MBytes for SDHC/SDXC, bytes otherwise)
+	uint32_t    BlockCount;      // SD card blocks count
 	uint32_t    BlockSize;       // SD card block size (bytes), determined in SD_ReadCSD()
 	uint32_t    MaxBusClkFreq;   // Maximum card bus frequency (MHz)
 	uint8_t     CSDVer;          // SD card CSD register version
