@@ -35,7 +35,6 @@
 // Resources
 #include "font5x7.h"
 #include "font7x10.h"
-#include "slender_head.h"
 #include "toppler.h"
 
 
@@ -144,6 +143,7 @@ uint8_t sector[2048] __attribute__((aligned(4)));
 
 // ALS variables
 uint16_t d0,d1;
+uint32_t lux;
 
 // BMP180 variables
 BMP180_RESULT BR;
@@ -152,9 +152,12 @@ int32_t RP;
 int16_t X,Y,Z,ACCT;
 
 // ADC variables
-uint16_t ADC1_raws[16],Vrefint_raws[16];
-uint32_t ADC1_raw,Vrefint_raw;
+#define ADC_count 16  // Number of ADC conversions
+uint16_t ADC_raw[ADC_count * 2]; // array for 16 pairs of values ADC_IN1 and Vrefint (size must be power of 2)
+uint16_t ADC_IN1_raws[ADC_count],Vrefint_raws[ADC_count];
+uint32_t ADC_IN1_raw,Vrefint_raw;
 uint32_t Vbat,Vrefint,Vcpu;
+volatile bool _ADC_completed = FALSE;
 
 // nRF24 variables
 //#define NRF24_SOLAR // if defined - receive solar powered temperature sensor, WBC otherwise
@@ -345,6 +348,23 @@ void USART2_IRQHandler(void) {
 		printf(">>> OE: %u\r\n",GPS_buf_cntr);
 		GPS_buf_cntr = 0;
 	}
+}
+
+// DMA1 channel1 IRQ handler (ADC1)
+void DMA1_Channel1_IRQHandler() {
+	// Clear the DMA1 channel1 transfer complete and global interrupt flags
+	DMA1->IFCR = DMA_IFCR_CTCIF1 | DMA_IFCR_CGIF1;
+
+	// Disable the DMA1 channel1
+	DMA1_Channel1->CCR &= ~DMA_CCR1_EN;
+
+	// Disable the DMA bit in the ADC1_CR2 register
+	// It must be written to 0 before starting a new conversion
+	// And disable continuous mode
+	ADC1->CR2 &= ~(ADC_CR2_DMA | ADC_CR2_CONT);
+
+	// Set flag to indicate conversion ends
+	_ADC_completed = TRUE;
 }
 
 // DMA1 channel6 IRQ handler (USART_RX)
@@ -1154,16 +1174,16 @@ int main(void) {
 
 
 
-	// Check Vbat measurement
+	// Configure Vbat measurement
 
 	// Enable the PORTA peripheral
-	RCC->AHBENR |= RCC_AHBPeriph_GPIOA;
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 
 	// Configure PA1 as analog (for ADC_IN1)
 	GPIOA->MODER |=  GPIO_MODER_MODER1; // Analog mode
 
-	// Enable Vbat divider
-	PWR_VBAT_ENABLE_H(); // Turn on
+	// Enable the battery voltage divider
+	PWR_VBAT_ENABLE_H();
 
 	// Initialize the HSI clock
 	RCC->CR |= RCC_CR_HSION; // Enable HSI
@@ -1173,6 +1193,58 @@ int main(void) {
 	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; // Enable the ADC1 peripheral clock
 	ADC->CCR = ADC_CCR_TSVREFE; // Enable Vrefint and temperature sensor, ADC prescaler = HSI/1
 	while(!(PWR->CSR & PWR_CSR_VREFINTRDYF)); // Wait until Vrefint stable
+
+	// Continuous reqular channels sequence ADC conversion with DMA
+
+	// Enable the DMA1 peripheral
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+
+	// Configure the DMA1 channel 1 (ADC1)
+	// 16-bit peripheral to memory transfer, TC IRQ enabled, channel disabled
+	DMA1_Channel1->CCR = DMA_CCR1_PL_0 | DMA_CCR1_MSIZE_0 | DMA_CCR1_PSIZE_0 | DMA_CCR1_MINC | DMA_CCR1_TCIE;
+	DMA1_Channel1->CMAR = (uint32_t)ADC_raw; // Buffer address
+	DMA1_Channel1->CPAR = (uint32_t)(&(ADC1->DR)); // Address of the peripheral data register
+	DMA1_Channel1->CNDTR = ADC_count << 1; // Number of conversions
+
+	// Enable the DMA1 channel 1 interrupt
+	NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+	// Configure the ADC
+	// Clear resolution bits: 12-bit resolution (Tconv = 12 ADCCLK cycles)
+	ADC1->CR1 &= ~ADC_CR1_RES;
+	// CR1_SCAN: scan mode enabled
+	// CR1_PDI: power down during the idle phase
+	// CR1_PDD: power down during the delay phase
+	ADC1->CR1 |= ADC_CR1_SCAN | ADC_CR1_PDI | ADC_CR1_PDD;
+	// Clear alignment bit: right alignment
+	ADC1->CR2 &= ~ADC_CR2_ALIGN; // Right alignment
+	// CR2_CONT: continuous conversion enabled
+	// CR2_DMA: DMA mode enabled
+	// CR2_DELS: delay selection (255APB clocks after end of conversion)
+	ADC1->CR2 |= ADC_CR2_DMA | ADC_CR2_CONT | ADC_CR2_DELS;
+
+	// ADC channels sample rate
+	ADC1->SMPR3 |= ADC_SMPR3_SMP1; // Channel 1: 384 cycles
+	ADC1->SMPR2 |= ADC_SMPR2_SMP17; // Channel 17: 384 cycles
+
+	// Regular sequence
+	ADC1->SQR1 = ADC_SQR1_L_0; // 2 conversions
+	ADC1->SQR5 = ADC_SQR5_SQ2_0 | ADC_SQR5_SQ1_0 | ADC_SQR5_SQ1_4; // Channels: first ADC_IN1, then ADC_IN17
+
+	// Enable the ADC
+	ADC1->CR2 |= ADC_CR2_ADON;
+	while (!(ADC1->SR & ADC_SR_ADONS)); // Wait until ADC is on
+
+	// Enable the DMA channel 1 (ADC1)
+	DMA1_Channel1->CCR |= DMA_CCR1_EN;
+
+	// ..... The ADC is ready to do 32 measurements with DMA
+	// ..... To start conversion just trigger SWSTART bit in the ADC1_CR2 register
+	// Start conversion of regular channels
+	ADC1->CR2 |= ADC_CR2_SWSTART;
+
+/*
+	// Single conversion injected channels sequence
 
 	// Configure the ADC
 	ADC1->CR1 &= ~ADC_CR1_RES; // 12-bit resolution (Tconv = 12 ADCCLK cycles)
@@ -1189,6 +1261,7 @@ int main(void) {
 	// Enable the ADC
 	ADC1->CR2 |= ADC_CR2_ADON;
 	while (!(ADC1->SR & ADC_SR_ADONS)); // Wait until ADC is on
+*/
 
 
 
@@ -1216,9 +1289,17 @@ int main(void) {
 	if (I2Cx_IsDeviceReady(I2C1,TSL2581_ADDR,10) == I2C_SUCCESS) {
 		printf("ID: %02X\r\n",TSL2581_GetDeviceID());
 		TSL2581_Init();
+		// Set 99.9ms integration time (37 * 2.7ms)
+//		TSL2581_SetTime(37);
+		// Set 400ms integration time (148 * 2.7ms)
+		TSL2581_SetTime(TSL2581_NOM_INTEG_CYCLE);
+		// Set analog gain x1
+//		TSL2581_SetGain(TSL2581_GAIN1);
+		// Set analog gain x8
 		TSL2581_SetGain(TSL2581_GAIN8);
 		d0 = TSL2581_GetData0();
 		d1 = TSL2581_GetData1();
+		printf("D0 = %u D1 = %u Lux = %u\r\n",d0,d1,TSL2581_LuxCalc(d0,d1));
 //		TSL2581_PowerOff();
 	} else {
 		printf("FAIL\r\n");
@@ -1236,6 +1317,9 @@ int main(void) {
 		if (BMP180_Check() == BMP180_SUCCESS) {
 			BMP180_ReadCalibration();
 			BR = BMP180_GetReadings(&RT,&RP,BMP180_ADVRES);
+			printf("Temperature: %d.%uC\r\n",RT / 10,RT % 10);
+			i = BMP180_hPa_to_mmHg(RP);
+			printf("Pressure: %uPa [%u.%ummHg]\r\n",RP,i / 10,i % 10);
 		} else {
 			printf("BMP180 check failed\r\n");
 			while(1);
@@ -1799,127 +1883,195 @@ int main(void) {
 	uint8_t CRC_local;
 	uint16_t wake_diff;
 
-	// Slender head
-	int16_t hX = (SCR_W / 2) - 8;
-	int16_t hY = (SCR_H / 2) - 8;
-	int16_t dX = -1;
-	int16_t dY = 1;
-	uint8_t sprite = 0;
-	int8_t  dspr   = 1;
+	// Moving sprite
+	int16_t  hX = (SCR_W / 2) - 8;
+	int16_t  hY = SCR_H - 32;
+	int16_t  dX = -1;
+	int16_t  dY = 1;
+	uint8_t  sprite = 0;
+	int8_t   dspr   = 1;
+	uint32_t fps    = 0;
 
-	d0 = 0;
+	RTC_SetWakeUp(1); // Wake every second
+
 	while(1) {
 		while (!GPS_new_data && !_new_packet) {
 
 			// Wait for DMA transaction completed before start new drawing
-			while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
+//			while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
 
-			ST7541_Fill(0x0000);
+			// Readraw screen only if DMA transaction completed
+			if (ST7541_SPI_PORT.DMA_TX.State != DMA_STATE_BUSY) {
+				ST7541_Fill(0x0000);
 
-			// Draw FPS with shadow effect
-			lcd_color = gs_ltgray;
-			i = PutIntF(3,3,d0,1,fnt7x10) + 4;
-			PutStr(i,3,"FPS",fnt7x10);
-			lcd_color = gs_black;
-			i = PutIntF(2,2,d0,1,fnt7x10) + 4;
-			PutStr(i,2,"FPS",fnt7x10);
+				// Draw FPS with shadow effect
+				lcd_color = gs_ltgray;
+				i = PutIntF(3,3,fps,1,fnt7x10) + 4;
+				PutStr(i,3,"FPS",fnt7x10);
+				lcd_color = gs_black;
+				i = PutIntF(2,2,fps,1,fnt7x10) + 4;
+				PutStr(i,2,"FPS",fnt7x10);
 
-			// Draw packets count
-			i = 64;
-			i += PutStr(i,2,"Pkts:",fnt5x7);
-			PutIntU(i,2,_packets_rcvd,fnt5x7);
-			i = 64;
-			i += PutStr(i,10,"Lost:",fnt5x7);
-			PutIntU(i,10,_packets_lost,fnt5x7);
+				// Draw packets count
+				i = 64;
+				i += PutStr(i,2,"Pkts:",fnt5x7);
+				PutIntU(i,2,_packets_rcvd,fnt5x7);
+				i = 64;
+				i += PutStr(i,10,"Lost:",fnt5x7);
+				PutIntU(i,10,_packets_lost,fnt5x7);
 
-			// Draw time
-			RTC_GetDateTime(&_time,&_date);
-			i = 0;
-			i += PutIntLZ(i,22,_time.RTC_Hours,2,fnt5x7);
-			i += DrawChar(i,22,':',fnt5x7);
-			i += PutIntLZ(i,22,_time.RTC_Minutes,2,fnt5x7);
-			i += DrawChar(i,22,':',fnt5x7);
-			i += PutIntLZ(i,22,_time.RTC_Seconds,2,fnt5x7);
-			i += 3;
-			i += PutIntLZ(i,22,_date.RTC_Date,2,fnt5x7);
-			i += DrawChar(i,22,'.',fnt5x7);
-			i += PutIntLZ(i,22,_date.RTC_Month,2,fnt5x7);
-			i += DrawChar(i,22,'.',fnt5x7);
-			i += PutIntLZ(i,22,_date.RTC_Year,2,fnt5x7);
-			PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay],fnt5x7);
+				// Draw time
+				RTC_GetDateTime(&_time,&_date);
+				i = 0;
+				i += PutIntLZ(i,22,_time.RTC_Hours,2,fnt5x7);
+				i += DrawChar(i,22,':',fnt5x7);
+				i += PutIntLZ(i,22,_time.RTC_Minutes,2,fnt5x7);
+				i += DrawChar(i,22,':',fnt5x7);
+				i += PutIntLZ(i,22,_time.RTC_Seconds,2,fnt5x7);
+				i += 3;
+				i += PutIntLZ(i,22,_date.RTC_Date,2,fnt5x7);
+				i += DrawChar(i,22,'.',fnt5x7);
+				i += PutIntLZ(i,22,_date.RTC_Month,2,fnt5x7);
+				i += DrawChar(i,22,'.',fnt5x7);
+				i += PutIntLZ(i,22,_date.RTC_Year,2,fnt5x7);
+				PutStr(i + 3,22,RTC_DOW_STR[_date.RTC_WeekDay],fnt5x7);
 
-			// GPS info
-			i = 0;
-			i += PutStr(i,30,"NMEA:",fnt5x7) - 1;
-			i += PutIntU(i,30,GPS_sentences_parsed,fnt5x7) - 1;
-			i += DrawChar(i,30,'/',fnt5x7) - 1;
-			i += PutIntU(i,30,GPS_sentences_unknown,fnt5x7) + 5;
-			i += PutStr(i,30,"Size:",fnt5x7) - 1;
-			i += PutIntU(i,30,GPS_buf_cntr,fnt5x7);
+				// GPS info
+				i = 0;
+				i += PutStr(i,30,"NMEA:",fnt5x7) - 1;
+				i += PutIntU(i,30,GPS_sentences_parsed,fnt5x7) - 1;
+				i += DrawChar(i,30,'/',fnt5x7) - 1;
+				i += PutIntU(i,30,GPS_sentences_unknown,fnt5x7) + 5;
+				i += PutStr(i,30,"Size:",fnt5x7) - 1;
+				i += PutIntU(i,30,GPS_buf_cntr,fnt5x7);
 
-			i = 0;
-			i += PutStr(i,38,"Sat:",fnt5x7) - 1;
-			i += PutIntU(i,38,GPSData.sats_used,fnt5x7) - 1;
-			i += DrawChar(i,38,'/',fnt5x7) - 1;
-			i += PutIntU(i,38,GPSData.sats_view,fnt5x7) + 5;
+				i = 0;
+				i += PutStr(i,38,"Sat:",fnt5x7) - 1;
+				i += PutIntU(i,38,GPSData.sats_used,fnt5x7) - 1;
+				i += DrawChar(i,38,'/',fnt5x7) - 1;
+				i += PutIntU(i,38,GPSData.sats_view,fnt5x7) + 5;
 
-			i += PutStr(i,38,"Fix:",fnt5x7) - 1;
-			i += PutIntU(i,38,GPSData.fix,fnt5x7) + 5;
-			i += DrawChar(i,38,GPSData.mode,fnt5x7);
+				i += PutStr(i,38,"Fix:",fnt5x7) - 1;
+				i += PutIntU(i,38,GPSData.fix,fnt5x7) + 5;
+				i += DrawChar(i,38,GPSData.mode,fnt5x7);
 
-/*
-			// Draw Slender's head
-			DrawBitmap(hX,hY,12,24,&slender[sprite * 36]);
+				// ALS readings
+				i = 0;
+				i += PutStr(i,48,"ALS:",fnt5x7) - 1;
+				i += PutIntU(i,48,d0,fnt5x7) + 2;
+				i += PutIntU(i,48,d1,fnt5x7) + 2;
+				i += PutIntU(i,48,lux,fnt5x7);
 
-			// Move and animate Slender's head every 5th frame
-			if ((k % 5) == 0) {
-				sprite += dspr;
-				if ((sprite > 4) || (sprite < 1)) dspr *= -1;
+				// Barometer readings
+				i = 0;
+				i += PutStr(i,56,"BAR:",fnt5x7) - 1;
+				i += PutIntF(i,56,RT,1,fnt5x7);
+				i += DrawChar(i,56,'C',fnt5x7) + 5;
+				i += PutIntF(i,56,RP,1,fnt5x7);
+				i += PutStr(i,56,"mmHg",fnt5x7);
 
-				hX += dX;
-				hY += dY;
-				if ((hX <  1) || (hX > SCR_W - 12)) dX *= -1;
-				if ((hY < 46) || (hY > SCR_H - 24)) dY *= -1;
-			}
-*/
+				// Voltages
+				i = 0;
+				i += PutStr(i,64,"Vb:",fnt5x7) - 1;
+				i += PutIntF(i,64,Vbat << 1,3,fnt5x7);
+				i += DrawChar(i,64,'V',fnt5x7) + 3;
+				i += PutStr(i,64,"Vc:",fnt5x7) - 1;
+				i += PutIntF(i,64,Vcpu,3,fnt5x7);
+				i += DrawChar(i,64,'V',fnt5x7) + 3;
 
-			// Draw walking toppler (stupid not optimizaed drawing, but it works ^_^)
-			for (yy = 0; yy < 16; yy++) {
-				for (xx = 0; xx < 4; xx++) {
-					if (dX > 0) {
-						// Toppler moves from left to right
-						bb = ~toppler_walk[(yy * 4) + xx + (sprite << 6)];
-						for (i = 4; i--; ) {
-							Pixel(hX + (xx << 2) + i,hY + yy,(bb & 0x03));
-							bb >>= 2;
-						}
-					} else {
-						// Toppler moves from right to left, must mirror sprite horizontally
-						bb = ~toppler_walk[(yy * 4) + 3 - xx + (sprite << 6)];
-						for (i = 4; i--; ) {
-							Pixel(hX + (xx << 2) + i,hY + yy,(bb & 0xc0) >> 6);
-							bb <<= 2;
+				// Draw walking toppler (stupid not optimizaed drawing, but it works ^_^)
+				for (yy = 0; yy < 16; yy++) {
+					for (xx = 0; xx < 4; xx++) {
+						if (dX > 0) {
+							// Toppler moves from left to right
+							bb = ~toppler_walk[(yy * 4) + xx + (sprite << 6)];
+							for (i = 4; i--; ) {
+								Pixel(hX + (xx << 2) + i,hY + yy,(bb & 0x03));
+								bb >>= 2;
+							}
+						} else {
+							// Toppler moves from right to left, must mirror sprite horizontally
+							bb = ~toppler_walk[(yy * 4) + 3 - xx + (sprite << 6)];
+							for (i = 4; i--; ) {
+								Pixel(hX + (xx << 2) + i,hY + yy,(bb & 0xc0) >> 6);
+								bb <<= 2;
+							}
 						}
 					}
 				}
+
+				// Move and animate sprite every 16th frame
+				if ((k % 16) == 0) {
+					sprite += dspr;
+					if ((sprite > 6) || (sprite < 1)) dspr *= -1;
+
+					hX += dX;
+					hY += dY;
+					if ((hX <  1) || (hX > SCR_W - 17)) dX *= -1;
+					if ((hY < 73) || (hY > SCR_H - 17)) dY *= -1;
+				}
+
+				ST7541_Flush_DMA(NOBLOCK);
+				k++;
 			}
 
-			// Move and animate toppler every 16th frame
-			if ((k % 16) == 0) {
-				sprite += dspr;
-				if ((sprite > 6) || (sprite < 1)) dspr *= -1;
+//			if (_ADC_completed) {
+			if (_ADC_completed && _new_time) {
+				// ADC measurements are ready
 
-				hX += dX;
-				hY += dY;
-				if ((hX <  1) || (hX > SCR_W - 17)) dX *= -1;
-				if ((hY < 46) || (hY > SCR_H - 17)) dY *= -1;
+				// Separate a raw ADC values from common buffer
+				uint16_t *ptr;
+				ptr = ADC_raw;
+				for (i = 0; i < ADC_count; i++) {
+					ADC_IN1_raws[i] = *ptr++;
+					Vrefint_raws[i] = *ptr++;
+				}
+
+				// Calculate interquartile mean values of ADC readings
+				ADC_IN1_raw = InterquartileMean(ADC_IN1_raws,ADC_count);
+				Vrefint_raw = InterquartileMean(Vrefint_raws,ADC_count);
+
+				// Convert ADC readings to voltage
+				Vbat    = (uint16_t)(((*VREFINT_CAL * ADC_IN1_raw * 3.0)/(Vrefint_raw * 4095.0)) * 1000);
+				Vrefint = (uint16_t)(((Vrefint_raw * 3.0) / 4095.0) * 1000);
+				Vcpu    = (uint16_t)(((*VREFINT_CAL * 3.0) / Vrefint_raw) * 1000);
+
+				// Output results
+				printf("VOL: Bat=[%u.%03uV -> %u.%03uV] Ref=%u.%03uV CPU=%u.%03uV\r\n",
+						Vbat / 1000, Vbat % 1000,               // Vbat (from divider)
+						(Vbat / 1000) << 1, (Vbat % 1000) << 1, // Vbat calculated
+						Vrefint / 1000, Vrefint % 1000,         // Internal Vref
+						Vcpu / 1000, Vcpu % 1000                // MCU supply voltage
+						);
+
+				// Renew DMA channel counter (channel already must be disabled in IRQ routine)
+				DMA1_Channel1->CMAR = (uint32_t)ADC_raw; // Buffer address
+				DMA1_Channel1->CNDTR = ADC_count << 1;
+				DMA1_Channel1->CCR |= DMA_CCR1_EN;
+
+				// Start new conversion
+				ADC1->CR2 |= ADC_CR2_DMA | ADC_CR2_CONT | ADC_CR2_SWSTART;
+
+				_ADC_completed = FALSE;
 			}
-
-			ST7541_Flush_DMA(NOBLOCK);
-			k++;
 
 			if (_new_time) {
-				d0 = k;
+				// Get ALS readings
+				d0 = TSL2581_GetData0();
+				d1 = TSL2581_GetData1();
+				lux = TSL2581_LuxCalc(d0,d1);
+				printf("ALS: D0=%u D1=%u G=%u  %ulux\r\n",d0,d1,TSL2581_gain,lux);
+
+				// Get barometer readings
+				BR = BMP180_GetReadings(&RT,&RP,BMP180_ADVRES);
+				if (BR == BMP180_SUCCESS) {
+					RP = BMP180_hPa_to_mmHg(RP);
+					printf("BAR: T=%d.%dC P=%u.%ummHg\r\n",RT / 10,RT % 10,RP / 10,RP % 10);
+				} else {
+					printf("BAR: failed\r\n");
+				}
+
+				fps = k * 10;
 				k = 0;
 				_new_time = FALSE;
 			}
@@ -1944,8 +2096,7 @@ int main(void) {
 
 		if (GPS_parsed) {
 			// GPS data parsed
-
-			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" PCKT=\"%sVALID\" ",
+			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" FIX=\"%sVALID\" ",
 					GPS_sentences_parsed,
 					GPS_sentences_unknown,
 					GPSData.sats_used,
@@ -1954,7 +2105,7 @@ int main(void) {
 					GPSData.mode,
 					GPSData.valid ? "" : "IN"
 			);
-			printf("DFIX=%u %u DATE=%u %u DT=\"%sVALID\"  ...  ",
+			printf("DFIX=%u %u DATE=%u %u DT=\"%sVALID\"\r\n",
 					GPSData.fix_time,
 					GPSData.fix_date,
 					GPSData.time,
@@ -1962,30 +2113,30 @@ int main(void) {
 					GPSData.datetime_valid ? "" : "IN"
 			);
 
-			// Date and time obtained from GPS
-			_time.RTC_Hours   =  GPSData.fix_time / 3600;
-			_time.RTC_Minutes = (GPSData.fix_time / 60) % 60;
-			_time.RTC_Seconds =  GPSData.fix_time % 60;
-			i = GPSData.fix_date / 1000000;
-			_date.RTC_Date  = i;
-			_date.RTC_Month = (GPSData.fix_date - (i * 1000000)) / 10000;
-			if (GPSData.fix_date % 10000 > 1980) {
-				_date.RTC_Year = (GPSData.fix_date % 10000) - 2000;
-			} else {
-				_date.RTC_Year = (GPSData.fix_date % 10000) - 1900;
-			}
-			RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
-//			RTC_CalcDOW(&_date);
-			RTC_SetDateTime(&_time,&_date);
+			if (GPSData.datetime_valid) {
+				// Date and time obtained from GPS
+				_time.RTC_Hours   =  GPSData.fix_time / 3600;
+				_time.RTC_Minutes = (GPSData.fix_time / 60) % 60;
+				_time.RTC_Seconds =  GPSData.fix_time % 60;
+				i = GPSData.fix_date / 1000000;
+				_date.RTC_Date  = i;
+				_date.RTC_Month = (GPSData.fix_date - (i * 1000000)) / 10000;
+				i = GPSData.fix_date % 10000;
+				_date.RTC_Year = i - ((i > 1980) ? 2000 : 1900);
 
-			printf("_time: %02u:%02u:%02u _date: %02u.%02u.%02u %s\r\n",
-					_time.RTC_Hours,
-					_time.RTC_Minutes,
-					_time.RTC_Seconds,
-					_date.RTC_Date,
-					_date.RTC_Month,
-					_date.RTC_Year,
-					RTC_DOW_STR[_date.RTC_WeekDay]);
+				RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
+//				RTC_CalcDOW(&_date);
+				RTC_SetDateTime(&_time,&_date);
+
+				printf("SET: %02u:%02u:%02u %02u.%02u.%02u %s\r\n",
+						_time.RTC_Hours,
+						_time.RTC_Minutes,
+						_time.RTC_Seconds,
+						_date.RTC_Date,
+						_date.RTC_Month,
+						_date.RTC_Year,
+						RTC_DOW_STR[_date.RTC_WeekDay]);
+			}
 
 			GPS_parsed = FALSE;
 		}
@@ -2022,8 +2173,8 @@ int main(void) {
 
 
 
+/*
 	// Measure LCD performance
-///*
 	// GFX Demo (rotozoomer with checkerboard or XOR texture)
 	float ca,sa;
 	float scalee = 0.5;
@@ -2160,20 +2311,6 @@ int main(void) {
 					_date.RTC_Year,
 					RTC_DOW_STR[_date.RTC_WeekDay]);
 
-/*
-			if (GPSData.datetime_valid) {
-				// Date and time obtained from GPS
-				_time.RTC_Hours   =  GPSData.time / 3600;
-				_time.RTC_Minutes = (GPSData.time / 60) % 60;
-				_time.RTC_Seconds =  GPSData.time % 60;
-				i = GPSData.date / 1000000;
-				_date.RTC_Date  = i;
-				_date.RTC_Month = (GPSData.date - (i * 1000000)) / 10000;
-				_date.RTC_Year  = (GPSData.date % 10000) - 2000;
-				RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
-				RTC_SetDateTime(&_time,&_date);
-			}
-*/
 			GPS_parsed = FALSE;
 		}
 
@@ -2229,7 +2366,7 @@ int main(void) {
 	    	SleepStandby();
 	    }
 	}
-//*/
+*/
 
     ST7541_Fill(0x0000);
 	k = 0;
@@ -2352,15 +2489,15 @@ int main(void) {
 		// Measure Vbat
 /*
 		// Do 16 ADC measurements and calculate rough average
-		ADC1_raw = 0;
+		ADC_IN1_raw = 0;
 		Vrefint_raw = 0;
 		for (i = 0; i < 16; i++) {
 			ADC1->CR2 |= ADC_CR2_JSWSTART; // Start conversion of injected channels
 			while (!(ADC1->SR & ADC_SR_JEOC)); // Wait until ADC conversions end
-			ADC1_raw    += ADC1->JDR1; // Read injected data register1 (ADC_IN1)
+			ADC_IN1_raw    += ADC1->JDR1; // Read injected data register1 (ADC_IN1)
 			Vrefint_raw += ADC1->JDR2; // Read injected data register2 (ADC_IN17)
 			if (i) {
-				ADC1_raw >>= 1;
+				ADC_IN1_raw >>= 1;
 				Vrefint_raw >>= 1;
 			}
 			ADC1->SR &= ~ADC_SR_JEOC; // Clear JEOC bit (is this necessary?)
@@ -2371,15 +2508,15 @@ int main(void) {
 		for (i = 0; i < 16; i++) {
 			ADC1->CR2 |= ADC_CR2_JSWSTART; // Start conversion of injected channels
 			while (!(ADC1->SR & ADC_SR_JEOC)); // Wait until ADC conversions end
-			ADC1_raws[i]    = ADC1->JDR1; // Read injected data register1 (ADC_IN1)
+			ADC_IN1_raws[i]    = ADC1->JDR1; // Read injected data register1 (ADC_IN1)
 			Vrefint_raws[i] = ADC1->JDR2; // Read injected data register2 (ADC_IN17)
 		}
 		// Calculate interquartile mean values of ADC readings
-		ADC1_raw = InterquartileMean(ADC1_raws,16);
+		ADC_IN1_raw = InterquartileMean(ADC_IN1_raws,16);
 		Vrefint_raw = InterquartileMean(Vrefint_raws,16);
 
 		// Convert ADC readings to voltage
-		Vbat = (uint16_t)(((*VREFINT_CAL * ADC1_raw * 3.0)/(Vrefint_raw * 4095.0)) * 1000);
+		Vbat = (uint16_t)(((*VREFINT_CAL * ADC_IN1_raw * 3.0)/(Vrefint_raw * 4095.0)) * 1000);
 		Vrefint = (uint16_t)(((Vrefint_raw * 3.0) / 4095.0) * 1000);
 		Vcpu = (uint16_t)(((*VREFINT_CAL * 3.0) / Vrefint_raw) * 1000);
 		printf("VOL: Bat=[%u.%03uV -> %u.%03uV] Ref=%u.%03uV CPU=%u.%03uV\r\n",
