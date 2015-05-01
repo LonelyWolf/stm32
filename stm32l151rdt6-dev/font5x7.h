@@ -1,5 +1,5 @@
-#ifndef __FONT5x7
-#define __FONT5x7
+#ifndef __FONT5x7_H
+#define __FONT5x7_H
 
 #define fnt5x7 &Font5x7
 
@@ -8,6 +8,9 @@ static const Font_TypeDef Font5x7 = {
 		7,           // Font height
 		5,           // Bytes per character
 		font_V,      // Vertical font scan lines
+		32,          // First character: ' '
+		126,         // Last character: '}'
+		126,         // Unknown character: '~'
 		{
 				0x00,0x00,0x00,0x00,0x00,   // (space)
 				0x00,0x00,0x5F,0x00,0x00,   // !
@@ -107,4 +110,4 @@ static const Font_TypeDef Font5x7 = {
 		}
 };
 
-#endif // __FONT5x7
+#endif // __FONT5x7_H

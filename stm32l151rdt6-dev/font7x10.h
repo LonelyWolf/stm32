@@ -1,5 +1,5 @@
-#ifndef __FONT7x10
-#define __FONT7x10
+#ifndef __FONT7x10_H
+#define __FONT7x10_H
 
 #define fnt7x10 &Font7x10
 
@@ -8,6 +8,9 @@ static const Font_TypeDef Font7x10 = {
 		10,          // Font height
 		10,          // Bytes per character
 		font_H,      // Horizontal font scan lines
+		32,          // First character: space
+		126,         // Last character: '~'
+		126,         // Unknown character: '~'
 		{
 				0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00, //   (20)
 				0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x18, // ! (21)
@@ -107,4 +110,4 @@ static const Font_TypeDef Font7x10 = {
 		}
 };
 
-#endif // __FONT7x10
+#endif // __FONT7x10_H

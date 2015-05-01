@@ -1,6 +1,5 @@
-#include <stm32l1xx_gpio.h>
 #include <stm32l1xx_rcc.h>
-#include <string.h> // For memcpy
+#include <stm32l1xx_gpio.h>
 
 #include "delay.h"
 #include "spi.h"
@@ -582,55 +581,102 @@ void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, GrayScale_TypeDef G
 //   Font - pointer to font
 // return: character width in pixels
 uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
-	uint8_t chW,chH;
-	uint8_t pX = X;
-	uint8_t pY = Y;
-	uint16_t i,j,k;
-	uint8_t buffer[32];
+	uint8_t pX;
+	uint8_t pY;
 	uint8_t tmpCh;
+	uint8_t bL;
+	const uint8_t *pCh;
 
-	chW = Font->font_Width; // Character width
-	chH = Font->font_Height; // Character height
-	if (Char < 32 || Char > 0x7e) Char = 0x7e;
-	memcpy(buffer,&Font->font_Data[(Char - 32) * Font->font_BPC],Font->font_BPC);
+	// If the specified character code is out of bounds should substitute the code of the "unknown" character
+	if (Char < Font->font_MinChar || Char > Font->font_MaxChar) Char = Font->font_UnknownChar;
 
+	// Pointer to the fire byte of character in font data array
+	pCh = &Font->font_Data[(Char - Font->font_MinChar) * Font->font_BPC];
+
+	// Draw character
 	if (Font->font_Scan == font_V) {
-		if (chH < 8) {
-			// Small font, one byte height
-			for (i = 0; i < chW; i++) {
-				tmpCh = buffer[i];
-				for (j = 0; j < chH; j++) {
-					if ((tmpCh >> j) & 0x01) Pixel(pX,pY,lcd_color);
+		// Vertical pixels order
+		if (Font->font_Height < 9) {
+			// Height is 8 pixels or less (one byte per column)
+			pX = X;
+			while (pX < X + Font->font_Width) {
+				pY = Y;
+				tmpCh = *pCh++;
+				while (tmpCh) {
+					if (tmpCh & 0x01) Pixel(pX,pY,lcd_color);
+					tmpCh >>= 1;
 					pY++;
 				}
-				pY = Y;
 				pX++;
 			}
 		} else {
-			// Big font, more than one byte height
-			for (k = 0; k <= (chH / 8); k++) {
-				for (i = 0; i < chW; i++) {
-					tmpCh = buffer[(i << 1) + k];
-					for (j = 0; j < 8; j++) {
-						if ((tmpCh >> (7 - j)) & 0x01) Pixel(pX,pY,lcd_color);
-						pY++;
-						if (pY > Y + chH) break;
+			// Height is more than 8 pixels (several bytes per column)
+			pX = X;
+			while (pX < X + Font->font_Width) {
+				pY = Y;
+				while (pY < Y + Font->font_Height) {
+					bL = 8;
+					tmpCh = *pCh++;
+					if (tmpCh) {
+						while (bL) {
+							if (tmpCh & 0x01) Pixel(pX,pY,lcd_color);
+							tmpCh >>= 1;
+							if (tmpCh) {
+								pY++;
+								bL--;
+							} else {
+								pY += bL;
+								break;
+							}
+						}
+					} else {
+						pY += bL;
 					}
-					pX++;
 				}
-				pY = Y + (k << 3);
-				pX = X;
+				pX++;
 			}
 		}
 	} else {
-		for (j = 0; j < chH; j++) {
-			tmpCh = buffer[j];
-			for (i = 0; i < chW; i++) {
-				if ((tmpCh >> i) & 0x01) Pixel(pX,pY,lcd_color);
-				pX++;
+		// Horizontal pixels order
+		if (Font->font_Width < 9) {
+			// Width is 8 pixels or less (one byte per row)
+			pY = Y;
+			while (pY < Y + Font->font_Height) {
+				pX = X;
+				tmpCh = *pCh++;
+				while (tmpCh) {
+					if (tmpCh & 0x01) Pixel(pX,pY,lcd_color);
+					tmpCh >>= 1;
+					pX++;
+				}
+				pY++;
 			}
-			pX = X;
-			pY++;
+		} else {
+			// Width is more than 8 pixels (several bytes per row)
+			pY = Y;
+			while (pY < Y + Font->font_Height) {
+				pX = X;
+				while (pX < X + Font->font_Width) {
+					bL = 8;
+					tmpCh = *pCh++;
+					if (tmpCh) {
+						while (bL) {
+							if (tmpCh & 0x01) Pixel(pX,pY,lcd_color);
+							tmpCh >>= 1;
+							if (tmpCh) {
+								pX++;
+								bL--;
+							} else {
+								pX += bL;
+								break;
+							}
+						}
+					} else {
+						pX += bL;
+					}
+				}
+				pY++;
+			}
 		}
 	}
 
