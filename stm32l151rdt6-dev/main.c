@@ -33,9 +33,11 @@
 #include "dosfs.h"
 
 // Resources
+#include "font3x5.h" // Very small digits
 #include "font5x7.h"
 #include "font7x10.h"
 #include "toppler.h"
+#include "font_digits.h" // Big digits
 
 
 
@@ -191,6 +193,10 @@ volatile bool _new_time = FALSE;
 #define  USART_FIFO_SIZE         64    // USART FIFO buffer size (must be power of 2)
 uint8_t  USART_FIFO[USART_FIFO_SIZE];  // USART FIFO receive buffer
 uint16_t USART_FIFO_pos;               // Write position in USART FIFO
+
+// GPS
+uint32_t _NMEA_total_count; // Count of received NMEA sentences
+uint32_t _NMEA_total_size; // Total amount of NMEA data received (bytes)
 
 // SPL
 GPIO_InitTypeDef PORT;
@@ -1787,6 +1793,8 @@ int main(void) {
 	// Reset GPS variables
 	USART_FIFO_pos = 0;
 	GPS_buf_cntr = 0;
+	_NMEA_total_size = 0;
+	_NMEA_total_count = 0;
 	GPS_new_data = FALSE;
 	GPS_parsed = FALSE;
 	GPS_InitData();
@@ -1900,7 +1908,7 @@ int main(void) {
 			// Wait for DMA transaction completed before start new drawing
 //			while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
 
-			// Readraw screen only if DMA transaction completed
+			// Redraw screen only if DMA transaction completed
 			if (ST7541_SPI_PORT.DMA_TX.State != DMA_STATE_BUSY) {
 				ST7541_Fill(0x0000);
 
@@ -1950,36 +1958,41 @@ int main(void) {
 				i += PutIntU(i,38,GPSData.sats_used,fnt5x7) - 1;
 				i += DrawChar(i,38,'/',fnt5x7) - 1;
 				i += PutIntU(i,38,GPSData.sats_view,fnt5x7) + 5;
-
 				i += PutStr(i,38,"Fix:",fnt5x7) - 1;
 				i += PutIntU(i,38,GPSData.fix,fnt5x7) + 5;
-				i += DrawChar(i,38,GPSData.mode,fnt5x7);
+				i += DrawChar(i,38,GPSData.mode,fnt5x7) + 6;
+
+				i = 0;
+				i += PutIntU(i,15,_NMEA_total_count,fnt3x5) + 3;
+				i += PutIntU(i,15,_NMEA_total_size,fnt3x5);
 
 				// ALS readings
 				i = 0;
-				i += PutStr(i,48,"ALS:",fnt5x7) - 1;
-				i += PutIntU(i,48,d0,fnt5x7) + 2;
-				i += PutIntU(i,48,d1,fnt5x7) + 2;
-				i += PutIntU(i,48,lux,fnt5x7);
+				i += PutStr(i,47,"ALS:",fnt5x7) - 1;
+				i += PutIntU(i,47,lux,fnt5x7);
+				i += PutStr(i,47,"lux G",fnt5x7);
+				i += PutIntU(i,47,TSL2581_gain,fnt5x7) + 3;
+				i += PutIntU(i,47,d0,fnt5x7) + 3;
+//				i += PutIntU(i,47,d1,fnt5x7) + 2;
 
 				// Barometer readings
 				i = 0;
-				i += PutStr(i,56,"BAR:",fnt5x7) - 1;
-				i += PutIntF(i,56,RT,1,fnt5x7);
-				i += DrawChar(i,56,'C',fnt5x7) + 5;
-				i += PutIntF(i,56,RP,1,fnt5x7);
-				i += PutStr(i,56,"mmHg",fnt5x7);
+				i += PutStr(i,55,"BAR:",fnt5x7) - 1;
+				i += PutIntF(i,55,RT,1,fnt5x7);
+				i += DrawChar(i,55,'C',fnt5x7) + 5;
+				i += PutIntF(i,55,RP,1,fnt5x7);
+				i += PutStr(i,55,"mmHg",fnt5x7);
 
 				// Voltages
 				i = 0;
-				i += PutStr(i,64,"Vb:",fnt5x7) - 1;
-				i += PutIntF(i,64,Vbat << 1,3,fnt5x7);
-				i += DrawChar(i,64,'V',fnt5x7) + 3;
-				i += PutStr(i,64,"Vc:",fnt5x7) - 1;
-				i += PutIntF(i,64,Vcpu,3,fnt5x7);
-				i += DrawChar(i,64,'V',fnt5x7) + 3;
+				i += PutStr(i,65,"Vb:",fnt5x7) - 1;
+				i += PutIntF(i,65,Vbat << 1,3,fnt5x7);
+				i += DrawChar(i,65,'V',fnt5x7) + 3;
+				i += PutStr(i,65,"Vc:",fnt5x7) - 1;
+				i += PutIntF(i,65,Vcpu,3,fnt5x7);
+				i += DrawChar(i,65,'V',fnt5x7) + 3;
 
-				// Draw walking toppler (stupid not optimizaed drawing, but it works ^_^)
+				// Draw walking toppler (stupid not optimized drawing, but it works ^_^)
 				for (yy = 0; yy < 16; yy++) {
 					for (xx = 0; xx < 4; xx++) {
 						if (dX > 0) {
@@ -2015,7 +2028,6 @@ int main(void) {
 				k++;
 			}
 
-//			if (_ADC_completed) {
 			if (_ADC_completed && _new_time) {
 				// ADC measurements are ready
 
@@ -2031,11 +2043,18 @@ int main(void) {
 				ADC_IN1_raw = InterquartileMean(ADC_IN1_raws,ADC_count);
 				Vrefint_raw = InterquartileMean(Vrefint_raws,ADC_count);
 
-				// Convert ADC readings to voltage
-				Vbat    = (uint16_t)(((*VREFINT_CAL * ADC_IN1_raw * 3.0)/(Vrefint_raw * 4095.0)) * 1000);
-				Vrefint = (uint16_t)(((Vrefint_raw * 3.0) / 4095.0) * 1000);
-				Vcpu    = (uint16_t)(((*VREFINT_CAL * 3.0) / Vrefint_raw) * 1000);
+				// Convert ADC readings to voltage (using floating calculations)
+//				Vbat    = (uint16_t)(((*VREFINT_CAL * ADC_IN1_raw * 3.0) / (Vrefint_raw * 4095.0)) * 1000);
+//				Vrefint = (uint16_t)(((Vrefint_raw * 3.0) / 4095.0) * 1000);
+//				Vcpu    = (uint16_t)(((*VREFINT_CAL * 3.0) / Vrefint_raw) * 1000);
 
+				// Convert ADC readings to voltage (using 64-bit integer calculations)
+				// this is 128 bytes less code, therefore a bit faster
+				Vbat    = (uint16_t)(((uint64_t)(*VREFINT_CAL * ADC_IN1_raw) * 3000) / ((uint32_t)Vrefint_raw << 12));
+				Vrefint = (uint16_t)(((uint32_t)Vrefint_raw * 3000) >> 12);
+				Vcpu    = (uint16_t)(((uint32_t)*VREFINT_CAL * 3000) / (uint32_t)Vrefint_raw);
+
+/*
 				// Output results
 				printf("VOL: Bat=[%u.%03uV -> %u.%03uV] Ref=%u.%03uV CPU=%u.%03uV\r\n",
 						Vbat / 1000, Vbat % 1000,               // Vbat (from divider)
@@ -2043,16 +2062,16 @@ int main(void) {
 						Vrefint / 1000, Vrefint % 1000,         // Internal Vref
 						Vcpu / 1000, Vcpu % 1000                // MCU supply voltage
 						);
+*/
 
 				// Renew DMA channel counter (channel already must be disabled in IRQ routine)
-				DMA1_Channel1->CMAR = (uint32_t)ADC_raw; // Buffer address
+				DMA1_Channel1->CMAR  = (uint32_t)ADC_raw; // Buffer address
 				DMA1_Channel1->CNDTR = ADC_count << 1;
-				DMA1_Channel1->CCR |= DMA_CCR1_EN;
+				DMA1_Channel1->CCR  |= DMA_CCR1_EN;
 
 				// Start new conversion
-				ADC1->CR2 |= ADC_CR2_DMA | ADC_CR2_CONT | ADC_CR2_SWSTART;
-
 				_ADC_completed = FALSE;
+				ADC1->CR2 |= ADC_CR2_DMA | ADC_CR2_CONT | ADC_CR2_SWSTART;
 			}
 
 			if (_new_time) {
@@ -2060,15 +2079,29 @@ int main(void) {
 				d0 = TSL2581_GetData0();
 				d1 = TSL2581_GetData1();
 				lux = TSL2581_LuxCalc(d0,d1);
-				printf("ALS: D0=%u D1=%u G=%u  %ulux\r\n",d0,d1,TSL2581_gain,lux);
+
+				// Dummy auto-gain
+				if (d0 > 50000) {
+					if (TSL2581_gain > TSL2581_GAIN1) {
+						TSL2581_gain--;
+						TSL2581_SetGain(TSL2581_gain);
+					}
+				} else if (d0 < 2000) {
+					if (TSL2581_gain < TSL2581_GAIN111) {
+						TSL2581_gain++;
+						TSL2581_SetGain(TSL2581_gain);
+					}
+				}
+
+				printf("ALS: D0=%u D1=%u G=%u %ulux\r\n",d0,d1,TSL2581_gain,lux);
 
 				// Get barometer readings
 				BR = BMP180_GetReadings(&RT,&RP,BMP180_ADVRES);
 				if (BR == BMP180_SUCCESS) {
 					RP = BMP180_hPa_to_mmHg(RP);
-					printf("BAR: T=%d.%dC P=%u.%ummHg\r\n",RT / 10,RT % 10,RP / 10,RP % 10);
+//					printf("BAR: T=%d.%dC P=%u.%ummHg\r\n",RT / 10,RT % 10,RP / 10,RP % 10);
 				} else {
-					printf("BAR: failed\r\n");
+//					printf("BAR: failed\r\n");
 				}
 
 				fps = k * 10;
@@ -2088,14 +2121,21 @@ int main(void) {
 
 		if (GPS_new_data) {
 			// Dump a GPS data to the USB VCP
-			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+//			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+
+			// Update total bytes counter
+			_NMEA_total_size  += GPS_buf_cntr;
 
 			// Parse received data
 			GPS_Parse();
+
+			// Update NMEA sentences counter
+			_NMEA_total_count += GPS_sentences_parsed + GPS_sentences_unknown;
 		}
 
 		if (GPS_parsed) {
 			// GPS data parsed
+/*
 			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" FIX=\"%sVALID\" ",
 					GPS_sentences_parsed,
 					GPS_sentences_unknown,
@@ -2112,6 +2152,7 @@ int main(void) {
 					GPSData.date,
 					GPSData.datetime_valid ? "" : "IN"
 			);
+*/
 
 			if (GPSData.datetime_valid) {
 				// Date and time obtained from GPS
@@ -2128,6 +2169,7 @@ int main(void) {
 //				RTC_CalcDOW(&_date);
 				RTC_SetDateTime(&_time,&_date);
 
+/*
 				printf("SET: %02u:%02u:%02u %02u.%02u.%02u %s\r\n",
 						_time.RTC_Hours,
 						_time.RTC_Minutes,
@@ -2136,6 +2178,7 @@ int main(void) {
 						_date.RTC_Month,
 						_date.RTC_Year,
 						RTC_DOW_STR[_date.RTC_WeekDay]);
+*/
 			}
 
 			GPS_parsed = FALSE;
@@ -2148,6 +2191,7 @@ int main(void) {
 				if (nRF24_Packet.cntr_wake < _prev_wake_cntr) _prev_wake_cntr = nRF24_Packet.cntr_wake;
 				wake_diff = nRF24_Packet.cntr_wake - _prev_wake_cntr;
 
+/*
 				printf("wake: %u[%u] diff: %u vbat=%u.%02uV pkts: %u\\%u [%u%%]\r\n",
 						nRF24_Packet.cntr_wake,
 						_prev_wake_cntr,
@@ -2157,6 +2201,7 @@ int main(void) {
 						_packets_lost,
 						(_packets_lost * 100) / (_packets_rcvd + _packets_lost)
 				);
+*/
 
 				_prev_wake_cntr = nRF24_Packet.cntr_wake;
 				if (wake_diff > 1) {
@@ -2167,7 +2212,7 @@ int main(void) {
 			_new_packet = FALSE;
 		}
 
-		printf("---------------------------------------------\r\n");
+//		printf("---------------------------------------------\r\n");
 	}
 
 
