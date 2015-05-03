@@ -388,34 +388,66 @@ void ST7541_Fill(uint16_t pattern) {
 //   X, Y - pixel coordinates
 //   GS - grayscale pixel color (gs_[white,ltgray,dkgray,black])
 void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
-	uint8_t XX = X;
-	uint8_t YY = Y;
-	uint8_t bit;
-	uint16_t offset;
+	uint32_t *pvRAM_BB;
+
+	// Offset of pixel in the vRAM array must be computed by formula ((YY >> 3) * (SCR_W << 1)) + (XX << 1)
+	// But ST7541 screen width 128, therefore formula can be simplified to ((Y >> 3) << 8) + (X << 1)
+
+	// Compute RAM address for bit-banding
+	if (scr_orientation == scr_CW || scr_orientation == scr_CCW) {
+		// Swap X and Y coordinates if screen rotated for 90 degrees (clockwise or counter-clockwise)
+		pvRAM_BB = (uint32_t*)(SRAM_BB_BASE + (((uint32_t)((void*)(&vRAM[((X >> 3) << 8) + (Y << 1)])) - SRAM_BASE) << 5) + (((uint32_t)(X % 8)) << 2));
+	} else {
+		pvRAM_BB = (uint32_t*)(SRAM_BB_BASE + (((uint32_t)((void*)(&vRAM[((Y >> 3) << 8) + (X << 1)])) - SRAM_BASE) << 5) + (((uint32_t)(Y % 8)) << 2));
+	}
+
+	// Set bits in vRAM according to specified color
+	if (GS == gs_ltgray) {
+		*pvRAM_BB = 0; *(pvRAM_BB + 8) = 1;
+	} else if (GS == gs_black){
+		*pvRAM_BB = 1; *(pvRAM_BB + 8) = 1;
+	} else if (GS == gs_dkgray) {
+		*pvRAM_BB = 1; *(pvRAM_BB + 8) = 0;
+	} else {
+		// gs_white (in case of invalid GS value pixel will be cleared)
+		*pvRAM_BB = 0; *(pvRAM_BB + 8) = 0;
+	}
+
+/*
+	// Draw pixel without bit-banding (add 88 bytes of code compared to bit-banding)
+	uint8_t  XX;
+	uint8_t  YY;
+	uint8_t  bit;
+	uint16_t *pvRAM;
 
 	if (scr_orientation == scr_CW || scr_orientation == scr_CCW) {
+		// Swap coordinates if screen rotated to 90 degrees
 		XX = Y;
 		YY = X;
+	} else {
+		XX = X;
+		YY = Y;
 	}
 
+	// Vertical shift in byte of video buffer
 	bit = 1 << (YY % 8);
-//	offset = ((YY >> 3) * (SCR_W << 1)) + (XX << 1);
-	offset = ((YY >> 3) << 8) + (XX << 1); // screen width 128, therefore this a bit faster
+
+	// Calculate offset in video buffer
+	pvRAM = (uint16_t *)&vRAM[((YY >> 3) << 8) + (XX << 1)]; // screen width 128, therefore this a bit faster
 
 	if (GS == gs_white) {
-		vRAM[offset]     &= ~bit;
-		vRAM[offset + 1] &= ~bit;
+		*pvRAM &= ~(bit | (bit << 8));
 	} else if (GS == gs_black) {
-		vRAM[offset]     |=  bit;
-		vRAM[offset + 1] |=  bit;
+		*pvRAM |=  (bit | (bit << 8));
 	} else if (GS == gs_dkgray) {
-		vRAM[offset]     |=  bit;
-		vRAM[offset + 1] &= ~bit;
+		*pvRAM &= ~(bit | (bit << 8));
+		*pvRAM |=   bit;
 	} else {
 		// gs_ltgray
-		vRAM[offset]     &= ~bit;
-		vRAM[offset + 1] |=  bit;
+		*pvRAM &= ~(bit | (bit << 8));
+		*pvRAM |=  (bit << 8);
 	}
+*/
 }
 
 // Draw horizontal line
