@@ -390,7 +390,7 @@ void ST7541_Fill(uint16_t pattern) {
 void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
 	uint32_t *pvRAM_BB;
 
-	// Offset of pixel in the vRAM array must be computed by formula ((YY >> 3) * (SCR_W << 1)) + (XX << 1)
+	// Offset of pixel in the vRAM array must be computed by formula ((Y >> 3) * (SCR_W << 1)) + (X << 1)
 	// But ST7541 screen width 128, therefore formula can be simplified to ((Y >> 3) << 8) + (X << 1)
 
 	// Compute RAM address for bit-banding
@@ -491,7 +491,6 @@ void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, GrayScale_TypeDef GS) {
 //   X1,Y1 - top left coordinates
 //   X2,Y2 - bottom right coordinates
 //   GS - grayscale pixel color
-// note: X1 must be less than X2 and Y1 must be less than Y2
 void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef GS) {
 	HLine(X1,X2,Y1,GS);
 	HLine(X1,X2,Y2,GS);
@@ -504,7 +503,6 @@ void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef GS) 
 //   X1,Y1 - top left coordinates
 //   X2,Y2 - bottom right coordinates
 //   GS - grayscale pixel color
-// note: X1 must be less than X2 and Y1 must be less than Y2
 void FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef GS) {
 	uint8_t Y;
 
@@ -523,11 +521,13 @@ void Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, GrayScale_TypeDef GS) 
 	int16_t dYsym = (dY > 0) ? 1 : -1;
 
 	if (dX == 0) {
-		if (Y2 > Y1) VLine(X1,Y1,Y2,GS); else VLine(X1,Y2,Y1,GS);
+		VLine(X1,Y1,Y2,GS);
+
 		return;
 	}
 	if (dY == 0) {
-		if (X2 > X1) HLine(X1,X2,Y1,GS); else HLine(X2,X1,Y1,GS);
+		HLine(X1,X2,Y1,GS);
+
 		return;
 	}
 
@@ -580,6 +580,7 @@ void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, GrayScale_TypeDef G
 	long t = -A2 * Yc;
 	long dXt = B2*Xc*2, dYt = -A2*Yc*2;
 	long dXt2 = B2*2, dYt2 = A2*2;
+
 	while (Yc >= 0 && Xc <= A) {
 		Pixel(X + Xc,Y + Yc,GS);
 		if (Xc != 0 || Yc != 0) Pixel(X - Xc,Y - Yc,GS);
@@ -622,7 +623,7 @@ uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
 	// If the specified character code is out of bounds should substitute the code of the "unknown" character
 	if (Char < Font->font_MinChar || Char > Font->font_MaxChar) Char = Font->font_UnknownChar;
 
-	// Pointer to the fire byte of character in font data array
+	// Pointer to the first byte of character in font data array
 	pCh = &Font->font_Data[(Char - Font->font_MinChar) * Font->font_BPC];
 
 	// Draw character
@@ -913,19 +914,41 @@ uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
     return intLen * (Font->font_Width + 1);
 }
 
-// Draw mono bitmap with lcd_color
+// Draw monochrome bitmap with lcd_color
 // input:
 //   X, Y - top left corner coordinates of bitmap
 //   W, H - width and height of bitmap in pixels
 //   pBMP - pointer to array containing bitmap
+// note: each '1' bit in the bitmap will be drawn as a pixel with a lcd_color color
+//       each '0' bit in the will not be drawn (transparent bitmap)
+// bitmap: one byte per 8 vertical pixels, LSB top, truncate bottom bits
 void DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP) {
-	uint8_t i,j;
+	uint8_t pX;
+	uint8_t pY;
+	uint8_t tmpCh;
+	uint8_t bL;
 
-	for (i = 0; i < W; i++) {
-		for (j = 0; j < H; j++) {
-			if ((pBMP[i + (j / 8) * W] >> (j % 8)) & 0x01) {
-				Pixel(X + i, Y + j,lcd_color);
+	pY = Y;
+	while (pY < Y + H) {
+		pX = X;
+		while (pX < X + W) {
+			bL = 0;
+			tmpCh = *pBMP++;
+			if (tmpCh) {
+				while (bL < 8) {
+					if (tmpCh & 0x01) Pixel(pX,pY + bL,lcd_color);
+					tmpCh >>= 1;
+					if (tmpCh) {
+						bL++;
+					} else {
+						pX++;
+						break;
+					}
+				}
+			} else {
+				pX++;
 			}
 		}
+		pY += 8;
 	}
 }
