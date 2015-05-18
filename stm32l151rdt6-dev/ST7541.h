@@ -116,11 +116,10 @@ void ST7541_Orientation(uint8_t orientation);
 
 void ST7541_Flush(void);
 void ST7541_Flush_DMA(BlockingState blocking);
-void ST7541_Wait_Flush(void);
 
 void ST7541_Fill(uint16_t pattern);
 
-void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS);
+inline void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS);
 void HLine(uint8_t X1, uint8_t X2, uint8_t Y, GrayScale_TypeDef GS);
 void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, GrayScale_TypeDef GS);
 void Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, GrayScale_TypeDef GS);
@@ -137,5 +136,6 @@ uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_
 uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font);
 uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font);
 void DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
+void DrawBitmapGS(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
 
 #endif // __ST7541_H

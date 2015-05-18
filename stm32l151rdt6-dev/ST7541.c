@@ -348,46 +348,28 @@ void ST7541_Flush_DMA(BlockingState blocking) {
 		// Wait while DMA transaction ongoing
 		while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
 	}
-//	if (blocking == BLOCK) ST7541_Wait_Flush();
-}
-
-// Waits for the DMA transmission ends
-void ST7541_Wait_Flush(void) {
-	// Wait until DMA transfer is over
-	while (!(ST7541_SPI_PORT.DMA_TX.Instance->ISR & ST7541_SPI_PORT.DMA_TX.TCIF));
-	// Disable the DMA channel
-	SPIx_SetDMA(&ST7541_SPI_PORT,SPI_DMA_TX,DISABLE);
-	// Ensure that the SPI communication is complete
-	while (!(ST7541_SPI_PORT.Instance->SR & SPI_SR_TXE));
-	while (ST7541_SPI_PORT.Instance->SR & SPI_SR_BSY);
-	ST7541_CS_H();
 }
 
 // Fill vRAM memory with specified pattern
 // input:
 //   pattern - byte to fill vRAM buffer
 void ST7541_Fill(uint16_t pattern) {
-	uint16_t i;
-	union {
-		uint16_t w;
-		struct {
-			uint8_t b1;
-			uint8_t b0;
-		};
-	} p;
+	register uint16_t i = 0;
+	register uint8_t b0 = (uint8_t)pattern;
+	register uint8_t b1 = (uint8_t)(pattern >> 8);
 
-	p.w = pattern;
-	for (i = 0; i < (SCR_W * SCR_H) >> 2; ) {
-		vRAM[i++] = p.b1;
-		vRAM[i++] = p.b0;
-	}
+	do {
+		vRAM[i++] = b1;
+		vRAM[i++] = b0;
+	} while (i < ((SCR_W * SCR_H) >> 2));
 }
 
 // Set pixel in vRAM buffer
 // input:
 //   X, Y - pixel coordinates
 //   GS - grayscale pixel color (gs_[white,ltgray,dkgray,black])
-void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
+// note: defining this function as an 'inline' increases the code size but also improves performance
+__attribute__((always_inline)) void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
 	uint32_t *pvRAM_BB;
 
 	// Offset of pixel in the vRAM array must be computed by formula ((Y >> 3) * (SCR_W << 1)) + (X << 1)
@@ -456,7 +438,7 @@ void Pixel(uint8_t X, uint8_t Y, GrayScale_TypeDef GS) {
 //   Y - vertical coordinate
 //   GS - grayscale pixel color
 void HLine(uint8_t X1, uint8_t X2, uint8_t Y, GrayScale_TypeDef GS) {
-	uint8_t X,eX;
+	register uint8_t X,eX;
 
 	if (X1 > X2) {
 		X = X1; eX = X2;
@@ -474,7 +456,7 @@ void HLine(uint8_t X1, uint8_t X2, uint8_t Y, GrayScale_TypeDef GS) {
 //   Y1,Y2 - top and bottom vertical coordinates (Y1 must be less than Y2)
 //   GS - grayscale pixel color
 void VLine(uint8_t X, uint8_t Y1, uint8_t Y2, GrayScale_TypeDef GS) {
-	uint8_t Y,eY;
+	register uint8_t Y,eY;
 
 	if (Y1 > Y2) {
 		Y = Y1; eY = Y2;
@@ -614,10 +596,10 @@ void Ellipse(uint16_t X, uint16_t Y, uint16_t A, uint16_t B, GrayScale_TypeDef G
 //   Font - pointer to font
 // return: character width in pixels
 uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
-	uint8_t pX;
-	uint8_t pY;
-	uint8_t tmpCh;
-	uint8_t bL;
+	register uint8_t pX;
+	register uint8_t pY;
+	register uint8_t tmpCh;
+	register uint8_t bL;
 	const uint8_t *pCh;
 
 	// If the specified character code is out of bounds should substitute the code of the "unknown" character
@@ -723,15 +705,15 @@ uint8_t DrawChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font) {
 //   Font - pointer to font
 // return: string width in pixels
 uint16_t PutStr(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Font) {
-	uint8_t strLen = 0;
+	register uint8_t pX = X;
+	register uint8_t eX = scr_width - Font->font_Width - 1;
 
-    while (*str) {
-        X += DrawChar(X,Y,*str++,Font);
-        if (X > scr_width - Font->font_Width - 1) break;
-        strLen++;
-    };
+	while (*str) {
+		pX += DrawChar(pX,Y,*str++,Font);
+		if (pX > eX) break;
+	}
 
-    return strLen * (Font->font_Width + 1);
+	return (pX - X);
 }
 
 // Draw string with line feed (by screen edge)
@@ -765,25 +747,24 @@ uint16_t PutStrLF(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Fon
 //   Font - pointer to font
 // return: number width in pixels
 uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font) {
-	uint8_t str[11]; // 10 chars max for UINT32_MAX
-	int8_t i = 0;
-	uint8_t neg = 0;
-	int8_t intLen;
-	uint8_t pX;
+	uint8_t str[11]; // 10 chars max for INT32_MIN..INT32_MAX (without sign)
+	register uint8_t *pStr = str;
+	register uint8_t pX = X;
+	register uint8_t neg = 0;
 
+	// Convert number to characters
+	*pStr++ = 0; // String termination character
 	if (num < 0) {
 		neg = 1;
 		num *= -1;
 	}
-	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
-	if (neg) str[i++] = '-';
-	intLen = i;
-	pX = X + (intLen - 1) * (Font->font_Width + 1);
-	for (i = 0; i < intLen; i++) {
-		pX -= DrawChar(pX,Y,str[i],Font);
-	}
+	do { *pStr++ = (num % 10) + '0'; } while (num /= 10);
 
-    return intLen * (Font->font_Width + 1);
+	// Draw a number
+	if (neg) pX += DrawChar(pX,Y,'-',Font);
+	while (*--pStr) pX += DrawChar(pX,Y,*pStr,Font);
+
+	return (pX - X);
 }
 
 // Draw unsigned integer value
@@ -794,18 +775,17 @@ uint8_t PutInt(uint8_t X, uint8_t Y, int32_t num, const Font_TypeDef *Font) {
 // return: number width in pixels
 uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 	uint8_t str[11]; // 10 chars max for UINT32_MAX
-	int8_t i = 0;
-	int8_t intLen;
-	uint8_t pX;
+	register uint8_t *pStr = str;
+	register uint8_t pX = X;
 
-	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
-	intLen = i;
-	pX = X + (intLen - 1) * (Font->font_Width + 1);
-	for (i = 0; i < intLen; i++) {
-		pX -= DrawChar(pX,Y,str[i],Font);
-	}
+	// Convert number to characters
+	*pStr++ = 0; // String termination character
+	do { *pStr++ = (num % 10) + '0'; } while (num /= 10);
 
-    return intLen * (Font->font_Width + 1);
+	// Draw a number
+	while (*--pStr) pX += DrawChar(pX,Y,*pStr,Font);
+
+	return (pX - X);
 }
 
 // Draw signed integer value with decimal point
@@ -816,36 +796,38 @@ uint8_t PutIntU(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 //   Font - pointer to font
 // return: number width in pixels
 uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_TypeDef *Font) {
-	uint8_t str[12];
-	int8_t i;
-	uint8_t neg;
-	int8_t strLen;
+	uint8_t str[11]; // 10 chars max for INT32_MIN..INT32_MAX (without sign)
+	register uint8_t *pStr = str;
+	register uint8_t pX = X;
+	register uint8_t neg = 0;
+	register uint8_t strLen = 0;
 
+	// Convert number to characters
+	*pStr++ = 0; // String termination character
 	if (num < 0) {
-		neg  = 1;
+		neg = 1;
 		num *= -1;
-	} else neg = 0;
-
-	i = 0;
-	do { str[i++] = num % 10 + '0'; } while ((num /= 10) > 0);
-	strLen = i;
-	if (strLen <= decimals) {
-		for (i = strLen; i <= decimals; i++) str[i] = '0';
-		strLen = decimals + 1;
 	}
-	if (neg) str[strLen++] = '-';
+	do {
+		*pStr++ = (num % 10) + '0';
+		strLen++;
+	} while (num /= 10);
 
-	neg = X;
-	for (i = 0; i < strLen; i++) {
-		DrawChar(neg,Y,str[strLen - i - 1],Font);
-		neg += Font->font_Width + 1;
-		if (strLen - i - 1 == decimals && decimals != 0) {
-			Rect(neg,Y + Font->font_Height - 2,neg + 1,Y + Font->font_Height - 1,lcd_color);
-			neg += 3;
+	// Add zeroes after the decimal point
+	if (strLen <= decimals) while (strLen++ <= decimals) *pStr++ = '0';
+
+	// Draw a number
+	if (neg) pX += DrawChar(pX,Y,'-',Font);
+	while (*--pStr) {
+		pX += DrawChar(pX,Y,*pStr,Font);
+		if ((--strLen == decimals) && (decimals)) {
+			// Draw decimal point
+			Rect(pX,Y + Font->font_Height - 2,pX + 1,Y + Font->font_Height - 1,lcd_color);
+			pX += 3;
 		}
 	}
 
-	return (neg - X);
+	return (pX - X);
 }
 
 // Draw signed integer value with leading zeros
@@ -856,36 +838,31 @@ uint8_t PutIntF(uint8_t X, uint8_t Y, int32_t num, uint8_t decimals, const Font_
 //   Font - pointer to font
 // return: number width in pixels
 uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_TypeDef *Font) {
-	uint8_t i;
-	uint8_t neg;
-	int32_t tmp = num;
-	uint8_t len = 0;
-	uint8_t pX = X;
+	uint8_t str[11]; // 10 chars max for INT32_MIN..INT32_MAX (without sign)
+	register uint8_t *pStr = str;
+	register uint8_t pX = X;
+	register uint8_t neg = 0;
+	register uint8_t strLen = 0;
 
-	if (tmp < 0) {
-		neg  = 1;
-		tmp *= -1;
-	} else neg = 0;
-
-	do { len++; } while ((tmp /= 10) > 0); // Calculate number length in symbols
-
-	if (len > digits) {
-		X += PutInt(X,Y,num,Font);
-		return X;
-	}
-
-	if (neg) {
-		DrawChar(X,Y,'-',Font);
-		X += Font->font_Width + 1;
+	// Convert number to characters
+	*pStr++ = 0; // String termination character
+	if (num < 0) {
+		neg = 1;
 		num *= -1;
 	}
-	for (i = 0; i < digits - len; i++) {
-		DrawChar(X,Y,'0',Font);
-		X += Font->font_Width + 1;
-	}
-	X += PutInt(X,Y,num,Font);
+	do {
+		*pStr++ = (num % 10) + '0';
+		strLen++;
+	} while (num /= 10);
 
-	return X - pX;
+	// Add leading zeroes
+	if (strLen < digits) while (strLen++ < digits) *pStr++ = '0';
+
+	// Draw a number
+	if (neg) pX += DrawChar(pX,Y,'-',Font);
+	while (*--pStr) pX += DrawChar(pX,Y,*pStr,Font);
+
+	return (pX - X);
 }
 
 // Draw integer as hexadecimal
@@ -896,22 +873,23 @@ uint8_t PutIntLZ(uint8_t X, uint8_t Y, int32_t num, uint8_t digits, const Font_T
 // return: number width in pixels
 uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 	uint8_t str[11]; // 10 chars max for UINT32_MAX
-	int8_t i = 0;
-	uint32_t onum = num;
-	int8_t intLen;
-	uint8_t pX;
+	register uint8_t *pStr = str;
+	register uint8_t pX = X;
 
-	do { str[i++] = "0123456789ABCDEF"[num % 0x10]; } while ((num /= 0x10) > 0);
-	if (onum < 0x10) str[i++] = '0';
+	// Convert number to characters
+	*pStr++ = 0; // String termination character
+	do { *pStr++ = (num % 0x10) + '0'; } while (num /= 0x10);
 
-	intLen = i;
-
-	pX = X + (intLen - 1) * (Font->font_Width + 1);
-	for (i = 0; i < intLen; i++) {
-		pX -= DrawChar(pX,Y,str[i],Font);
+	// Draw a number
+	while (*--pStr) {
+		if (*pStr > '9') {
+			pX += DrawChar(pX,Y,*pStr + 7,Font);
+		} else {
+			pX += DrawChar(pX,Y,*pStr,Font);
+		}
 	}
 
-    return intLen * (Font->font_Width + 1);
+	return (pX - X);
 }
 
 // Draw monochrome bitmap with lcd_color
@@ -923,10 +901,10 @@ uint8_t PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font) {
 //       each '0' bit in the will not be drawn (transparent bitmap)
 // bitmap: one byte per 8 vertical pixels, LSB top, truncate bottom bits
 void DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP) {
-	uint8_t pX;
-	uint8_t pY;
-	uint8_t tmpCh;
-	uint8_t bL;
+	register uint8_t pX;
+	register uint8_t pY;
+	register uint8_t tmpCh;
+	register uint8_t bL;
 
 	pY = Y;
 	while (pY < Y + H) {
@@ -940,6 +918,47 @@ void DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP)
 					tmpCh >>= 1;
 					if (tmpCh) {
 						bL++;
+					} else {
+						pX++;
+						break;
+					}
+				}
+			} else {
+				pX++;
+			}
+		}
+		pY += 8;
+	}
+}
+
+// Draw grayscale bitmap
+// input:
+//   X, Y - top left corner coordinates of bitmap
+//   W, H - width and height of bitmap in pixels
+//   pBMP - pointer to array containing bitmap
+// bitmap: one byte per 8 vertical pixels, LSB top, truncate bottom bits
+// note: white pixels will not be drawn (transparent bitmap)
+// note: ImageMagick command line: 'convert -depth 2 image.bmp image.gray'
+void DrawBitmapGS(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP) {
+	uint8_t pX;
+	uint8_t pY;
+	uint8_t tmpCh;
+	uint8_t bL;
+	uint8_t GS;
+
+	pY = Y;
+	while (pY < Y + H) {
+		pX = X;
+		while (pX < X + W) {
+			bL = 0;
+			tmpCh = *pBMP++;
+			if (tmpCh) {
+				while (bL < 8) {
+					GS = tmpCh & 0x03;
+					if (GS) Pixel(pX,pY + bL,GS);
+					tmpCh >>= 2;
+					if (tmpCh) {
+						bL += 2;
 					} else {
 						pX++;
 						break;
