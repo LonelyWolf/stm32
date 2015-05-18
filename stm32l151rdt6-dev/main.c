@@ -38,6 +38,7 @@
 #include "font7x10.h"
 #include "toppler.h"
 #include "font_digits.h" // Big digits
+#include "bitmaps.h" // Various bitmaps
 
 
 
@@ -178,6 +179,9 @@ volatile bool _new_packet = FALSE;
 uint32_t _packets_rcvd = 0; // Received packets counter
 uint32_t _packets_lost = 0; // Lost packets counter
 uint32_t _prev_wake_cntr = 0xDEADBEEF; // Prevous wake counter (to count lost packets)
+uint32_t _time_no_signal = 0; // Time elapsed since the last received packet
+#define NO_SIGNAL_TIME 15 // Sensor signal timeout (seconds)
+bool _icon_RF = TRUE; // Flag for RF icon flashing
 
 // Date/Time
 RTC_TimeTypeDef _time;
@@ -186,8 +190,9 @@ RTC_DateTypeDef _date;
 // LCD debug
 uint8_t lcd_backlight = 10;
 
-// Flags
+// RTC
 volatile bool _new_time = FALSE;
+uint32_t _wakeup_interval = 1;
 
 // USART
 #define  USART_FIFO_SIZE         64    // USART FIFO buffer size (must be power of 2)
@@ -300,6 +305,7 @@ void RTC_WKUP_IRQHandler(void) {
 		RTC_GetDateTime(&_time,&_date);
 
 		_new_time = TRUE;
+		_time_no_signal += _wakeup_interval;
 
 		// Disable sleep-on-exit (return to main loop from IRQ)
 		SCB->SCR &= ~SCB_SCR_SLEEPONEXIT_Msk;
@@ -442,6 +448,7 @@ void EXTI1_IRQHandler(void) {
 			nRF24_Packet.CRC8 = nRF24_RX_Buf[10];
 
 			_new_packet = TRUE;
+			_time_no_signal = 0;
 
 /*
 			CRC_local = CRC8_CCITT(nRF24_RX_Buf,nRF24_RX_PAYLOAD - 1);
@@ -783,11 +790,8 @@ int main(void) {
 	RTC_ITConfig(RTC_IT_WUT,ENABLE);
 	RTC_GetDateTime(&_time,&_date);
 
-//	RTC_SetWakeUp(2); // Wake every 2 seconds
-	RTC_SetWakeUp(10); // Wake every 10 seconds
-//	RTC_SetWakeUp(30); // Wake every 30 seconds
-//	RTC_SetWakeUp(60); // Wake every minute
-//	RTC_SetWakeUp(120); // Wake every 2 minutes
+	_wakeup_interval = 1; // Wake every 10 seconds
+	RTC_SetWakeUp(_wakeup_interval); // Wake every 10 seconds
 
 
 
@@ -871,8 +875,10 @@ int main(void) {
 
 	// Enable the display SPI port DMA TX interrupt
 	ST7541_SPI_PORT.DMA_TX.Channel->CCR |= DMA_CCR1_TCIE; // Enable the DMA TC IRQ
-//	DMA1_Channel3->CCR |= DMA_CCR3_TCIE; // Enable the DMA channel3 TC IRQ
 	NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+
+
+
 
 	// Draw big gray-scaled toppler (logo)
 	uint8_t xx,yy,bb;
@@ -881,12 +887,18 @@ int main(void) {
 		for (xx = 0; xx < 12; xx++) {
 			bb = ~toppler_big[(yy * 12) + xx];
 			for (i = 4; i--; ) {
-				Pixel(40 + (xx << 2) + i,40 + yy,(bb & 0x03));
+				Pixel(40 + (xx << 2) + i,10 + yy,(bb & 0x03));
 				bb >>= 2;
 			}
 		}
 	}
+	DrawBitmapGS(40,60,48,48,toppler_big);
+
+	DrawBitmap(0,0,30,25,bmp_bike_man);
+
 	ST7541_Flush_DMA(NOBLOCK);
+
+//	while(1);
 
 	// Initialize the display backlight
 
@@ -961,14 +973,10 @@ int main(void) {
 
 	_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
 
-///*
-	if (_USB_connected) {
-		// Configure the USB peripheral
-		USB_HWConfig();
-		// Initialize the USB device
-		USB_Init();
-	}
-//*/
+	// Configure the USB peripheral
+	USB_HWConfig();
+	// Initialize the USB device
+	USB_Init();
 
 
 
@@ -1200,7 +1208,7 @@ int main(void) {
 	ADC->CCR = ADC_CCR_TSVREFE; // Enable Vrefint and temperature sensor, ADC prescaler = HSI/1
 	while(!(PWR->CSR & PWR_CSR_VREFINTRDYF)); // Wait until Vrefint stable
 
-	// Continuous reqular channels sequence ADC conversion with DMA
+	// Continuous regular channels sequence ADC conversion with DMA
 
 	// Enable the DMA1 peripheral
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
@@ -1549,21 +1557,6 @@ int main(void) {
 		printf("Write block: %2X\r\n",j);
 */
 
-/*
-		// Read block speed test
-		d0 = 0; k = 0; i = 0;
-		printf("Started------>\r\n");
-		do {
-			j = SD_ReadBlock(0,(uint32_t *)sector,512);
-			if (j != SDR_Success) d0++;
-			k += 512;
-			i++;
-		} while (k < 10485760);
-		printf("<--------Ended\r\n");
-		printf("Failed: %u from %u\r\n",d0,i);
-	    printf("---------------------------------------------\r\n");
-*/
-
 
 
 
@@ -1715,8 +1708,8 @@ int main(void) {
 	j = nRF24_Check();
 	printf("nRF24L01+: %s\r\n",(j) ? "PRESENT" : "FAIL");
 
-	// Dump nRF24L01+ registers
 	if (j) {
+		// Dump nRF24L01+ registers
 		printf("nRF24L01+ registers:\r\n");
 		for (i = 0; i < 0x1d; i++) {
 			j = nRF24_ReadReg(i);
@@ -1900,8 +1893,6 @@ int main(void) {
 	int8_t   dspr   = 1;
 	uint32_t fps    = 0;
 
-	RTC_SetWakeUp(1); // Wake every second
-
 	while(1) {
 		while (!GPS_new_data && !_new_packet) {
 
@@ -1992,6 +1983,60 @@ int main(void) {
 				i += PutIntF(i,65,Vcpu,3,fnt5x7);
 				i += DrawChar(i,65,'V',fnt5x7) + 3;
 
+				// Draw icons
+				// RF icon
+				if (_time_no_signal > NO_SIGNAL_TIME) {
+					DrawBitmap(0,SCR_H - 7,13,7,bmp_icon_SPD_none);
+				} else if (_icon_RF) {
+					DrawBitmap(0,SCR_H - 7,13,7,bmp_icon_SPD_norm);
+				} else {
+					DrawBitmap(0,SCR_H - 7,13,7,bmp_icon_SPD_inv);
+				}
+				// GPS icon
+				if (GPSData.fix != 2 && GPSData.fix != 3) {
+					DrawBitmap(16,SCR_H - 7,13,7,bmp_icon_GPS_NA);
+				} else if (GPSData.fix == 2) {
+					DrawBitmap(16,SCR_H - 7,13,7,bmp_icon_GPS_2D);
+				} else {
+					DrawBitmap(16,SCR_H - 7,13,7,bmp_icon_GPS_3D);
+				}
+				// SD card icon
+				if (_SD_connected) {
+					DrawBitmap(32,SCR_H - 7,13,7,bmp_icon_SD_norm);
+				} else {
+					DrawBitmap(32,SCR_H - 7,13,7,bmp_icon_SD_none);
+				}
+				// USB icon
+				if (_USB_connected) {
+					DrawBitmap(48,SCR_H - 7,13,7,bmp_icon_USB_on);
+				} else {
+					DrawBitmap(48,SCR_H - 7,13,7,bmp_icon_USB_none);
+				}
+
+				switch (bDeviceState) {
+					case UNCONNECTED:
+						PutStr(64,SCR_H - 7,"UNCONNECT",fnt5x7);
+						break;
+					case ATTACHED:
+						PutStr(64,SCR_H - 7,"ATTACHED",fnt5x7);
+						break;
+					case POWERED:
+						PutStr(64,SCR_H - 7,"POWERED",fnt5x7);
+						break;
+					case SUSPENDED:
+						PutStr(64,SCR_H - 7,"SUSPENDED",fnt5x7);
+						break;
+					case ADDRESSED:
+						PutStr(64,SCR_H - 7,"ADDRESSED",fnt5x7);
+						break;
+					case CONFIGURED:
+						PutStr(64,SCR_H - 7,"CONFIGURED",fnt5x7);
+						break;
+					default:
+						PutStr(64,SCR_H - 7,"UNKNOWN",fnt5x7);
+						break;
+				}
+
 				// Draw walking toppler (stupid not optimized drawing, but it works ^_^)
 				for (yy = 0; yy < 16; yy++) {
 					for (xx = 0; xx < 4; xx++) {
@@ -2021,11 +2066,48 @@ int main(void) {
 					hX += dX;
 					hY += dY;
 					if ((hX <  1) || (hX > SCR_W - 17)) dX *= -1;
-					if ((hY < 73) || (hY > SCR_H - 17)) dY *= -1;
+					if ((hY < 73) || (hY > SCR_H - 24)) dY *= -1;
 				}
 
 				ST7541_Flush_DMA(NOBLOCK);
 				k++;
+
+				if (BTN[BTN_UP].state == BTN_Pressed) {
+			    	if (lcd_backlight < 95) lcd_backlight += 5; else lcd_backlight = 100;
+			    	LCD_BL_TIM->CCR1 = lcd_backlight;
+
+			    	if (bDeviceState != CONFIGURED) {
+			    		// Enable the USB peripheral clock
+			    		RCC->APB1ENR |= RCC_APB1ENR_USBEN;
+
+			    		// Enable the USB interrupts
+			    		NVIC_EnableIRQ(USB_LP_IRQn);
+			    		NVIC_EnableIRQ(USB_FS_WKUP_IRQn);
+
+			    		// Initialize the USB device
+			    		USB_Init();
+			    	}
+			    }
+
+				if (BTN[BTN_DOWN].state == BTN_Pressed) {
+			    	if (lcd_backlight > 5) lcd_backlight -= 5; else lcd_backlight = 0;
+			    	LCD_BL_TIM->CCR1 = lcd_backlight;
+
+			    	if (bDeviceState != UNCONNECTED) {
+			    		// Power off the USB
+			    		PowerOff();
+
+			    		// Disable the USB peripheral clock
+			    		RCC->APB1ENR &= ~RCC_APB1ENR_USBEN;
+
+			    		// Disable the USB interrupts
+			    		NVIC_DisableIRQ(USB_LP_IRQn);
+			    		NVIC_DisableIRQ(USB_FS_WKUP_IRQn);
+
+			    		// Change USB device state
+			    		bDeviceState = UNCONNECTED;
+			    	}
+			    }
 			}
 
 			if (_ADC_completed && _new_time) {
@@ -2054,7 +2136,7 @@ int main(void) {
 				Vrefint = (uint16_t)(((uint32_t)Vrefint_raw * 3000) >> 12);
 				Vcpu    = (uint16_t)(((uint32_t)*VREFINT_CAL * 3000) / (uint32_t)Vrefint_raw);
 
-/*
+///*
 				// Output results
 				printf("VOL: Bat=[%u.%03uV -> %u.%03uV] Ref=%u.%03uV CPU=%u.%03uV\r\n",
 						Vbat / 1000, Vbat % 1000,               // Vbat (from divider)
@@ -2062,7 +2144,7 @@ int main(void) {
 						Vrefint / 1000, Vrefint % 1000,         // Internal Vref
 						Vcpu / 1000, Vcpu % 1000                // MCU supply voltage
 						);
-*/
+//*/
 
 				// Renew DMA channel counter (channel already must be disabled in IRQ routine)
 				DMA1_Channel1->CMAR  = (uint32_t)ADC_raw; // Buffer address
@@ -2099,29 +2181,39 @@ int main(void) {
 				BR = BMP180_GetReadings(&RT,&RP,BMP180_ADVRES);
 				if (BR == BMP180_SUCCESS) {
 					RP = BMP180_hPa_to_mmHg(RP);
-//					printf("BAR: T=%d.%dC P=%u.%ummHg\r\n",RT / 10,RT % 10,RP / 10,RP % 10);
+					printf("BAR: T=%d.%dC P=%u.%ummHg\r\n",RT / 10,RT % 10,RP / 10,RP % 10);
 				} else {
-//					printf("BAR: failed\r\n");
+					printf("BAR: failed\r\n");
 				}
 
 				fps = k * 10;
 				k = 0;
 				_new_time = FALSE;
-			}
 
-			if (BTN[BTN_UP].state == BTN_Pressed) {
-		    	if (lcd_backlight < 95) lcd_backlight += 5; else lcd_backlight = 100;
-		    	LCD_BL_TIM->CCR1 = lcd_backlight;
-		    }
-		    if (BTN[BTN_DOWN].state == BTN_Pressed) {
-		    	if (lcd_backlight > 5) lcd_backlight -= 5; else lcd_backlight = 0;
-		    	LCD_BL_TIM->CCR1 = lcd_backlight;
-		    }
+				// Check if SD card present
+				_SD_connected = (SD_DETECT_PORT->IDR & SD_DETECT_PIN) ? 0 : 1;
+
+				// Check if VUSB line active
+				_USB_connected = (USB_SENS_PORT->IDR & USB_SENS_PIN) ? 1 : 0;
+
+				// Reinitialize the USB peripheral only if it was suspended
+				if (_USB_connected && (bDeviceState == SUSPENDED)) {
+		    		// Enable the USB peripheral clock
+		    		RCC->APB1ENR |= RCC_APB1ENR_USBEN;
+
+		    		// Enable the USB interrupts
+		    		NVIC_EnableIRQ(USB_LP_IRQn);
+		    		NVIC_EnableIRQ(USB_FS_WKUP_IRQn);
+
+		    		// Initialize the USB device
+		    		USB_Init();
+				}
+			}
 		}
 
 		if (GPS_new_data) {
 			// Dump a GPS data to the USB VCP
-//			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
+			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
 
 			// Update total bytes counter
 			_NMEA_total_size  += GPS_buf_cntr;
@@ -2135,7 +2227,7 @@ int main(void) {
 
 		if (GPS_parsed) {
 			// GPS data parsed
-/*
+///*
 			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" FIX=\"%sVALID\" ",
 					GPS_sentences_parsed,
 					GPS_sentences_unknown,
@@ -2152,7 +2244,7 @@ int main(void) {
 					GPSData.date,
 					GPSData.datetime_valid ? "" : "IN"
 			);
-*/
+//*/
 
 			if (GPSData.datetime_valid) {
 				// Date and time obtained from GPS
@@ -2169,7 +2261,7 @@ int main(void) {
 //				RTC_CalcDOW(&_date);
 				RTC_SetDateTime(&_time,&_date);
 
-/*
+///*
 				printf("SET: %02u:%02u:%02u %02u.%02u.%02u %s\r\n",
 						_time.RTC_Hours,
 						_time.RTC_Minutes,
@@ -2178,7 +2270,7 @@ int main(void) {
 						_date.RTC_Month,
 						_date.RTC_Year,
 						RTC_DOW_STR[_date.RTC_WeekDay]);
-*/
+//*/
 			}
 
 			GPS_parsed = FALSE;
@@ -2191,7 +2283,7 @@ int main(void) {
 				if (nRF24_Packet.cntr_wake < _prev_wake_cntr) _prev_wake_cntr = nRF24_Packet.cntr_wake;
 				wake_diff = nRF24_Packet.cntr_wake - _prev_wake_cntr;
 
-/*
+///*
 				printf("wake: %u[%u] diff: %u vbat=%u.%02uV pkts: %u\\%u [%u%%]\r\n",
 						nRF24_Packet.cntr_wake,
 						_prev_wake_cntr,
@@ -2201,7 +2293,7 @@ int main(void) {
 						_packets_lost,
 						(_packets_lost * 100) / (_packets_rcvd + _packets_lost)
 				);
-*/
+//*/
 
 				_prev_wake_cntr = nRF24_Packet.cntr_wake;
 				if (wake_diff > 1) {
@@ -2210,9 +2302,10 @@ int main(void) {
 			}
 			_packets_rcvd++;
 			_new_packet = FALSE;
+			_icon_RF = !_icon_RF; // Blink RF icon
 		}
 
-//		printf("---------------------------------------------\r\n");
+		printf("---------------------------------------------\r\n");
 	}
 
 

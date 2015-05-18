@@ -4,9 +4,10 @@
 
 // Private variables
 __IO DEVICE_STATE bDeviceState = UNCONNECTED; // USB device status
-__IO bool fSuspendEnabled = TRUE; // true when suspend is possible
+__IO bool fSuspendEnabled = FALSE; // true when suspend is possible
 __IO uint32_t remotewakeupon = 0; // Remote wake-up state machine
 __IO uint32_t EP[8]; // Array to store endpoint registers
+__IO uint32_t rCounter = 0; // Resume_Later counter (trick to track cable disconnection)
 
 
 // Private structures
@@ -152,8 +153,19 @@ void Resume(RESUME_STATE eResumeSetVal) {
     	break;
     case RESUME_WAIT:
     	ResumeS.bESOFcnt--;
-    	if (ResumeS.bESOFcnt == 0) ResumeS.eState = RESUME_START;
-    	break;
+//    	if (ResumeS.bESOFcnt == 0) ResumeS.eState = RESUME_START;
+    	rCounter++;
+    	if ((ResumeS.bESOFcnt == 0) && (rCounter > 500)) {
+    		rCounter = 0;
+    		ResumeS.eState = RESUME_START;
+        	// USB cable disconnected:
+    		PowerOff();
+    		RCC->APB1ENR &= ~RCC_APB1ENR_USBEN;
+    		NVIC_DisableIRQ(USB_LP_IRQn);
+    		NVIC_DisableIRQ(USB_FS_WKUP_IRQn);
+    		bDeviceState = SUSPENDED;
+    	}
+		break;
     case RESUME_START:
     	USB->CNTR |= CNTR_RESUME;
     	ResumeS.eState = RESUME_ON;
