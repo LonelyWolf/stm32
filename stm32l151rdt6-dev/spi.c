@@ -380,7 +380,7 @@ void SPIx_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState Ne
 			// Disable SPI TX DMA
 			SPI->Instance->CR2 &= ~SPI_CR2_TXDMAEN;
 			// Change state of DMA channel
-			SPI->DMA_TX.State = DMA_STATE_RESET;
+			SPI->DMA_TX.State = DMA_STATE_READY;
 		}
 		if (SPI_DMA_DIR & SPI_DMA_RX) {
 			// Disable RX DMA channel
@@ -388,7 +388,7 @@ void SPIx_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState Ne
 			// Disable SPI RX DMA
 			SPI->Instance->CR2 &= ~SPI_CR2_RXDMAEN;
 			// Change state of DMA channel
-			SPI->DMA_RX.State = DMA_STATE_RESET;
+			SPI->DMA_RX.State = DMA_STATE_READY;
 		}
 	}
 }
