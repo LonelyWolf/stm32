@@ -145,59 +145,73 @@ int main(void) {
 
 		// Calculate compensated values
 
-		// Temperature (must be calculated first)
-//		UT = 0x84d3c; // test raw value: 25.90C
-		temperature = BME280_CalcT(UT);
-		printf("Temperature: %i.%02uC\r\n",
-				temperature / 100,
-				temperature % 100
-			);
+		if (UT == 0x80000) {
+			// Either temperature measurement is configure as 'skip' or first conversion is not completed yet
+			printf("Temperature: no data\r\n");
+		} else {
+			// Temperature (must be calculated first)
+//			UT = 0x84d3c; // test raw value: 25.90C
+			temperature = BME280_CalcT(UT);
+			printf("Temperature: %i.%02uC\r\n",
+					temperature / 100,
+					temperature % 100
+				);
+		}
 
-		// Pressure
-//		UP = 0x554d8; // test raw value: 99488.136Pa = 994.881hPa = 746.224mmHg
-		press_q24_8 = BME280_CalcP(UP);
-//		press_q24_8 = 24674867; // test Q24.8 value, output must be 96386.199
-		// Convert Q24.8 value to integer
-		// e.g. Q24.8 value '24674867' will be converted to '96386199' what represents 96386.199
-		// Fractional part computed as (frac / 2^8)
-		pressure = ((press_q24_8 >> 8) * 1000) + (((press_q24_8 & 0xff) * 390625) / 100000);
-		// Convert pascals to millimeters of mercury
-		j = BME280_Pa_to_mmHg(press_q24_8);
-		printf("Pressure: %u.%03uPa = %u.%03uhPa = %u.%03ummHg (FPM: %u.%03ummHg)\r\n",
-				pressure / 1000,
-				pressure % 1000,
-				pressure / 100000,
-				(pressure % 100000) / 100,
-				(uint32_t)(pressure * 0.00750061683) / 1000, // Floating point calculations to
-				(uint32_t)(pressure * 0.00750061683) % 1000, // to compare with fixed point calculations
-//				(uint32_t)(pressure * 0.007500637554) / 1000, // Floating point calculations to
-//				(uint32_t)(pressure * 0.007500637554) % 1000, // to compare with fixed point calculations
-				j / 1000,
-				j % 1000
-			);
+		if (UH == 0x8000) {
+			// Either humidity measurement is configured as 'skip' or first conversion is not completed yet
+			printf("Humidity: no data\r\n");
+		} else {
+			// Humidity
+//			UH = 0x7e47; // test raw value: 61.313%RH
+			hum_q22_10 = BME280_CalcH(UH);
+//			hum_q22_10 = 47445; // test Q22.10 value, output must be 46.333
+			// Convert Q22.10 value to integer
+			// e.g. Q22.10 value '47445' will be converted to '46333' what represents 46.333
+			// Fractional part computed as (frac / 2^10)
+			humidity = ((hum_q22_10 >> 10) * 1000) + (((hum_q22_10 & 0x3ff) * 976562) / 1000000);
+			printf("Humidity: %u.%03u%%RH\r\n",
+					humidity / 1000,
+					humidity % 1000
+				);
+		}
 
-		// Humidity
-//		UH = 0x7e47; // test raw value: 61.313%RH
-		hum_q22_10 = BME280_CalcH(UH);
-//		hum_q22_10 = 47445; // test Q22.10 value, output must be 46.333
-		// Convert Q22.10 value to integer
-		// e.g. Q22.10 value '47445' will be converted to '46333' what represents 46.333
-		// Fractional part computed as (frac / 2^10)
-		humidity = ((hum_q22_10 >> 10) * 1000) + (((hum_q22_10 & 0x3ff) * 976562) / 1000000);
-		printf("Humidity: %u.%03u%%RH\r\n",
-				humidity / 1000,
-				humidity % 1000
-			);
+		if (UT == 0x80000) {
+			// Either pressure measurement is configured as 'skip' either or conversion is not completed yet
+			printf("Pressure: no data\r\n");
+		} else {
+			// Pressure
+//			UP = 0x554d8; // test raw value: 99488.136Pa = 994.881hPa = 746.224mmHg
+			press_q24_8 = BME280_CalcP(UP);
+//			press_q24_8 = 24674867; // test Q24.8 value, output must be 96386.199
+			// Convert Q24.8 value to integer
+			// e.g. Q24.8 value '24674867' will be converted to '96386199' what represents 96386.199
+			// Fractional part computed as (frac / 2^8)
+			pressure = ((press_q24_8 >> 8) * 1000) + (((press_q24_8 & 0xff) * 390625) / 100000);
+			// Convert pascals to millimeters of mercury
+			j = BME280_Pa_to_mmHg(press_q24_8);
+			printf("Pressure: %u.%03uPa = %u.%03uhPa = %u.%03ummHg (FPM: %u.%03ummHg)\r\n",
+					pressure / 1000,
+					pressure % 1000,
+					pressure / 100000,
+					(pressure % 100000) / 100,
+					(uint32_t)(pressure * 0.00750061683) / 1000, // Floating point calculations to
+					(uint32_t)(pressure * 0.00750061683) % 1000, // to compare with fixed point calculations
+//					(uint32_t)(pressure * 0.007500637554) / 1000, // Floating point calculations to
+//					(uint32_t)(pressure * 0.007500637554) % 1000, // to compare with fixed point calculations
+					j / 1000,
+					j % 1000
+				);
 
-		// Start measurement (in FORCED mode enabled)
+			altitude = BME280_Pa_to_Alt(pressure / 1000);
+			printf("Altitude: %u.%03u\r\n",
+					altitude / 1000,
+					altitude % 1000
+				);
+		}
+
+		// Start measurement (if FORCED mode enabled)
 //		BME280_SetMode(BME280_MODE_FORCED);
-
-		altitude = BME280_Pa_to_Alt(pressure / 1000);
-		printf("Altitude: %u   %u.%03u\r\n",
-				altitude,
-				altitude / 1000,
-				altitude % 1000
-			);
 
 		printf("------------------------\r\n");
 

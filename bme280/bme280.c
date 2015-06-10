@@ -401,23 +401,55 @@ uint32_t BME280_Pa_to_mmHg(uint32_t PQ24_8) {
 //   P - pressure in Pascals
 // return: altitude in millimeters
 int32_t BME280_Pa_to_Alt(uint32_t P) {
-	// 101325.0 = pressure at sea level
+	// The value '101325.0' is 'standard' pressure at mean sea level (MSL) with temperature 15C
+
 	// Hypsometric formula (for altitudes below 11km)
 	// h = ((powf(P0 / P,1 / 5.257) - 1.0) * (T + 273.15)) / 0.0065
 
 	// Original barometric formula
-	float alt_fm1 = (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255))) * 1000;
-	// Slightly simplified formula
-	float alt_fm2 = (44330.0 - (4944.645 * powf(P,1 / 5.255))) * 1000;
+	float alt_f = (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255))) * 1000;
 
-	printf("alt_f: %u %u.%03u\r\nalt_t: %u %u.%03u\r\n",
-			(int32_t)alt_fm1,
-			(int32_t)alt_fm1 / 1000,
-			(int32_t)alt_fm1 % 1000,
-			(int32_t)alt_fm2,
-			(int32_t)alt_fm2 / 1000,
-			(int32_t)alt_fm2 % 1000
+	// Replace the powf() function with Taylor series expansion at point P = 101325
+	// Using WolframAlpha to convert (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255)) into Taylor series
+	// http://www.wolframalpha.com/input/?i=44330*%281+-+%28%28P%2F101325%29^%281%2F5.255%29%29%29+taylor+series+|+P%3D101325
+	// The two terms of the series is enough for good result, take three of them to slightly improve precision
+	//   -0.0832546 (P-101325)+3.32651×10^-7 (P-101325)^2-1.98043×10^-12 (P-101325)^3
+	int32_t p1 = P - 101325; // Substitute for equation
+	int32_t p2 = p1 * p1; // (P - 101325)^2
+	int32_t p3 = p1 * p2; // (P - 101325)^3
+	// Calculate altitude for 'standard' sea level pressure (101325Pa)
+	float alt_t = ((-0.0832546 * p1) + (3.32651E-7 * p2) - (1.98043E-12 * p3)) * 1000.0;
+
+	printf("P: %uPa\t",P);
+	printf("alt_f: %i.%03im\talt_t: %i.%03im\t",
+			(int32_t)alt_f / 1000,
+			(int32_t)alt_f % 1000,
+			(int32_t)alt_t / 1000,
+			(int32_t)alt_t % 1000
+		);
+	printf("diff: %i.%03im\r\n",
+			(int32_t)(alt_f - alt_t) / 1000,
+			(int32_t)(alt_f - alt_t) % 1000
 		);
 
-	return (int32_t)alt_fm1;
+	return (int32_t)alt_t;
+
+	// Calculation accuracy comparison: powf() vs Taylor series approximation
+	//   P:      0Pa  alt_f: 44330.000m  alt_t:  8993.567m  diff: 35336.432m
+	//   P:  10000Pa  alt_f: 15799.133m  alt_t:  7520.170m  diff:  8278.962m
+	//   P:  40000Pa  alt_f:  7186.406m  alt_t:  4927.885m  diff:  2258.521m
+	//   P:  50000Pa  alt_f:  5575.208m  alt_t:  3720.608m  diff:  1854.599m
+	//   P:  60000Pa  alt_f:  4207.018m  alt_t:  4008.579m  diff:   198.438m
+	//   P:  70000Pa  alt_f:  3012.615m  alt_t:  2934.363m  diff:    78.251m
+	//   P:  80000Pa  alt_f:  1949.274m  alt_t:  1926.678m  diff:    22.595m
+	//   P:  90000Pa  alt_f:   988.646m  alt_t:   985.524m  diff:     3.122m
+	//   P: 100000Pa  alt_f:   110.901m  alt_t:   110.892m  diff:     0.009m
+	//   P: 110000Pa  alt_f:  -698.421m  alt_t:  -697.199m  diff:    -1.221m
+	//   P: 120000Pa  alt_f: -1450.201m  alt_t: -1438.769m  diff:   -11.432m
+	// Thus higher/lower the sensor goes from centered value of 101325Pa the more error will give
+	// a Taylor series calculation, but for altitudes in range of +/-2km from MSL this is more than enough
+
+	// For altitudes which noticeably differs from the MSL, the Taylor series can be centered at appropriate value:
+	// http://www.wolframalpha.com/input/?i=44330*%281+-+%28%28P%2F101325%29^%281%2F5.255%29%29%29+taylor+series+|+P%3DXXXXXX
+	// where XXXXXX - pressure at centered altitude
 }
