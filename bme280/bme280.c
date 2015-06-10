@@ -1,6 +1,8 @@
 #include "i2c.h"
 #include "bme280.h"
 
+#include <math.h> // add '-lm' option to linker
+
 
 
 
@@ -376,10 +378,11 @@ uint32_t BME280_CalcH(int32_t UH) {
 // Fixed point Pa to mmHg conversion (Pascals to millimeters of mercury)
 // 1 Pa = 0.00750061683 mmHg
 // input:
-//    hPa - pressure in pascals (Q24.8 format, result of BME280_CalcP function)
+//    PQ24_8 - pressure in pascals (Q24.8 format, result of BME280_CalcP function)
 // return:
 //    pressure in millimeter of mercury
 // note: return value of '746225' represents 746.225 mmHg
+// note: using 64-bit variable
 uint32_t BME280_Pa_to_mmHg(uint32_t PQ24_8) {
 	uint64_t p_mmHg;
 
@@ -391,4 +394,30 @@ uint32_t BME280_Pa_to_mmHg(uint32_t PQ24_8) {
 	// ((uint32_t)p_mmHg << 4) >> 19 -> get fractional part and trim it to 13 bits
 	// (XXX * 122070) / 1000000 is rough integer equivalent of float (XXX / 8192.0) * 1000
 	return ((uint32_t)(p_mmHg >> 28) * 1000) + (((((uint32_t)p_mmHg << 4) >> 19) * 122070) / 1000000);
+}
+
+// Convert pressure in Pascals to altitude in millimeters via barometric formula
+// input:
+//   P - pressure in Pascals
+// return: altitude in millimeters
+int32_t BME280_Pa_to_Alt(uint32_t P) {
+	// 101325.0 = pressure at sea level
+	// Hypsometric formula (for altitudes below 11km)
+	// h = ((powf(P0 / P,1 / 5.257) - 1.0) * (T + 273.15)) / 0.0065
+
+	// Original barometric formula
+	float alt_fm1 = (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255))) * 1000;
+	// Slightly simplified formula
+	float alt_fm2 = (44330.0 - (4944.645 * powf(P,1 / 5.255))) * 1000;
+
+	printf("alt_f: %u %u.%03u\r\nalt_t: %u %u.%03u\r\n",
+			(int32_t)alt_fm1,
+			(int32_t)alt_fm1 / 1000,
+			(int32_t)alt_fm1 % 1000,
+			(int32_t)alt_fm2,
+			(int32_t)alt_fm2 / 1000,
+			(int32_t)alt_fm2 % 1000
+		);
+
+	return (int32_t)alt_fm1;
 }

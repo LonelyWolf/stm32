@@ -159,5 +159,6 @@ uint32_t BME280_CalcP(int32_t UP);
 uint32_t BME280_CalcH(int32_t UH);
 
 uint32_t BME280_Pa_to_mmHg(uint32_t PQ24_8);
+int32_t BME280_Pa_to_Alt(uint32_t P);
 
 #endif // __BME280_H

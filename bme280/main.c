@@ -25,6 +25,9 @@ int32_t temperature;
 uint32_t pressure;
 uint32_t humidity;
 
+// Human-readable altitude value
+int32_t altitude;
+
 
 
 int main(void) {
@@ -187,11 +190,18 @@ int main(void) {
 			);
 
 		// Start measurement (in FORCED mode enabled)
-		BME280_SetMode(BME280_MODE_FORCED);
+//		BME280_SetMode(BME280_MODE_FORCED);
+
+		altitude = BME280_Pa_to_Alt(pressure / 1000);
+		printf("Altitude: %u   %u.%03u\r\n",
+				altitude,
+				altitude / 1000,
+				altitude % 1000
+			);
 
 		printf("------------------------\r\n");
 
 		// Dummy delay
-		for (i = 0x001FFFFF; i--; ) asm volatile ("nop");
+		for (i = 0x003FFFFF; i--; ) asm volatile ("nop");
 	}
 }
