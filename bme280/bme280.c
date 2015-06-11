@@ -416,9 +416,15 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 	//   -0.0832546 (P-101325)+3.32651×10^-7 (P-101325)^2-1.98043×10^-12 (P-101325)^3
 	int32_t p1 = P - 101325; // Substitute for equation
 	int32_t p2 = p1 * p1; // (P - 101325)^2
-	int32_t p3 = p1 * p2; // (P - 101325)^3
-	// Calculate altitude for 'standard' sea level pressure (101325Pa)
-	float alt_t = ((-0.0832546 * p1) + (3.32651E-7 * p2) - (1.98043E-12 * p3)) * 1000.0;
+//	int32_t p3 = p1 * p2; // (P - 101325)^3
+	// Calculate altitude centered at 'standard' sea level pressure (101325Pa)
+//	float alt_t = ((-0.0832546 * p1) + (3.32651E-7 * p2) - (1.98043E-12 * p3)) * 1000.0;
+	float alt_t = ((-0.0832546 * p1) + (3.32651E-7 * p2)) * 1000.0;
+
+	// Taylor series with integers only (centered at 'standard' sea level pressure 101325Pa)
+	int32_t alt_i = 0; // 0th term of series
+	alt_i -= (p1 * 21313) >> 8; // 1th term Q24.8: 0.0832546 * 1000 -> (83 << 8) + (0.2546 * 256) -> 21313
+	alt_i += (((p1 * p1) >> 8) * 22) >> 8; // 2nd term Q24.8: 3.32651E-7 * 1000 * 256 -> 22
 
 	printf("P: %uPa\t",P);
 	printf("alt_f: %i.%03im\talt_t: %i.%03im\t",
@@ -427,9 +433,13 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 			(int32_t)alt_t / 1000,
 			(int32_t)alt_t % 1000
 		);
-	printf("diff: %i.%03im\r\n",
+	printf("diff_ft: %i.%03im\t",
 			(int32_t)(alt_f - alt_t) / 1000,
 			(int32_t)(alt_f - alt_t) % 1000
+		);
+	printf("diff_fi: %i.%03im\r\n",
+			(int32_t)(alt_f - alt_i) / 1000,
+			(int32_t)(alt_f - alt_i) % 1000
 		);
 
 	return (int32_t)alt_t;

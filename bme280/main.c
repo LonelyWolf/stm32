@@ -35,7 +35,12 @@ int main(void) {
 
 	printf("\r\n\r\nSTM32L151RBT6\r\n");
 
-	// Initialize the I2C peripheral
+    for (pressure = 0; pressure <= 120000; pressure += 10000) {
+        BME280_Pa_to_Alt(pressure);
+    }
+//    while(1);
+
+    // Initialize the I2C peripheral
 	if (I2Cx_Init(I2C2,400000) != I2C_SUCCESS) {
 		printf("I2C initialization failed\r\n");
 	} else {
@@ -146,7 +151,7 @@ int main(void) {
 		// Calculate compensated values
 
 		if (UT == 0x80000) {
-			// Either temperature measurement is configure as 'skip' or first conversion is not completed yet
+			// Either temperature measurement is configured as 'skip' or first conversion is not completed yet
 			printf("Temperature: no data\r\n");
 		} else {
 			// Temperature (must be calculated first)
@@ -177,7 +182,7 @@ int main(void) {
 		}
 
 		if (UT == 0x80000) {
-			// Either pressure measurement is configured as 'skip' either or conversion is not completed yet
+			// Either pressure measurement is configured as 'skip' or first conversion is not completed yet
 			printf("Pressure: no data\r\n");
 		} else {
 			// Pressure
