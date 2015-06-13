@@ -382,18 +382,16 @@ uint32_t BME280_CalcH(int32_t UH) {
 // return:
 //    pressure in millimeter of mercury
 // note: return value of '746225' represents 746.225 mmHg
-// note: using 64-bit variable
+// note: maximum input value is 131071 Pa
 uint32_t BME280_Pa_to_mmHg(uint32_t PQ24_8) {
-	uint64_t p_mmHg;
+	// Truncate the pressure value to Q24.2 format and multiply by Q0.20 constant (~0.00750061683)
+	// The multiply product will be Q10.22 pressure value in mmHg
+	uint32_t p_mmHg = (PQ24_8 >> 6) * BME_MMHG_Q0_20;
 
-	// Multiply Q24.8 pressure value by Q0.20 constant (~0.00750061683)
-	// The multiply product will be Q24.28 pressure value (mmHg)
-	p_mmHg = (uint64_t)PQ24_8 * BME_MMHG_Q0_20;
-
-	// (p_mmHg >> 28) -> get integer part from Q24.28 value
-	// ((uint32_t)p_mmHg << 4) >> 19 -> get fractional part and trim it to 13 bits
-	// (XXX * 122070) / 1000000 is rough integer equivalent of float (XXX / 8192.0) * 1000
-	return ((uint32_t)(p_mmHg >> 28) * 1000) + (((((uint32_t)p_mmHg << 4) >> 19) * 122070) / 1000000);
+	// (p_mmHg >> 22) -> integer part from Q10.22 value
+	// ((uint32_t)p_mmHg << 10) >> 18 -> fractional part truncated down to 14 bits
+	// (XXX * 61039) / 1000000 is rough integer equivalent of float (XXX / 16383.0) * 1000
+	return ((p_mmHg >> 22) * 1000) + ((((p_mmHg << 10) >> 18) * 61039) / 1000000);
 }
 
 // Convert pressure in Pascals to altitude in millimeters via barometric formula
@@ -425,6 +423,13 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 	int32_t alt_i = 0; // 0th term of series
 	alt_i -= (p1 * 21313) >> 8; // 1th term Q24.8: 0.0832546 * 1000 -> (83 << 8) + (0.2546 * 256) -> 21313
 	alt_i += (((p1 * p1) >> 8) * 22) >> 8; // 2nd term Q24.8: 3.32651E-7 * 1000 * 256 -> 22
+	// It can be calculated by only shift and add:
+	// ((p2 >> 8) * 22) >> 8 --> substitute (pp = p2 >> 8) --> (pp >> 4) + (pp >> 6) + (pp >> 7)
+	// alt_i += (p2 >> 12) + (p2 >> 14) + (p2 >> 15); // 2nd term
+	// ...but with same code size this will takes 3 more CPU clocks (STM32 hardware multiplier rocks =)
+
+	// TODO: since the sensor operating range is 300 to 1100hPa, it is worth to center the Taylor series
+	//       at other pressure value, something near of 90000Pa
 
 	printf("P: %uPa\t",P);
 	printf("alt_f: %i.%03im\talt_t: %i.%03im\t",

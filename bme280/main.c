@@ -202,8 +202,6 @@ int main(void) {
 					(pressure % 100000) / 100,
 					(uint32_t)(pressure * 0.00750061683) / 1000, // Floating point calculations to
 					(uint32_t)(pressure * 0.00750061683) % 1000, // to compare with fixed point calculations
-//					(uint32_t)(pressure * 0.007500637554) / 1000, // Floating point calculations to
-//					(uint32_t)(pressure * 0.007500637554) % 1000, // to compare with fixed point calculations
 					j / 1000,
 					j % 1000
 				);
