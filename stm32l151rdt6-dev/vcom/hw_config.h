@@ -8,7 +8,7 @@
 
 // Exported defines
 
-#define USB_TX_BUF_SIZE       2048        // Size of USB data buffer (to send data to USB)
+#define USB_TX_BUF_SIZE       4096        // Size of USB data buffer (to send data to USB)
 
 // Endpoints quantity used by the device
 #define EP_NUM              (4)
