@@ -96,58 +96,6 @@ void SleepStandby(void) {
 	// After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
 }
 
-// Convert characters to number with fixed length
-// input:
-//   buf - point to character buffer
-//   len - length of number to convert
-// return: converted number
-// note: only positive values
-uint32_t atos_len(uint8_t *buf, uint8_t len) {
-	uint32_t value = 0;
-	uint8_t digit;
-	uint8_t i;
-	char c;
-
-	for (i = 0; i < len; i++) {
-		c = buf[i];
-		if (c >= '0' && c <= '9') digit = (uint8_t)(c - '0'); else return 0;
-		value = (value * 10) + digit;
-    }
-
-    return value;
-}
-
-// Convert characters to number
-// from specified position until first non digital character
-// input:
-//   buf - point to character buffer
-//   pos - point to position inside buffer
-// return: converted number
-// note: pos value will be changed to the next character after converted number
-int32_t atos_char(uint8_t *buf, uint16_t *pos) {
-	uint32_t value = 0;
-	uint8_t digit;
-	uint8_t i = 0;
-	int8_t neg = 1;
-	char c;
-
-	if (buf[i] == '-') {
-		neg = -1;
-		i++;
-	}
-	for (; i < 11; i++) {
-		c = buf[i];
-		if (c >= '0' && c <= '9') digit = (uint8_t)(c - '0'); else {
-			*pos += i + 1;
-			return value * neg;
-		}
-		value = (value * 10) + digit;
-    }
-	*pos += i + 1;
-
-    return value * neg;
-}
-
 // BSD implementation of strlen
 // input:
 //   str - pointer to string

@@ -154,8 +154,6 @@ void SleepWait(void);
 void SleepStop(void);
 void SleepStandby(void);
 
-uint32_t atos_len(uint8_t *buf, uint8_t len);
-int32_t atos_char(uint8_t *buf, uint16_t *pos);
 uint32_t stringlen(const char *str);
 uint8_t numlen(int32_t num);
 uint8_t numlenu(uint32_t num);
