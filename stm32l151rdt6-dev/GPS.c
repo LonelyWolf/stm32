@@ -1,10 +1,8 @@
 #include <stm32l1xx_rcc.h>
 #include <string.h> // For memset
 
-#include <delay.h>
-#include <uart.h>
-#include <wolk.h>
-#include <GPS.h>
+#include "uart.h"
+#include "GPS.h"
 
 
 
@@ -19,41 +17,132 @@
 
 
 GPS_Data_TypeDef GPSData;                   // Parsed GPS information
-bool GPS_new_data;                          // TRUE if received new GPS packet
-bool GPS_parsed;                            // TRUE if GPS packets was parsed
+GPS_PMTK_TypeDef GPS_PMTK;                  // PMTK messages result
+bool GPS_new_data;                          // TRUE if a new GPS packet received
+bool GPS_parsed;                            // TRUE if GPS data was parsed
 uint16_t GPS_buf_cntr;                      // Number of actual bytes in GPS buffer
-NMEASentence_TypeDef GPS_msg;               // NMEA sentence position
 uint8_t GPS_sentences_parsed;               // Parsed NMEA sentences counter
-uint8_t GPS_sentences_unknown;              // Found unknown NMEA sentences counter
+uint8_t GPS_sentences_unknown;              // Unsupported NMEA sentences counter
+uint8_t GPS_sentences_invalid;              // Invalid NMEA sentences counter
 uint8_t GPS_buf[GPS_BUFFER_SIZE];           // Buffer with data from GPS
 uint8_t GPS_sats[12];                       // IDs of satellites used in position fix
-// Information about satellites in view (can be increased if receiver able handle more)
+// Information about satellites in view (can be increased if receiver is able to handle more)
 GPS_Satellite_TypeDef GPS_sats_view[MAX_SATELLITES_VIEW];
-GPS_PMTK_TypeDef GPS_PMTK;                  // PMTK messages result
 
 
-// Calculates ten raised to the specified power
+
+
+// Parse a number in data buffer with specified length
 // input:
-//   exp - degree value
-// return: ten raised to the specified power
-uint32_t pwr10(uint32_t exp) {
-	uint32_t result = 1;
+//   buf - pointer to the pointer to the data buffer
+//   len - number of digits to parse
+// return: parsed value
+// note: only positive values can be parsed
+// note: buf pointer will point to the next byte after parsed number
+uint32_t atoi_len(uint8_t **buf, uint8_t len) {
+	uint32_t value = 0;
 
-	while (exp--) result *= 10;
+	do {
+		if ((**buf < '0') || (**buf > '9')) return 0; // character is not a digit -> error
+		value *= 10;
+		value += *((*buf)++) - '0';
+	} while (--len);
+
+	return value;
+}
+
+// Parse a (potentially negative) number in data buffer with unknown length
+// input:
+//   buf - pointer to the pointer to the data buffer
+// return: parsed value
+// note: buf will point to the next byte after parsed value or to the next term if
+//       a byte after parsed number is ','
+// note: the function will parse the buffer contents until it hits a non-digit char,
+//       therefore in case of long number the int32_t value can be overflowed
+int32_t atoi_chr(uint8_t **buf) {
+	int32_t neg = 1;
+	int32_t value = 0;
+
+	// Check if a number is negative
+	if (**buf == '-') {
+		neg = -1;
+		(*buf)++;
+	}
+
+	// Parse buffer until first non-digit character, no overflow check for 'value',
+	// therefore 32-bit value will overflow if number length is more than 10 digits
+	while ((**buf > '0' - 1) && (**buf < '9' + 1)) {
+		value *= 10;
+		value += *((*buf)++) - '0';
+	}
+
+	// Shift the pointer to the next term if it points to the "," symbol
+	if (**buf == ',') (*buf)++;
+
+	return neg * value;
+}
+
+// Convert two HEX characters into 8-bit binary
+// input:
+//   buf - pointer to the data buffer
+// return: binary value
+uint8_t atoi_hex(uint8_t *buf) {
+	uint8_t result,tmp;
+
+	// If byte contains letter, it will be converted to lowercase, in case of digit the byte will remain intact
+	tmp = (*buf++ | 0x20);
+	// Add 0xD0 is same as subtract 0x30, same is for 0xA9
+	result = (tmp <= '9') ? (tmp + 0xD0) : (tmp + 0xA9);
+	// This is high nibble
+	result <<= 4;
+	// Repeat the same for low nibble
+	tmp = (*buf | 0x20);
+	result += (tmp <= '9') ? (tmp + 0xD0) : (tmp + 0xA9);
 
 	return result;
+}
+
+// Parse float value from a GPS sentence
+// input:
+//   buf - pointer to the pointer to the data buffer
+// return: parsed value
+// note: buf will point to the next byte after parsed value or to the next term if
+//       a byte after parsed number is ','
+// note: float will be represented as integer, e.g. string '1234.567' will be parsed to 1234567
+int32_t atoi_flt(uint8_t **buf) {
+	int32_t value;
+	int32_t neg = 1;
+
+	// Parse integer part of a number
+	value = atoi_chr(buf);
+	if (value < 0) {
+		value *= -1;
+		neg = -1;
+	}
+
+	// Parse fractional part if it present
+	if (*((*buf)++) == '.') {
+		while ((**buf > '0' - 1) && (**buf < '9' + 1)) {
+			value *= 10;
+			value += *((*buf)++) - '0';
+		}
+	}
+
+	// Shift the pointer to the next term if it points to the "," symbol
+	if (**buf == ',') (*buf)++;
+
+	return neg * value;
 }
 
 // Calculate the CRC value of NMEA sentence
 // input:
 //   str - pointer to the buffer containing sentence
-// return:
-//   checksum of sentence
-// note: sentence must begin with '$' char and end with '*' or zero symbol
-uint8_t GPS_CRC(char *str) {
+// return: checksum of sentence in HEX format
+// note: input sentence should begin with a '$' and end with '*' or a zero byte
+uint8_t GPS_CalcCRC(char *str) {
 	uint8_t result = 0;
 
-	if (*str++ == '$') while (*str != '*' && *str != '\0') result ^= *str++;
+	if (*str++ == '$') while ((*str != '*') && (*str != '\0')) result ^= *str++;
 
 	return result;
 }
@@ -65,7 +154,7 @@ uint8_t GPS_CRC(char *str) {
 void GPS_Send(char *cmd) {
 	uint8_t cmd_CRC;
 
-	cmd_CRC = GPS_CRC(cmd);
+	cmd_CRC = GPS_CalcCRC(cmd);
 	UART_SendStr(GPS_USART_PORT,cmd);
 	UART_SendChar(GPS_USART_PORT,HEX_CHARS[cmd_CRC >> 4]);
 	UART_SendChar(GPS_USART_PORT,HEX_CHARS[cmd_CRC & 0x0f]);
@@ -76,596 +165,562 @@ void GPS_Send(char *cmd) {
 	while (!(GPS_USART_PORT->SR & USART_SR_TC));
 }
 
-// Find end of the GPS sentence
+// Find end of the NMEA sentence
 // input:
-//   buf - pointer to the data buffer
-//   buf_size - size of the data buffer
-// return: buffer offset
-uint16_t GPS_FindTail(uint8_t *buf, uint16_t buf_size) {
-	uint16_t pos = 0;
-	uint16_t crlf;
-
+//   buf - pointer to a byte in the data buffer from where search will start
+//   buf_end - pointer to the last byte where search must stop
+// return: pointer to the last byte of NMEA sentence
+// note: the result pointer will point to the last byte of a sentence or to the end
+//       of the data buffer in case of sentence is incomplete
+uint8_t * GPS_FindTail(uint8_t *buf, uint8_t *buf_end) {
 	do {
-		crlf = (buf[pos] << 8) | buf[pos + 1];
-		pos++;
-	} while (crlf != 0x0d0a && (pos + 1) < buf_size);
+		if (*buf++ == '\r') {
+			if (*buf == '\n') {
+				break;
+			}
+		}
+	} while (buf < buf_end);
 
-	return pos;
+	return buf;
 }
 
-// Find next field in GPS sentence
+// Find next term of NMEA sentence
 // input:
-//   buf - pointer to the data buffer
-// return: buffer offset of next field
-uint16_t GPS_NextField(uint8_t *buf) {
-	uint16_t pos = 1;
+//   buf - pointer to pointer to the data buffer
+// note: buf pointer will point to the next term or to the sentence end ('*' character)
+void GPS_NextTerm(uint8_t **buf) {
+	// Find next term or sentence end
+	while ((**buf != ',') && (**buf != '*')) (*buf)++;
 
-	while (*buf != ',' && *buf++ != '*') pos++;
-
-	return pos;
+	// Point to the first character of next term
+	if (**buf == ',') (*buf)++;
 }
 
 // Find NMEA sentence in buffer
 // input:
-//   msg - pointer to NMEASentence variable
-//   buf - pointer to buffer with NMEA packet
-//   start - position in buffer to start search
-//   buf_size - size of the data buffer
-// note: function modifies msg variable
-void GPS_FindSentence(NMEASentence_TypeDef *Sentence, uint8_t *buf, uint16_t start, uint16_t buf_size) {
-	uint16_t pos = start;
+//   msg - pointer to the NMEASentence structure
+//   buf_start - pointer to the data buffer where search will start
+//   buf_end - pointer to the end of the data buffer
+// note: function modifies the msg variable
+void GPS_FindSentence(NMEASentence_TypeDef *Sentence, uint8_t *buf_start, uint8_t *buf_end) {
+	uint32_t *ptr = (uint32_t *)buf_start;
 	uint32_t hdr;
 
-	Sentence->start = start;
-	Sentence->end   = buf_size;
-	Sentence->type  = NMEA_BAD;
+	// Populate the sentence structure with initial values
+	Sentence->start = (uint8_t *)ptr;
+	Sentence->data  = Sentence->start;
+	Sentence->end   = buf_end;
+	Sentence->type   = NMEA_NOTFOUND;
 
-	if (start + 10 > buf_size) return;
+	// Further parsing does not make sense if there is no space left in buffer for NMEA sentence
+	if (buf_end - (uint8_t *)ptr < 10) return;
 
 	do {
-		hdr = (buf[pos] << 16) | (buf[pos + 1] << 8) | buf[pos + 2];
-		if (hdr == 0x00244750) {
+		hdr = *ptr << 8;
+		if (hdr == 0x50472400) {
 			// $GPxxx sentence - GPS
-			Sentence->start = pos + 7;
-			hdr = (buf[pos + 3] << 16) |
-				  (buf[pos + 4] << 8)  |
-				   buf[pos + 5];
-			pos += GPS_FindTail(&buf[pos],buf_size);
-			if (pos >= buf_size) return;
-			Sentence->end = pos + 1;
-			if (hdr == 0x00474c4c) { Sentence->type = NMEA_GLL; return; }
-			if (hdr == 0x00524d43) { Sentence->type = NMEA_RMC; return; }
-			if (hdr == 0x00565447) { Sentence->type = NMEA_VTG; return; }
-			if (hdr == 0x00474741) { Sentence->type = NMEA_GGA; return; }
-			if (hdr == 0x00475341) { Sentence->type = NMEA_GSA; return; }
-			if (hdr == 0x00475356) { Sentence->type = NMEA_GSV; return; }
-			if (hdr == 0x005a4441) { Sentence->type = NMEA_ZDA; return; }
+
+			// Point to the first byte of sentence
+			Sentence->start = (uint8_t *)ptr;
+
+			// Point to the 4th byte of sentence
+			ptr = (uint32_t *)((uint8_t *)ptr + 3);
+			hdr = *ptr << 8;
+
+			// Point to the first term of sentence
+			Sentence->data = (uint8_t *)ptr + 4;
+
+			// Find sentence tail
+			Sentence->end = GPS_FindTail(Sentence->start,buf_end);
+
+			// Determine a sentence type
+			switch (hdr) {
+				case 0x4c4c4700:
+					Sentence->type = NMEA_GPGLL;
+					return;
+				case 0x434d5200:
+					Sentence->type = NMEA_GPRMC;
+					return;
+				case 0x47545600:
+					Sentence->type = NMEA_GPVTG;
+					return;
+				case 0x41474700:
+					Sentence->type = NMEA_GPGGA;
+					return;
+				case 0x41534700:
+					Sentence->type = NMEA_GPGSA;
+					return;
+				case 0x56534700:
+					Sentence->type = NMEA_GPGSV;
+					return;
+				case 0x41445a00:
+					Sentence->type = NMEA_GPZDA;
+					return;
+				default:
+					// Unsupported GPS sentence
+					Sentence->type = NMEA_UNKNOWN;
+					return;
+			}
+		} else if (hdr == 0x4e472400) {
+			// $GNxxx sentence - GLONASS + GPS
+
+			// Unsupported GLONASS + GPS sentence
+			Sentence->type = NMEA_UNKNOWN;
 
 			return;
-/*
-		} else if (hdr == 0x0024474e) {
-			// $GNxxx sentence - GLONASS
-			Sentence->start = pos + 7;
-			hdr = (buf[pos + 3] << 16) |
-				  (buf[pos + 4] << 8)  |
-				   buf[pos + 5];
-			pos += GPS_FindTail(&buf[pos],buf_size);
-			if (pos >= buf_size) return;
-			Sentence->end = pos + 1;
+		} else if (hdr == 0x4c472400) {
+			// $GLxxx sentence - GLONASS
+
+			// Unsupported GLONASS sentence
+			Sentence->type = NMEA_UNKNOWN;
 
 			return;
-*/
-		} else if (hdr == 0x0024504d) {
-			// $PMTK sentence
-			Sentence->start = pos + 9;
-			hdr = (buf[pos + 4] << 24) |
-				  (buf[pos + 5] << 16) |
-				  (buf[pos + 6] << 8)  |
-				   buf[pos + 7];
-			pos += GPS_FindTail(&buf[pos],buf_size);
-			if (pos >= buf_size) return;
-			Sentence->end = pos + 1;
-			if (hdr == 0x4b303031) { Sentence->type = NMEA_PMTK001; return; }
-			if (hdr == 0x4b303130) { Sentence->type = NMEA_PMTK010; return; }
-			if (hdr == 0x4b303131) { Sentence->type = NMEA_PMTK011; return; }
+		} else if (hdr == 0x4d502400) {
+			// $PMTKxxx sentence
 
-			return;
+			// Point to the first byte of sentence
+			Sentence->start = (uint8_t *)ptr;
+
+			// Point to the 5th byte of sentence
+			ptr = (uint32_t *)(((uint8_t *)ptr) + 4);
+			hdr = *ptr;
+
+			// Point to the first term of sentence
+			Sentence->data = (uint8_t *)ptr + 5;
+
+			// Find sentence tail
+			Sentence->end = GPS_FindTail(Sentence->start,buf_end);
+
+			switch (hdr) {
+				case 0x3130304b:
+					Sentence->type = NMEA_PMTK001;
+					return;
+				case 0x3031304b:
+					Sentence->type = NMEA_PMTK010;
+					return;
+				case 0x3131304b:
+					Sentence->type = NMEA_PMTK011;
+					return;
+				default:
+					// Unsupported MTK sentence
+					Sentence->type = NMEA_UNKNOWN;
+					return;
+			}
 		}
-		pos++;
-	} while (pos < buf_size - 3);
 
-	return;
+		// Proceed to next byte in the buffer
+		ptr = (uint32_t *)((uint8_t *)ptr + 1);
+	} while (ptr < (uint32_t *)buf_end);
 }
 
-// Parse float value from a GPS sentence
+// Parse latitude or longitude term
 // input:
-//   buf - pointer to the data buffer
-//   value - pointer to parsed value (float represented as integer, e.g. 1234.567 -> 1234567)
-// return: number of parsed bytes
-uint16_t GPS_ParseFloat(uint8_t *buf, uint32_t *value) {
-	uint16_t pos = 0;
-	uint32_t ip;
-	uint16_t len;
-
-	if (*buf == ',' || *buf == '*') {
-		*value = 0;
-		return 1;
-	}
-	ip = atos_char(&buf[pos],&pos); // integer part
-	if (buf[pos - 1] == '.') {
-		// fractional part
-		len = pos;
-		*value  = atos_char(&buf[pos],&pos);
-		*value += ip * pwr10(pos - len - 1);
-	} else {
-		// this value is not float
-		*value = ip;
-	}
-
-	return pos;
-}
-
-// Parse latitude or longitude coordinate
-// input:
-//   buf - pointer to the data buffer
-//   len - length of the degrees value (2 for latitude, 3 for longitude)
+//   buf - pointer to the pointer to the data buffer
+//   deg_len - length of the degrees value (2 for latitude, 3 for longitude)
 //   value - pointer to the coordinate variable
 //   char_value - pointer to the coordinate character variable
-// return: number of parsed bytes
-uint16_t GPS_ParseCoordinate(uint8_t *buf, uint8_t len, uint32_t *value, uint8_t *char_value) {
-	uint16_t pos = 0;
-	uint32_t coord_minutes;
-	int16_t f_len; // fractional part length
+// note: buf will point to the next term
+void GPS_ParseLatLon(uint8_t **buf, uint8_t deg_len, int32_t *value, uint8_t *char_value) {
+	uint32_t f_deg = 0; // coordinate degrees fractional part
+	uint8_t  f_len = 0; // fractional part length
 
 	// Coordinate
-	if (buf[pos] != ',') {
-		// '1000000' determines length of the fractional part in result
-		// e.g. 1000000 means 6 fractional digits
-		*value = atos_len(&buf[pos],len) * 1000000; // degrees
-		pos += len;
-		f_len = pos;
-		pos += GPS_ParseFloat(&buf[pos],&coord_minutes); // minutes
-		f_len = pos - f_len - 4; // fractional part length
-		if (f_len > 0) {
-			// Float calculations, slow
-			*value += (uint32_t)((coord_minutes / (pwr10(f_len) * 60.0)) * 1000000);
-		} else {
-			// Are you serious? Floating part is mandatory!
-			*value += coord_minutes * 100;
-		}
-	} else pos++;
+	if (**buf != ',') {
+		// Degrees
+		*value = atoi_len(buf,deg_len) * 60;
 
-	// Coordinate character
-	if (buf[pos] != ',') {
-		*char_value = buf[pos];
-		pos += 2;
+		// Minutes integer part
+		*value += atoi_len(buf,2);
+
+		// Skip decimal dot
+		(*buf)++;
+
+		// Minutes fractional part, it length deends on GPS receiver
+		// Parse no more than 4 digits (~22cm precision?)
+		while (f_len++ < 4) {
+			f_deg *= 10;
+			f_deg += *((*buf)++) - '0';
+			if ((**buf < '0') || (**buf > '9')) break; // character is not a digit -> end of number
+		}
+
+		// If a fractional part consists less than 4 digits, need to adjust a
+		// fractional part and scale factor up to 4 digits
+		if (f_len < 4) {
+			while (f_len++ < 4) f_deg *= 10;
+		}
+
+		// If a fractional part consists more than 4 digits, need to scan up to the end of the number
+		if (**buf != ',') {
+			while ((**buf > '0' - 1) && (**buf < '9' + 1)) (*buf)++;
+		}
+
+		// Point to next NMEA term
+		(*buf)++;
+
+		// Calculate a 'micro-degrees' value
+		// value of '10000' - the scaling factor, deending on the length of the fractional part
+		*value = (((*value * 10000) + f_deg) * 10) / 6;
 	} else {
-		*char_value = 'X';
-		pos++;
+		// Point to next NMEA term
+		(*buf)++;
+
+		// No coordinates in sentence, bail out
+		*value = 0;
 	}
 
-	// FIXME: coordinate must be negative in case when char_value is 'W' or 'S'
+	// Coordinate character
+	if (**buf != ',') {
+		*char_value = **buf;
+		*buf += 2;
 
-	return pos;
+		// In case of 'S' latitude or 'W' longitude the degrees value must be negative
+		if ((*char_value == 'W') || (*char_value == 'S')) *value *= -1;
+	} else {
+		*char_value = 'X';
+		(*buf)++;
+	}
 }
 
 // Parse one satellite from $GPGSV sentence
 // input:
-//   buf - pointer to the data buffer
-//   set_num - satellite number in GPS_sats_view[]
-// return: number of parsed bytes
-uint16_t GPS_ParseSatelliteInView(uint8_t *buf, uint8_t sat_num) {
-	uint16_t pos = 0;
-
+//   buf - pointer to the pointer to the data buffer
+//   satellite - pointer to the GPS_Satellite_TypeDef structure
+// note: buf will point to the next term of sentence
+void GPS_ParseSatInView(uint8_t **buf, GPS_Satellite_TypeDef *satellite) {
 	// Satellite PRN number
-	if (buf[pos] != ',') {
-		GPS_sats_view[sat_num].PRN = atos_len(&buf[pos],2);
-		pos += 3;
-	} else {
-		GPS_sats_view[sat_num].PRN = 0;
-		pos++;
-	}
+	satellite->PRN = (**buf != ',') ? atoi_len(buf,2) : 0;
+	(*buf)++;
 
 	// Satellite elevation
-	if (buf[pos] != ',') {
-		GPS_sats_view[sat_num].elevation = atos_len(&buf[pos],2);
-		pos += 3;
-	} else {
-		GPS_sats_view[sat_num].elevation = 0;
-		pos++;
-	}
+	satellite->elevation = (**buf != ',') ? atoi_len(buf,2) : 0;
+	(*buf)++;
 
 	// Satellite azimuth
-	if (buf[pos] != ',') {
-		GPS_sats_view[sat_num].azimuth = atos_len(&buf[pos],3);
-		pos += 4;
-	} else {
-		GPS_sats_view[sat_num].azimuth = 0;
-		pos++;
-	}
+	satellite->azimuth = (**buf != ',') ? atoi_len(buf,3) : 0;
+	(*buf)++;
 
-	// Satellite SNR
-	if (buf[pos] != ',' && buf[pos] != '*') {
-		GPS_sats_view[sat_num].SNR = atos_len(&buf[pos],2);
-		pos += 3;
-	} else {
-		GPS_sats_view[sat_num].SNR = 255; // Satellite not tracked
-		pos++;
-	}
+	// Satellite SNR (255 = satellite is not tracked)
+	satellite->SNR = (**buf != ',') ? atoi_len(buf,2) : 255;
+	(*buf)++;
 
-	// This must be set after all GPS sentences parsed
-	GPS_sats_view[sat_num].used = FALSE;
-
-	return pos;
+	// This must be set after all of NMEA sentences parsed (call GPS_CheckUsedSats)
+	satellite->used = FALSE;
 }
 
-// Parse time from NMEA sentence
+// Parse time from NMEA sentence (format: HHMMSS.XXX)
 // input:
 //   buf - pointer to the data buffer
 //   time - pointer to variable where time will be stored
-// return: number of parsed bytes
-uint16_t GPS_ParseTime(uint8_t *buf, uint32_t *time) {
-	uint16_t pos = 0;
+// note: the buf pointer will point to the next term
+void GPS_ParseTime(uint8_t **buf, NMEATime *time) {
+	if (**buf != ',') {
+		// Hours
+		time->Hours   = atoi_len(buf,2);
 
-	// Parse time
-	*time  = atos_len(&buf[pos],2) * 3600;
-	pos += 2;
-	*time += atos_len(&buf[pos],2) * 60;
-	pos += 2;
-	*time += atos_len(&buf[pos],2);
-	pos += 3;
-	pos += GPS_NextField(&buf[pos]); // Ignore milliseconds
+		// Minutes
+		time->Minutes = atoi_len(buf,2);
 
-	return pos;
+		// Seconds
+		time->Seconds = atoi_len(buf,2);
+
+		// ... Milliseconds are ignored
+		GPS_NextTerm(buf);
+	} else {
+		(*buf)++;
+	}
 }
 
 // Parse NMEA sentence
 // input:
 //   buf - pointer to the data buffer
 //   Sentence - pointer to the structure with NMEA sentence parameters
-void GPS_ParseSentence(uint8_t *buf, NMEASentence_TypeDef *Sentence) {
-	uint16_t pos = Sentence->start;
-	uint8_t i;
-	uint8_t GSV_msg;   // GSV sentence number
-	uint8_t sat_num;   // Satellites quantity in sentence
-	uint8_t GSV_sats;  // Total number of satellites in view
-	uint32_t ui_32;
-	uint16_t ui_16;
+void GPS_ParseSentence(NMEASentence_TypeDef *sentence) {
+	uint8_t *ptr = sentence->data;
+	uint32_t tmp;
 
-	switch (Sentence->type) {
-	case NMEA_RMC:
-		// $GPRMC - Recommended minimum specific GPS/Transit data
+	switch (sentence->type) {
 
-		// Time of fix
-		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
+		// GPS sentences
+		case NMEA_GPRMC:
+			// $GPRMC - Recommended minimum specific GPS/Transit data
 
-		// Valid data marker
-		GPSData.valid = FALSE;
-		if (buf[pos] != ',') {
-			if (buf[pos] == 'A') GPSData.valid = TRUE;
-			pos += 2;
-		} else pos++;
+			// Time of fix
+			GPS_ParseTime(&ptr,&GPSData.fix_time);
 
-		// Latitude
-		pos += GPS_ParseCoordinate(&buf[pos],2,&GPSData.latitude,&GPSData.latitude_char);
-
-		// Longitude
-		pos += GPS_ParseCoordinate(&buf[pos],3,&GPSData.longitude,&GPSData.longitude_char);
-
-		// Horizontal speed (in knots)
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
-
-		// Convert speed in knots to speed in km/h
-		if (GPSData.speed == 0 && GPSData.speed_k != 0) GPSData.speed = (GPSData.speed_k * 1852) / 1000;
-
-		// Course
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
-
-		// Date of fix
-		if (buf[pos] != ',') {
-			GPSData.fix_date  = atos_len(&buf[pos],2) * 1000000; // Day
-			GPSData.fix_date += atos_len(&buf[pos + 2],2) * 10000; // Month
-			i = atos_len(&buf[pos + 4],2); // Year (two digits)
-			// Some receivers report date year as 70 or 80 when their internal clock has
-			// not yet synchronized with the satellites
-			// So this trick wouldn't work after 2069 year ^_^
-			if (i > 69) {
-				// Assume what year is less than 2000
-				GPSData.fix_date += i + 1900;
-			} else {
-				// Assume what year is greater than 2000
-				// Assign fix_date as date in case if $GPZDA sentence are disabled
-				GPSData.fix_date += i + 2000;
-				GPSData.date = GPSData.fix_date;
-				GPSData.time = GPSData.fix_time;
-				GPSData.datetime_valid = TRUE;
+			// Valid data marker (A=active or V=void)
+			GPSData.valid = FALSE;
+			if (*ptr != ',') {
+				if (*ptr++ == 'A') GPSData.valid = TRUE;
 			}
-			pos += 6;
-		} pos++;
+			ptr++;
 
-		// Magnetic variation
-		// ignore this (mostly not supported by GPS receivers)
-		pos += GPS_NextField(&buf[pos]);
+			// Latitude
+			GPS_ParseLatLon(&ptr,2,&GPSData.latitude,&GPSData.latitude_char);
 
-		// Magnetic variation direction
-		// ignore this (mostly not supported by GPS receivers)
-		pos += GPS_NextField(&buf[pos]);
+			// Longitude
+			GPS_ParseLatLon(&ptr,3,&GPSData.longitude,&GPSData.longitude_char);
 
-		// Mode indicator (NMEA 0183 v3.0 or never)
-		if (buf[pos] != ',' && buf[pos] != '*') GPSData.mode = buf[pos];
+			// Horizontal speed (in knots)
+			GPSData.speed_k = atoi_flt(&ptr);
+			// Convert speed in knots to speed in km/h
+			if ((GPSData.speed == 0) && (GPSData.speed_k != 0)) GPSData.speed = (GPSData.speed_k * 1852) / 1000;
 
-		break; // NMEA_RMC
-	case NMEA_GLL:
-		// $GPGLL - Geographic position, latitude / longitude
+			// Course
+			GPSData.course = atoi_flt(&ptr);
 
-		// Latitude
-		pos += GPS_ParseCoordinate(&buf[pos],2,&GPSData.latitude,&GPSData.latitude_char);
+			// Date of fix
+			if (*ptr != ',') {
+				// Day
+				GPSData.fix_date.Date  = atoi_len(&ptr,2);
 
-		// Longitude
-		pos += GPS_ParseCoordinate(&buf[pos],3,&GPSData.longitude,&GPSData.longitude_char);
+				// Month
+				GPSData.fix_date.Month = atoi_len(&ptr,2);
 
-		// Time of fix
-		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.fix_time); else pos++;
-
-		// Valid data marker
-		GPSData.valid = FALSE;
-		if (buf[pos] != ',') {
-			if (buf[pos] == 'A') GPSData.valid = TRUE;
-			pos += 2;
-		} else pos++;
-
-		// Mode indicator
-		if (buf[pos] != ',') GPSData.mode = buf[pos]; else GPSData.mode = 'N';
-
-		break; // NMEA_GLL
-	case NMEA_ZDA:
-		// $GPZDA - Date & Time
-
-		// Time
-		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.time); else pos++;
-
-		// Date: day
-		if (buf[pos] != ',') {
-			GPSData.date = atos_len(&buf[pos],2) * 1000000;
-			pos += 3;
-		} else {
-			GPSData.date = 1000000;
-			pos++;
-		}
-
-		// Date: month
-		if (buf[pos] != ',') {
-			GPSData.date += atos_len(&buf[pos],2) * 10000;
-			pos += 3;
-		} else {
-			GPSData.date += 10000;
-			pos++;
-		}
-
-		// Date: year
-		if (buf[pos] != ',') {
-			GPSData.date += atos_len(&buf[pos],4);
-		} else GPSData.date += 2013;
-
-		// Local time zone offset
-		// sad but true: this feature mostly not supported by GPS receivers
-
-		// Check for year, if it less than 2014, the date from the GPS receiver is not valid
-		if (GPSData.date % 10000 > 2013) GPSData.datetime_valid = TRUE;
-
-		break; // NMEA_ZDA
-	case NMEA_VTG:
-		// $GPVTG - Course over ground and ground speed
-
-		// Course (heading relative to true north)
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.course);
-
-		// Field with 'T' letter - "track made good is relative to true north"
-		// ignore it
-		pos += GPS_NextField(&buf[pos]);
-
-		// Field with course relative to magnetic north
-		// mostly not supported by GPS receivers, ignore it
-		pos += GPS_NextField(&buf[pos]);
-
-		// Field with 'M' letter - "track made good is relative to magnetic north"
-		// mostly not supported by GPS receivers, ignore it
-		pos += GPS_NextField(&buf[pos]);
-
-		// Speed over ground in knots
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed_k);
-
-		// Convert speed in knots to speed in km/h
-		if (GPSData.speed == 0 && GPSData.speed_k != 0) GPSData.speed = (GPSData.speed_k * 1852) / 1000;
-
-		// Field with 'N' - speed over ground measured in knots, ignore it
-		pos += GPS_NextField(&buf[pos]);
-
-		// Speed over ground in km/h
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.speed);
-
-		// Field with 'K' - speed over ground measured in km/h, ignore it
-		pos += GPS_NextField(&buf[pos]);
-
-		// Mode indicator (NMEA 0183 v3.0 or later)
-		if (buf[pos] != ',' && buf[pos] != '*') GPSData.mode = buf[pos]; else GPSData.mode = 'N';
-
-		break; // NMEA_VTG
-	case NMEA_GGA:
-		// $GPGGA - GPS fix data
-
-		// Time
-		if (buf[pos] != ',') pos += GPS_ParseTime(&buf[pos],&GPSData.time); else pos++;
-
-		// Latitude
-		pos += GPS_ParseCoordinate(&buf[pos],2,&GPSData.latitude,&GPSData.latitude_char);
-
-		// Longitude
-		pos += GPS_ParseCoordinate(&buf[pos],3,&GPSData.longitude,&GPSData.longitude_char);
-
-		// Position fix indicator
-		if (buf[pos] != ',') {
-			GPSData.fix_quality = buf[pos] - '0';
-			pos += 2;
-		} else pos++;
-
-		// Satellites used
-		if (buf[pos] != ',') GPSData.sats_used = atos_char(&buf[pos],&pos); else pos++;
-
-		// HDOP - horizontal dilution of precision
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
-
-		// MSL Altitude (mean-sea-level)
-		if (buf[pos] != ',') {
-			// This value can be negative
-			// Only integer part, fractional is useless
-			GPSData.altitude = atos_char(&buf[pos],&pos);
-			pos += GPS_NextField(&buf[pos]);
-/*
-			GPSData.altitude  = atos_char(&buf[pos],&pos) * 1000;
-			if (GPSData.altitude >= 0)
-				GPSData.altitude += atos_len(&buf[pos],3);
-			else
-				GPSData.altitude -= atos_len(&buf[pos],3);
-			pos += 4;
-*/
-		} else pos++;
-
-		// Altitude measurement units
-		// ignore this field and assume what units is meters
-		buf += GPS_NextField(&buf[pos]);
-
-		// Geoid-to-ellipsoid separation (Ellipsoid altitude = MSL altitude + Geoid separation)
-		if (buf[pos] != ',') {
-			// This value can be negative
-			GPSData.geoid_separation = atos_char(&buf[pos],&pos) * 1000;
-			if (GPSData.geoid_separation >= 0)
-				GPSData.geoid_separation += atos_char(&buf[pos],&pos);
-			else
-				GPSData.geoid_separation -= atos_char(&buf[pos],&pos);
-		} else pos++;
-
-		// Time since last DGPS update
-		if (buf[pos] != ',') {
-			GPSData.dgps_age = atos_char(&buf[pos],&pos);
-		} else pos++;
-
-		// DGPS station ID
-		if (buf[pos] != ',' && buf[pos] != '*') {
-			GPSData.dgps_id = atos_char(&buf[pos],&pos);
-		}
-
-		break; // NMEA_GGA
-	case NMEA_GSA:
-		// $GPGSA - GPS DOP and active satellites
-
-		// Satellite acquisition mode (M = manually forced 2D or 3D, A = automatic switch between 2D and 3D)
-		// ignore this field
-		pos += GPS_NextField(&buf[pos]);
-
-		// Position mode (1=fix not available, 2=2D fix, 3=3D fix)
-		if (buf[pos] != ',') {
-			GPSData.fix = buf[pos] - '0';
-			pos += 2;
-		} else {
-			GPSData.fix = 1;
-			pos++;
-		}
-
-		// IDs of satellites used in position fix (12 fields)
-		for (i = 0; i < 12; i++) {
-			if (buf[pos] != ',') {
-				GPS_sats[i] = atos_len(&buf[pos],2);
-				pos += 3;
-			} else {
-				GPS_sats[i] = 0;
-				pos++;
+				// Year (two digits)
+				GPSData.fix_date.Year  = atoi_len(&ptr,2);
+				// Some receivers report date year as 70 or 80 when their internal clock has
+				// not yet synchronized with the satellites
+				// Yep, this trick wouldn't work after 2069 year ^_^
+				if (GPSData.fix_date.Year > 69) {
+					// Assume what year is less than 2000
+					GPSData.fix_date.Year += 1900;
+				} else {
+					// Assume what year is greater than 2000
+					// Copy fix_date to date and fix_time to time in case of the $GPZDA sentence are disabled
+					GPSData.fix_date.Year += 2000;
+					GPSData.date = GPSData.fix_date;
+					GPSData.time = GPSData.fix_time;
+					GPSData.datetime_valid = TRUE;
+				}
 			}
-		}
+			ptr++;
 
-		// PDOP - position dilution
-		// In theory this thing must be equal to SQRT(pow(HDOP,2) + pow(VDOP,2))
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.PDOP);
-		GPSData.accuracy = GPSData.PDOP * GPS_DOP_FACTOR;
+			// Magnetic variation
+			// ignore this term (mostly not supported by GPS receivers)
+			GPS_NextTerm(&ptr);
 
-		// HDOP - horizontal position dilution
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.HDOP);
+			// Magnetic variation direction
+			// ignore this term (mostly not supported by GPS receivers)
+			GPS_NextTerm(&ptr);
 
-		// VDOP - vertical position dilution
-		pos += GPS_ParseFloat(&buf[pos],&GPSData.VDOP);
+			// Mode indicator (NMEA 0183 v2.3 or never)
+			if ((*ptr != ',') && (*ptr != '*')) GPSData.mode = *ptr;
 
-		break; // NMEA_GSA
-	case NMEA_GSV:
-		// $GPGSV - GPS Satellites in view
+			break; // NMEA_GPRMC
+		case NMEA_GPGLL:
+			// $GPGLL - Geographic position, latitude / longitude
 
-		// Field with "total number of GSV sentences in this cycle"
-		// ignore it
-		pos += GPS_NextField(&buf[pos]);
+			// Latitude
+			GPS_ParseLatLon(&ptr,2,&GPSData.latitude,&GPSData.latitude_char);
 
-		// GSV sentence number
-		if (buf[pos] != ',') {
-			GSV_msg = atos_len(&buf[pos],1);
-			pos += 2;
-		} else {
-			pos++;
-			GSV_msg = 0;
-		}
+			// Longitude
+			GPS_ParseLatLon(&ptr,3,&GPSData.longitude,&GPSData.longitude_char);
 
-		// Total number of satellites in view
-		if (buf[pos] != ',') {
-			GSV_sats = atos_len(&buf[pos],2);
-			pos += 3;
-		} else {
-			GSV_sats = 0;
-			pos++;
-		}
+			// Time of fix
+			GPS_ParseTime(&ptr,&GPSData.fix_time);
 
-		GPSData.sats_view = GSV_sats;
+			// Valid data marker
+			GPSData.valid = FALSE;
+			if (*ptr != ',') {
+				if (*ptr++ == 'A') GPSData.valid = TRUE;
+			}
 
-		// Parse no more than 12 satellites in view
-		sat_num = (GSV_msg - 1) * 4;
-		if (GSV_sats != 0 && sat_num < MAX_SATELLITES_VIEW) {
-			// 4 satellites per sentence
-			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
-			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
-			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
-			pos += GPS_ParseSatelliteInView(&buf[pos],sat_num++);
-		}
+			// Mode indicator (NMEA 0183 v2.3 or never)
+			if ((*ptr != ',') && (*ptr != '*')) GPSData.mode = *ptr;
 
-		break; // NMEA_GSV
-	case NMEA_PMTK001:
-		// $PMTK001 - PMTK_ACK
+			break; // NMEA_GPGLL
+		case NMEA_GPZDA:
+			// $GPZDA - Date & Time
 
-		if (buf[pos] != ',') {
-			GPS_PMTK.PMTK001_CMD  = atos_char(&buf[pos],&pos);
-			GPS_PMTK.PMTK001_FLAG = atos_len(&buf[pos],1);
-		} else {
-			GPS_PMTK.PMTK001_CMD  = 0;
-			GPS_PMTK.PMTK001_FLAG = 0;
-		}
+			// Time
+			GPS_ParseTime(&ptr,&GPSData.time);
 
-		break; // NMEA_PMTK001
-	case NMEA_PMTK010:
-		// $PMTK010 - PMTK_SYS_MSG
+			// Date: day
+			GPSData.date.Date  = (*ptr != ',') ? atoi_len(&ptr,2) : 01;
+			ptr++;
 
-		if (buf[pos] != ',') {
-			GPS_PMTK.PMTK010 = atos_char(&buf[pos],&pos);
-		} else GPS_PMTK.PMTK010 = 0;
+			// Date: month
+			GPSData.date.Month = (*ptr != ',') ? atoi_len(&ptr,2) : 01;
+			ptr++;
 
-		break; // NMEA_PMTK010
-	case NMEA_PMTK011:
-		// $PMTK011 - PMTK_BOOT
+			// Date: year
+			GPSData.date.Year  = (*ptr != ',') ? atoi_len(&ptr,4) : 1980;
+			ptr++;
 
-		if (buf[pos] != ',') {
-			memcpy(&ui_32,&buf[pos],4);
-			memcpy(&ui_16,&buf[pos + 4],2);
-		}
-		GPS_PMTK.PMTK_BOOT = (ui_32 == 0x474b544d && ui_16 == 0x5350);
+			// Local time zone offset term
+			// sad but true: this feature mostly not supported by GPS receivers
 
-		break; // NMEA_PMTK011
-	default:
-		// Unknown NMEA sentence
-		break;
+			// Check for year, if it less than 2014, the date from the GPS receiver is not valid
+			GPSData.datetime_valid = (GPSData.date.Year > 2013);
+
+			break; // NMEA_GPZDA
+		case NMEA_GPVTG:
+			// $GPVTG - Course over ground and ground speed
+
+			// Course (heading relative to true north)
+			GPSData.course = atoi_flt(&ptr);
+
+			// Skip term: 'T' letter - "track made good is relative to true north"
+			GPS_NextTerm(&ptr);
+
+			// Skip term: course relative to magnetic north
+			GPS_NextTerm(&ptr);
+
+			// Skip term: 'M' letter - "track made good is relative to magnetic north"
+			GPS_NextTerm(&ptr);
+
+			// Speed over ground in knots
+			GPSData.speed_k = atoi_flt(&ptr);
+			// Convert speed in knots to speed in km/h
+			if ((GPSData.speed == 0) && (GPSData.speed_k != 0)) GPSData.speed = (GPSData.speed_k * 1852) / 1000;
+
+			// Skip term: 'N' letter - speed over ground measured in knots
+			GPS_NextTerm(&ptr);
+
+			// Speed over ground in km/h
+			GPSData.speed = atoi_flt(&ptr);
+
+			// Skip term: 'K' letter - speed over ground measured in km/h
+			GPS_NextTerm(&ptr);
+
+			// Mode indicator (NMEA 0183 v2.3 or never)
+			if ((*ptr != ',') && (*ptr != '*')) GPSData.mode = *ptr;
+
+			break; // NMEA_GPVTG
+		case NMEA_GPGGA:
+			// $GPGGA - GPS fix data
+
+			// Time
+			GPS_ParseTime(&ptr,&GPSData.fix_time);
+
+			// Latitude
+			GPS_ParseLatLon(&ptr,2,&GPSData.latitude,&GPSData.latitude_char);
+
+			// Longitude
+			GPS_ParseLatLon(&ptr,3,&GPSData.longitude,&GPSData.longitude_char);
+
+			// Position fix indicator
+			GPSData.fix_quality = (*ptr != ',') ? *ptr++ - '0' : 0;
+			ptr++;
+
+			// Satellites used
+			GPSData.sats_used = atoi_chr(&ptr);
+
+			// HDOP - horizontal dilution of precision
+			GPSData.HDOP = atoi_flt(&ptr);
+
+			// MSL (mean-sea-level) altitude, can be negative
+			if (*ptr != ',') {
+				// Get only integer part, fractional is useless
+				GPSData.altitude = atoi_chr(&ptr);
+				GPS_NextTerm(&ptr);
+			} else ptr++;
+
+			// MSL measurement units, ignore this term and assume what units is meters
+			GPS_NextTerm(&ptr);
+
+			// Geoid-to-ellipsoid separation (ellipsoid altitude = MSL altitude + geoid separation)
+			// Value can be negative
+			GPSData.geoid_separation = atoi_flt(&ptr);
+
+			// Geoid-to-ellipsoid separation measurement units, ignore this term and assume what units is meters
+			GPS_NextTerm(&ptr);
+
+			// Time since last DGPS update
+			GPSData.dgps_age = atoi_chr(&ptr);
+
+			// DGPS station ID
+			if ((*ptr != ',') && (*ptr != '*')) GPSData.dgps_id = atoi_chr(&ptr);
+
+			break; // NMEA_GPGGA
+		case NMEA_GPGSA:
+			// $GPGSA - GPS DOP and active satellites
+
+			// Satellite acquisition mode (M = manually forced 2D or 3D, A = automatic switch between 2D and 3D)
+			// Skip this term
+			GPS_NextTerm(&ptr);
+
+			// Position mode (1 = fix not available, 2 = 2D fix, 3 = 3D fix)
+			GPSData.fix = (*ptr != ',') ? *ptr++ - '0' : 1;
+			ptr++;
+
+			// IDs of satellites used in position fix (12 terms per sentence)
+			tmp = 0;
+			do {
+				GPS_sats[tmp] = (*ptr != ',') ? atoi_len(&ptr,2) : 0;
+				ptr++;
+			} while (++tmp < 12);
+
+			// PDOP - position dilution, in theory this thing must be equal to SQRT(HDOP^2 + VDOP^)
+			GPSData.PDOP = atoi_flt(&ptr);
+
+			// HDOP - horizontal position dilution
+			GPSData.HDOP = atoi_flt(&ptr);
+
+			// VDOP - vertical position dilution
+			GPSData.VDOP = atoi_flt(&ptr);
+
+			// Calculate some human-friendly value for GPS accuracy
+			GPSData.accuracy = GPSData.PDOP * GPS_DOP_FACTOR;
+
+			break; // NMEA_GPGSA
+		case NMEA_GPGSV:
+			// $GPGSV - GPS Satellites in view
+
+			// Total number of GSV sentences in this cycle, skip this term
+			GPS_NextTerm(&ptr);
+
+			// GSV sentence number
+			tmp = (*ptr != ',') ? (*ptr++ - '0' - 1) << 2 : 0;
+			ptr++;
+
+			// Total number of satellites in view
+			GPSData.sats_view = (*ptr != ',') ? atoi_len(&ptr,2) : 0;
+			ptr++;
+
+			// Parse no more than 12 satellites in view
+			if (GPSData.sats_view && (tmp < MAX_SATELLITES_VIEW)) {
+				if (*(ptr - 1) != '*') GPS_ParseSatInView(&ptr,&GPS_sats_view[tmp++]);
+				if (*(ptr - 1) != '*') GPS_ParseSatInView(&ptr,&GPS_sats_view[tmp++]);
+				if (*(ptr - 1) != '*') GPS_ParseSatInView(&ptr,&GPS_sats_view[tmp++]);
+				if (*(ptr - 1) != '*') GPS_ParseSatInView(&ptr,&GPS_sats_view[tmp++]);
+			}
+
+			break; // NMEA_GPGSV
+
+		// MTK sentences
+		case NMEA_PMTK001:
+			// $PMTK001 - PMTK_ACK
+
+			GPS_PMTK.PMTK001_CMD = atoi_chr(&ptr);
+			GPS_PMTK.PMTK001_FLAG = (*ptr != ',') ? *ptr - '0' : 0;
+
+			break; // NMEA_PMTK001
+		case NMEA_PMTK010:
+			// $PMTK010 - PMTK_SYS_MSG
+
+			GPS_PMTK.PMTK010 = atoi_chr(&ptr);
+
+			break; // NMEA_PMTK010
+		case NMEA_PMTK011:
+			// $PMTK011 - PMTK_BOOT
+
+			// Check if term value is 'MTKGPS'
+			if (*ptr != ',') {
+				GPS_PMTK.PMTK_BOOT = FALSE;
+				tmp = *(uint32_t *)ptr;
+				if (tmp == 0x474b544d) {
+					ptr += 4;
+					tmp = *(uint32_t *)ptr << 16;
+					GPS_PMTK.PMTK_BOOT = (tmp == 0x53500000);
+				}
+			}
+
+			break; // NMEA_PMTK011
+
+		// Unsupported NMEA sentence
+		default:
+			break;
 	}
 }
 
@@ -674,19 +729,22 @@ void GPS_InitData(void) {
 	uint32_t i;
 
 	memset(&GPSData,0,sizeof(GPSData));
+
 	for (i = 0; i < 12; i++) GPS_sats[i] = 0;
 	for (i = 0; i < MAX_SATELLITES_VIEW; i++) {
 		memset(&GPS_sats_view[i],0,sizeof(GPS_Satellite_TypeDef));
 		GPS_sats_view[i].SNR = 255;
 	}
+
 	GPSData.longitude_char = 'X';
 	GPSData.latitude_char  = 'X';
+
 	GPSData.mode = 'N';
 
-	GPS_sentences_parsed = 0;
+	GPS_sentences_parsed  = 0;
 	GPS_sentences_unknown = 0;
+	GPS_sentences_invalid = 0;
 
-	memset(&GPS_msg,0,sizeof(GPS_msg));
 	memset(&GPS_PMTK,0,sizeof(GPS_PMTK));
 }
 
@@ -703,6 +761,53 @@ void GPS_CheckUsedSats(void) {
 			}
 		}
 	}
+}
+
+// Parse the GPS data buffer
+// input:
+//   buf - pointer to the buffer with GPS data
+//   length - length of the data buffer
+void GPS_ParseBuf(uint8_t *buf, uint32_t length) {
+	NMEASentence_TypeDef sentence;
+	uint8_t *buf_end = buf + length; // Pointer to the last significant byte in GPS buffer
+
+	// Clear previously parsed GPS data
+	GPS_InitData();
+
+	// Find all sentences and parse known
+	while (buf < buf_end) {
+		GPS_FindSentence(&sentence,buf,buf_end);
+		if (sentence.type != NMEA_NOTFOUND) {
+			// Validate a sentence by CRC check
+			if (atoi_hex(sentence.end - 3) == GPS_CalcCRC((char *)sentence.start)) {
+				// Sentence validation passed
+				if (sentence.type != NMEA_UNKNOWN) {
+					// Supported sentence found -> parse it
+					GPS_ParseSentence(&sentence);
+					GPS_sentences_parsed++;
+				} else {
+					// Unsupported sentence found -> skip it
+					GPS_sentences_unknown++;
+				}
+			} else {
+				// Sentence validation failed
+				sentence.type = NMEA_INVALID;
+				GPS_sentences_invalid++;
+			}
+		}
+
+		// Move the pointer to the byte following the last parsed
+		buf = sentence.end + 1;
+	}
+
+	// Reset the new GPS data flag (data were parsed)
+	GPS_new_data = FALSE;
+
+	// Reset the GPS buffer counter
+	GPS_buf_cntr = 0;
+
+	// Set flag indicating what GPS data was parsed
+	GPS_parsed = TRUE;
 }
 
 // Initialize the GPS module
@@ -734,11 +839,11 @@ void GPS_Init(void) {
 			BC = GPS_buf_cntr;
 			VCP_SendBuf(GPS_buf,GPS_buf_cntr);
 
-			// Parse contents of GPS buffer
-			GPS_Parse();
+			// Parse data from GPS receiver
+			GPS_ParseBuf(GPS_buf,GPS_buf_cntr);
 
 			// FIXME: Output data for debug purposes
-			printf("\r\nPMTK: BOOT=%s PMTK010=%u CMD=%u FLAG=%u | B=%u SC=%u/%u [BR=%u] %X\r\n",
+			printf("\r\nPMTK: BOOT=%s PMTK010=%u CMD=%u FLAG=%u | B=%u SC=%u/%u/%u [BR=%u] %X\r\n",
 					(GPS_PMTK.PMTK_BOOT) ? "TRUE" : "FALSE",
 					GPS_PMTK.PMTK010,
 					GPS_PMTK.PMTK001_CMD,
@@ -746,6 +851,7 @@ void GPS_Init(void) {
 					BC,
 					GPS_sentences_parsed,
 					GPS_sentences_unknown,
+					GPS_sentences_invalid,
 					baud,
 					wait
 					);
@@ -806,11 +912,11 @@ void GPS_Init(void) {
 				BC = GPS_buf_cntr;
 				VCP_SendBuf(GPS_buf,GPS_buf_cntr);
 
-				// Parse GPS buffer
-				GPS_Parse();
+				// Parse data from GPS receiver
+				GPS_ParseBuf(GPS_buf,GPS_buf_cntr);
 
 				// Output data for debug purposes
-				printf("\r\nPMTK: BOOT=%s PMTK010=%u CMD=%u FLAG=%u | B=%u SC=%u/%u [BR=%u] %X\r\n",
+				printf("\r\nPMTK: BOOT=%s PMTK010=%u CMD=%u FLAG=%u | B=%u SC=%u/%u/%u [BR=%u] %X\r\n",
 						(GPS_PMTK.PMTK_BOOT) ? "TRUE" : "FALSE",
 						GPS_PMTK.PMTK010,
 						GPS_PMTK.PMTK001_CMD,
@@ -818,6 +924,7 @@ void GPS_Init(void) {
 						BC,
 						GPS_sentences_parsed,
 						GPS_sentences_unknown,
+						GPS_sentences_invalid,
 						baud,
 						wait
 						);
@@ -830,40 +937,4 @@ void GPS_Init(void) {
 	}
 
 	// FIXME: return some value here, no VOID
-}
-
-// Parse the GPS data buffer
-void GPS_Parse(void) {
-	// Clear previously parsed GPS data
-	GPS_InitData();
-
-	// Find all sentences and parse known
-	while (GPS_msg.end < GPS_buf_cntr) {
-		GPS_FindSentence(&GPS_msg,GPS_buf,GPS_msg.end,GPS_buf_cntr);
-		if (GPS_msg.type != NMEA_BAD) {
-			GPS_sentences_parsed++;
-			GPS_ParseSentence(GPS_buf,&GPS_msg);
-		} else GPS_sentences_unknown++;
-	}
-
-	// Update related variables if at least one known sentence was parsed
-	if (GPS_sentences_parsed) {
-		GPS_CheckUsedSats();
-		if (GPSData.fix == 3) {
-			// GPS altitude makes sense only in case of 3D fix
-			CurData.GPSAlt = GPSData.altitude;
-			if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
-			if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
-		}
-		if (GPSData.fix == 2 || GPSData.fix == 3) {
-			// GPS speed makes sense only in case of 2D or 3D position fix
-			CurData.GPSSpeed = GPSData.speed;
-			if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
-		}
-		GPS_parsed = TRUE;
-	}
-
-	// Reset the new GPS data flag and reset the GPS buffer counter
-	GPS_new_data = FALSE;
-	GPS_buf_cntr = 0;
 }
