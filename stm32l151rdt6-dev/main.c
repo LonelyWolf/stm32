@@ -23,6 +23,7 @@
 #include "nRF24.h"
 #include "uart.h"
 #include "ST7541.h"
+#include "NMEA.h"
 #include "GPS.h"
 
 // USB stuff
@@ -1794,7 +1795,7 @@ int main(void) {
 	_NMEA_total_count = 0;
 	GPS_new_data = FALSE;
 	GPS_parsed = FALSE;
-	GPS_InitData();
+	NMEA_InitData();
 
 	// The GPS USART port initialization
 	UARTx_Init(GPS_USART_PORT,USART_TX | USART_RX,9600); // Use slow speed at startup
@@ -1938,11 +1939,11 @@ int main(void) {
 				// GPS info
 				i = 0;
 				i += PutStr(i,30,"NMEA:",fnt5x7) - 1;
-				i += PutIntU(i,30,GPS_sentences_parsed,fnt5x7) - 1;
+				i += PutIntU(i,30,NMEA_sentences_parsed,fnt5x7) - 1;
 				i += DrawChar(i,30,'/',fnt5x7) - 1;
-				i += PutIntU(i,30,GPS_sentences_unknown,fnt5x7) - 1;
+				i += PutIntU(i,30,NMEA_sentences_unknown,fnt5x7) - 1;
 				i += DrawChar(i,30,'/',fnt5x7) - 1;
-				i += PutIntU(i,30,GPS_sentences_invalid,fnt5x7) + 5;
+				i += PutIntU(i,30,NMEA_sentences_invalid,fnt5x7) + 5;
 				i += PutStr(i,30,"Size:",fnt5x7) - 1;
 				i += PutIntU(i,30,GPS_buf_cntr,fnt5x7);
 
@@ -2285,18 +2286,24 @@ int main(void) {
 			_NMEA_total_size  += GPS_buf_cntr;
 
 			// Parse data received from GPS receiver
-			GPS_ParseBuf(GPS_buf,GPS_buf_cntr);
+			NMEA_ParseBuf(GPS_buf,&GPS_buf_cntr);
+
+			// Reset the new GPS data flag (data were parsed)
+			GPS_new_data = FALSE;
+
+			// Set flag indicating what GPS data was parsed
+			GPS_parsed = TRUE;
 
 			// Update NMEA sentences counter
-			_NMEA_total_count += GPS_sentences_parsed + GPS_sentences_unknown;
+			_NMEA_total_count += NMEA_sentences_parsed + NMEA_sentences_invalid + NMEA_sentences_unknown;
 		}
 
 		if (GPS_parsed) {
 			// GPS data parsed
 
 			// Update related variables if at least one sentence was parsed
-			if (GPS_sentences_parsed) {
-				GPS_CheckUsedSats();
+			if (NMEA_sentences_parsed) {
+				NMEA_CheckUsedSats();
 				if (GPSData.fix == 3) {
 					// GPS altitude makes sense only in case of 3D fix
 					CurData.GPSAlt = GPSData.altitude;
@@ -2312,9 +2319,9 @@ int main(void) {
 
 ///*
 			printf("GPS: NMEA=%u/%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" FIX=\"%sVALID\"\r\n",
-					GPS_sentences_parsed,
-					GPS_sentences_unknown,
-					GPS_sentences_invalid,
+					NMEA_sentences_parsed,
+					NMEA_sentences_unknown,
+					NMEA_sentences_invalid,
 					GPSData.sats_used,
 					GPSData.sats_view,
 					GPSData.fix,
