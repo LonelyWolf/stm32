@@ -2,6 +2,17 @@
 #define __BME280_H
 
 
+// Support high precision calculations using floats
+//   0 - not supported
+//   1 - supported
+#define BME280_USE_FLOAT                0
+
+// 64-bit integer calculations for pressure compensation (more precise than 32-bit)
+//   0 - use 32-bit pressure compensation (less code, less precision)
+//   1 - use 64-bit pressure compensation (more code, more precision)
+#define BME280_USE_INT64                1
+
+
 // BME280 HAL
 #define BME280_I2C_PORT                 I2C2 // I2C port where the BME280 connected
 
@@ -12,7 +23,7 @@
 #define BME280_ADDR_V                   (uint8_t)0x77 // I2C address when SDO connected to VDDIO
 
 // BME280 address
-#define BME280_ADDR                     BME280_ADDR_V << 1
+#define BME280_ADDR                     (BME280_ADDR_V << 1)
 
 // BME280 registers
 #define BME280_REG_CALIB00              (uint8_t)0x88 // Calibration data calib00
@@ -134,12 +145,13 @@ BME280_Compensation_TypeDef cal_param;
 // Function prototypes
 void BME280_WriteReg(uint8_t reg, uint8_t value);
 uint8_t BME280_ReadReg(uint8_t reg);
-BME280_RESULT BME280_Check(void);
-void BME280_Reset(void);
 
-uint8_t BME280_GetVersion(void);
-uint8_t BME280_GetStatus(void);
-uint8_t BME280_GetMode(void);
+BME280_RESULT BME280_Check(void);
+inline void BME280_Reset(void);
+
+inline uint8_t BME280_GetVersion(void);
+inline uint8_t BME280_GetStatus(void);
+inline uint8_t BME280_GetMode(void);
 
 void BME280_SetMode(uint8_t mode);
 void BME280_SetFilter(uint8_t filter);
@@ -160,5 +172,11 @@ uint32_t BME280_CalcH(int32_t UH);
 
 uint32_t BME280_Pa_to_mmHg(uint32_t PQ24_8);
 int32_t BME280_Pa_to_Alt(uint32_t P);
+
+#if (BME280_USE_FLOAT)
+float BME280_CalcTf(int32_t UT);
+float BME280_CalcPf(uint32_t UP);
+float BME280_CalcHf(uint32_t UH);
+#endif // BME280_USE_FLOAT
 
 #endif // __BME280_H

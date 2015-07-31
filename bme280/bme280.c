@@ -1,15 +1,21 @@
+// Functions to manage the BME280 sensor:
+//   - get version
+//   - get chip ID
+//   - reset the chip
+//   - read calibration parameters
+//   - configure the chip
+//   - read uncompensated values of temperature, pressure and humidity
+//   - calculate compensated values of temperature, pressure and humidity
+//   - calculate pressure in millimeters of mercury
+//   - calculate barometric altitude
+
+
 #include "i2c.h"
 #include "bme280.h"
-
-#include <math.h> // add '-lm' option to linker
-
-
 
 
 // Carries fine temperature as global value for pressure and humidity calculation
 static int32_t t_fine;
-
-
 
 
 // Write new value to BME280 register
@@ -47,28 +53,28 @@ BME280_RESULT BME280_Check(void) {
 
 // Order BME280 to do a software reset
 // note: after reset the chip will be unaccessible during 3ms
-void BME280_Reset(void) {
+inline void BME280_Reset(void) {
 	BME280_WriteReg(BME280_REG_RESET,BME280_SOFT_RESET_KEY);
 }
 
 // Get version of the BME280 chip
 // return:
 //   BME280 chip version or zero if no BME280 present on the I2C bus or it was an I2C timeout
-uint8_t BME280_GetVersion(void) {
+inline uint8_t BME280_GetVersion(void) {
 	return BME280_ReadReg(BME280_REG_ID);
 }
 
 // Get current status of the BME280 chip
 // return:
 //   Status of the BME280 chip or zero if no BME280 present on the I2C bus or it was an I2C timeout
-uint8_t BME280_GetStatus(void) {
+inline uint8_t BME280_GetStatus(void) {
 	return BME280_ReadReg(BME280_REG_STATUS) & BME280_STATUS_MSK;
 }
 
 // Get current sensor mode of the BME280 chip
 // return:
 //   Sensor mode of the BME280 chip or zero if no BME280 present on the I2C bus or it was an I2C timeout
-uint8_t BME280_GetMode(void) {
+inline uint8_t BME280_GetMode(void) {
 	return BME280_ReadReg(BME280_REG_CTRL_MEAS) & BME280_MODE_MSK;
 }
 
@@ -214,7 +220,7 @@ BME280_RESULT BME280_Read_UP(int32_t *UP) {
 	uint8_t buf[3];
 
 	// Clear result value
-	*UP = 0;
+	*UP = 0x80000;
 
 	// Send 'press_msb' register address
 	buf[0] = BME280_REG_PRESS_MSB;
@@ -240,7 +246,7 @@ BME280_RESULT BME280_Read_UT(int32_t *UT) {
 	uint8_t buf[3];
 
 	// Clear result value
-	*UT = 0;
+	*UT = 0x80000;
 
 	// Send 'temp_msb' register address
 	buf[0] = BME280_REG_TEMP_MSB;
@@ -267,7 +273,7 @@ BME280_RESULT BME280_Read_UH(int32_t *UH) {
 	uint8_t buf[2];
 
 	// Clear result value
-	*UH = 0;
+	*UH = 0x8000;
 
 	// Send 'hum_msb' register address
 	buf[0] = BME280_REG_HUM_MSB;
@@ -295,9 +301,9 @@ BME280_RESULT BME280_Read_UTPH(int32_t *UT, int32_t *UP, int32_t *UH) {
 	uint8_t buf[8];
 
 	// Clear result values
-	*UT = 0;
-	*UP = 0;
-	*UH = 0;
+	*UT = 0x80000;
+	*UP = 0x80000;
+	*UH = 0x8000;
 
 	// Send 'press_msb' register address
 	buf[0] = BME280_REG_PRESS_MSB;
@@ -327,7 +333,7 @@ int32_t BME280_CalcT(int32_t UT) {
 	return ((t_fine * 5) + 128) >> 8;
 }
 
-// Calculate pressure from raw value
+// Calculate pressure from raw value, resolution is 0.001 Pa
 // input:
 //   UP - raw pressure value
 // return: pressure in Pa as unsigned 32-bit integer in Q24.8 format (24 integer and 8 fractional bits)
@@ -336,6 +342,7 @@ int32_t BME280_CalcT(int32_t UT) {
 // note: using 64-bit calculations
 // note: code from the BME280 datasheet (rev 1.1)
 uint32_t BME280_CalcP(int32_t UP) {
+#if (BME280_USE_INT64)
 	int64_t v1,v2,p;
 
 	v1 = (int64_t)t_fine - 128000;
@@ -350,11 +357,35 @@ uint32_t BME280_CalcP(int32_t UP) {
 	v1 = (((int64_t)cal_param.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
 	v2 = (((int64_t)cal_param.dig_P8) * p) >> 19;
 	p = ((p + v1 + v2) >> 8) + ((int64_t)cal_param.dig_P7 << 4);
+#else // BME280_USE_INT64
+	int32_t v1,v2;
+	uint32_t p;
+
+	v1 = (((int32_t)t_fine) >> 1) - (int32_t)64000;
+	v2 = (((v1 >> 2) * (v1 >> 2)) >> 11 ) * ((int32_t)cal_param.dig_P6);
+	v2 = v2 + ((v1 * ((int32_t)cal_param.dig_P5)) << 1);
+	v2 = (v2 >> 2) + (((int32_t)cal_param.dig_P4) << 16);
+	v1 = (((cal_param.dig_P3 * (((v1 >> 2) * (v1 >> 2)) >> 13 )) >> 3) + ((((int32_t)cal_param.dig_P2) * v1) >> 1)) >> 18;
+	v1 = (((32768 + v1)) * ((int32_t)cal_param.dig_P1)) >> 15;
+	if (v1 == 0) return 0; // avoid exception caused by division by zero
+	p = (((uint32_t)(((int32_t)1048576) - UP) - (v2 >> 12))) * 3125;
+	if (p < 0x80000000) {
+		p = (p << 1) / ((uint32_t)v1);
+	} else {
+		p = (p / (uint32_t)v1) << 1;
+	}
+	v1 = (((int32_t)cal_param.dig_P9) * ((int32_t)(((p >> 3) * (p >> 3)) >> 13))) >> 12;
+	v2 = (((int32_t)(p >> 2)) * ((int32_t)cal_param.dig_P8)) >> 13;
+	p = (uint32_t)((int32_t)p + ((v1 + v2 + cal_param.dig_P7) >> 4));
+
+	// Convert pressure to Q24.8 format (fractional part always be .000)
+	p <<= 8;
+#endif // BME280_USE_INT64
 
 	return (uint32_t)p;
 }
 
-// Calculate humidity from raw value
+// Calculate humidity from raw value, resolution is 0.001 %RH
 // input:
 //   UH - raw humidity value
 // return: humidity in %RH as unsigned 32-bit integer in Q22.10 format (22 integer and 10 fractional bits)
@@ -405,7 +436,7 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 	// h = ((powf(P0 / P,1 / 5.257) - 1.0) * (T + 273.15)) / 0.0065
 
 	// Original barometric formula
-	float alt_f = (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255))) * 1000;
+//	float alt_f = (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255))) * 1000;
 
 	// Replace the powf() function with Taylor series expansion at point P = 101325
 	// Using WolframAlpha to convert (44330.0 * (1.0 - powf(P / 101325.0,1 / 5.255)) into Taylor series
@@ -431,6 +462,7 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 	// TODO: since the sensor operating range is 300 to 1100hPa, it is worth to center the Taylor series
 	//       at other pressure value, something near of 90000Pa
 
+/*
 	printf("P: %uPa\t",P);
 	printf("alt_f: %i.%03im\talt_t: %i.%03im\t",
 			(int32_t)alt_f / 1000,
@@ -446,6 +478,7 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 			(int32_t)(alt_f - alt_i) / 1000,
 			(int32_t)(alt_f - alt_i) % 1000
 		);
+*/
 
 	return (int32_t)alt_t;
 
@@ -468,3 +501,70 @@ int32_t BME280_Pa_to_Alt(uint32_t P) {
 	// http://www.wolframalpha.com/input/?i=44330*%281+-+%28%28P%2F101325%29^%281%2F5.255%29%29%29+taylor+series+|+P%3DXXXXXX
 	// where XXXXXX - pressure at centered altitude
 }
+
+#if (BME280_USE_FLOAT)
+// Calculate temperature from raw value using floats, resolution is 0.01 degree
+// input:
+//   UT - raw temperature value
+// return: temperature in Celsius degrees (value of '51.23' equals '51.23C')
+// note: code from the BME280 datasheet (rev 1.1)
+float BME280_CalcTf(int32_t UT) {
+	float v_x1,v_x2;
+
+	v_x1 = (((float)UT) / 16384.0 - ((float)cal_param.dig_T1) / 1024.0) * ((float)cal_param.dig_T2);
+	v_x2 = ((float)UT) / 131072.0 - ((float)cal_param.dig_T1) / 8192.0;
+	v_x2 = (v_x2 * v_x2) * ((float)cal_param.dig_T3);
+	t_fine = (uint32_t)(v_x1 + v_x2);
+
+
+	return ((v_x1 + v_x2) / 5120.0);
+}
+
+// Calculate pressure from raw value using floats, resolution is 0.001 Pa
+// input:
+//   UP - raw pressure value
+// return: pressure in Pa (value of '99158.968' represents 99158.968Pa)
+// note: BME280_CalcT of BME280_CalcTf must be called before calling this function
+// note: code from the BME280 datasheet (rev 1.1)
+float BME280_CalcPf(uint32_t UP) {
+	float v_x1, v_x2, p;
+
+	v_x1 = ((float)t_fine / 2.0) - 64000.0;
+	v_x2 = v_x1 * v_x1 * ((float)cal_param.dig_P6) / 32768.0;
+	v_x2 = v_x2 + v_x1 * ((float)cal_param.dig_P5) * 2.0;
+	v_x2 = (v_x2 / 4.0) + (((float)cal_param.dig_P4) * 65536.0);
+	v_x1 = (((float)cal_param.dig_P3) * v_x1 * v_x1 / 524288.0 + ((float)cal_param.dig_P2) * v_x1) / 524288.0;
+	v_x1 = (1.0 + v_x1 / 32768.0) * ((float)cal_param.dig_P1);
+	p = 1048576.0 - (float)UP;
+	if (v_x1 == 0) return 0; // Avoid exception caused by division by zero
+	p = (p - (v_x2 / 4096.0)) * 6250.0 / v_x1;
+	v_x1 = ((float)cal_param.dig_P9) * p * p / 2147483648.0;
+	v_x2 = p * ((float)cal_param.dig_P8) / 32768.0;
+	p += (v_x1 + v_x2 + ((float)cal_param.dig_P7)) / 16.0;
+
+	return p;
+}
+
+// Calculate humidity from raw value using floats, resolution is 0.001 %RH
+// input:
+//   UH - raw humidity value
+// return: humidity in %RH (value of '46.333' represents 46.333%RH)
+// note: BME280_CalcT or BME280_CalcTf must be called before calling this function
+// note: code from the BME280 datasheet (rev 1.1)
+float BME280_CalcHf(uint32_t UH) {
+	float h;
+
+	h = (((float)t_fine) - 76800.0);
+	if (h == 0) return 0;
+	h = (UH - (((float)cal_param.dig_H4) * 64.0 + ((float)cal_param.dig_H5) / 16384.0 * h));
+	h = h * (((float)cal_param.dig_H2) / 65536.0 * (1.0 + ((float)cal_param.dig_H6) / 67108864.0 * h * (1.0 + ((float)cal_param.dig_H3) / 67108864.0 * h)));
+	h = h * (1.0 - ((float)cal_param.dig_H1) * h / 524288.0);
+	if (h > 100.0) {
+		h = 100.0;
+	} else if (h < 0.0) {
+		h = 0.0;
+	}
+
+	return h;
+}
+#endif // BME280_USE_FLOAT
