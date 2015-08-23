@@ -31,6 +31,4 @@ uint32_t i;
 uint32_t j;
 uint32_t k;
 
-uint32_t _LTC2942_STATE;
-
 #endif // __MAIN_H
