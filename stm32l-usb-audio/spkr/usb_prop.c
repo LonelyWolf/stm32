@@ -45,7 +45,7 @@ DEVICE Device_Table = {
 };
 
 DEVICE_PROP Device_Property = {
-		Speaker_init,
+		Speaker_Init,
 		Speaker_Reset,
 		Speaker_Status_In,
 		Speaker_Status_Out,
@@ -73,12 +73,12 @@ USER_STANDARD_REQUESTS User_Standard_Requests = {
 
 ONE_DESCRIPTOR Device_Descriptor = {
 		(uint8_t *)Speaker_DeviceDescriptor,
-		SPEAKER_SIZ_DEVICE_DESC
+		SPEAKER_DEVICE_DESC_SIZE
 };
 
 ONE_DESCRIPTOR Config_Descriptor = {
 		(uint8_t *)Speaker_ConfigDescriptor,
-		SPEAKER_SIZ_CONFIG_DESC
+		SPEAKER_CONFIG_DESC_SIZE
 };
 
 ONE_DESCRIPTOR String_Descriptor[4] = {
@@ -96,13 +96,13 @@ extern uint16_t Out_Data_Offset;
 
 // Private functions
 /*******************************************************************************
-    Function Name  : Speaker_init.
+    Function Name  : Speaker_Init.
     Description    : Speaker init routine.
     Input          : None.
     Output         : None.
     Return         : None.
 *******************************************************************************/
-void Speaker_init() {
+void Speaker_Init() {
 	// Update the serial number string descriptor with the data from the unique ID
 	Get_SerialNum();
 	// Initialize the current configuration
@@ -221,6 +221,7 @@ RESULT Speaker_Data_Setup(uint8_t RequestNo) {
 	pInformation->Ctrl_Info.CopyData = CopyRoutine;
 	pInformation->Ctrl_Info.Usb_wOffset = 0;
 	(*CopyRoutine)(0);
+
 	return USB_SUCCESS;
 }
 

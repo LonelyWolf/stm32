@@ -33,7 +33,7 @@
 
 // USB Standard Device Descriptor
 const uint8_t Speaker_DeviceDescriptor[] = {
-		SPEAKER_SIZ_DEVICE_DESC,    // bLength
+		SPEAKER_DEVICE_DESC_SIZE,   // bLength
 		USB_DEVICE_DESCRIPTOR_TYPE, // bDescriptorType
 		0x00,                       // bcdUSB: USB version 2.00 (0x0002)
 		0x02,
@@ -125,7 +125,7 @@ const uint8_t Speaker_ConfigDescriptor[] = {
 		0x02,                            // bSourceID
 		0x00,                            // iTerminal
 
-		// USB Speaker Standard AS Interface Descriptor - Audio Streaming Zero Bandwith
+		// USB Speaker Standard AS Interface Descriptor - Audio Streaming Zero Bandwidth
 		// Interface 1, Alternate Setting 0
 		SPEAKER_SIZ_INTERFACE_DESC_SIZE, // bLength
 		USB_INTERFACE_DESCRIPTOR_TYPE,   // bDescriptorType
@@ -159,7 +159,7 @@ const uint8_t Speaker_ConfigDescriptor[] = {
 		0x00,
 
 		// USB Speaker Audio Type I Format Interface Descriptor
-		0x0B,                            // bLength
+		11,                              // bLength
 		AUDIO_INTERFACE_DESCRIPTOR_TYPE, // bDescriptorType
 		AUDIO_STREAMING_FORMAT_TYPE,     // bDescriptorSubType
 		AUDIO_FORMAT_TYPE_I,             // bFormatType
@@ -167,13 +167,7 @@ const uint8_t Speaker_ConfigDescriptor[] = {
 		0x01,                            // bSubFrameSize (one byte per audio subframe)
 		0x08,                            // bBitResolution (8-bit)
 		0x01,                            // bSamFreqType (one frequency supported)
-//		0xF0,                            // tSamFreq 22000 = 0x0055F0
-//		0x55,
-//		0x00,
-//		0x11,                            // tSamFreq 11025 = 0x002B11
-//		0x2B,
-//		0x00,
-		0x44,                            // tSamFreq 44100 = 0x00AC44
+		0x44,                            // tSamFreq: 44100 = 0x00AC44
 		0xAC,
 		0x00,
 
@@ -182,7 +176,6 @@ const uint8_t Speaker_ConfigDescriptor[] = {
 		USB_ENDPOINT_DESCRIPTOR_TYPE,      // bDescriptorType
 		0x01,                              // bEndpointAddress: 1 OUT endpoint
 		USB_ENDPOINT_TYPE_ISOCHRONOUS,     // bmAttributes: isochronous, not shared
-//		0x16,                              // wMaxPacketSize: 22 bytes per packet
 		0x64,                              // wMaxPacketSize: 100 bytes per packet
 		0x00,
 		0x01,                              // bInterval (one packet per frame)
@@ -193,7 +186,7 @@ const uint8_t Speaker_ConfigDescriptor[] = {
 		AUDIO_STREAMING_ENDPOINT_DESC_SIZE, // bLength
 		AUDIO_ENDPOINT_DESCRIPTOR_TYPE,     // bDescriptorType
 		AUDIO_ENDPOINT_GENERAL,             // bDescriptorSubType
-		0x00,                               // bmAttributes: none
+		0x00,                               // bmAttributes
 		0x00,                               // bLockDelayUnits (0x00)
 		0x00,                               // wLockDelay (0x0000)
 		0x00,
