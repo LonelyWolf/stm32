@@ -12,7 +12,7 @@ uint8_t  tMSB = 0;
 uint8_t  tLSB = 0;
 uint8_t  parity_rcv = 0;
 
-GPIO_InitTypeDef PORT;
+static GPIO_InitTypeDef PORT;
 
 
 void DHT22_Init(void) {
@@ -31,21 +31,23 @@ uint32_t DHT22_GetReadings(void) {
 	DHT22_GPIO_PORT->BRR = DHT22_GPIO_PIN; // Pull down SDA (Bit_SET)
 	Delay_ms(2); // Host start signal at least 800us
 	DHT22_GPIO_PORT->BSRR = DHT22_GPIO_PIN; // Release SDA (Bit_RESET)
-	PORT.GPIO_Mode = GPIO_Mode_IPU; // Switch pin to input with Pull-Up
+
+	// Switch pin to input with Pull-Up
+	PORT.GPIO_Mode = GPIO_Mode_IPU;
 	GPIO_Init(DHT22_GPIO_PORT,&PORT);
 
 	// Wait for AM2302 to start communicate
 	wait = 0;
-	while ((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) == (uint32_t)Bit_SET && (wait++ < 200)) Delay_us(2);
+	while ((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) && (wait++ < 200)) Delay_us(2);
 	if (wait > 50) return DHT22_RCV_NO_RESPONSE;
 
 	// Check ACK strobe from sensor
 	wait = 0;
-	while (((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) == (uint32_t)Bit_RESET) && (wait++ < 100)) Delay_us(1);
+	while (!(DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) && (wait++ < 100)) Delay_us(1);
 	if ((wait < 8) || (wait > 15)) return DHT22_RCV_BAD_ACK1;
 
 	wait = 0;
-	while (((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) == (uint32_t)Bit_SET) && (wait++ < 100)) Delay_us(1);
+	while ((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) && (wait++ < 100)) Delay_us(1);
 	if ((wait < 8) || (wait > 15)) return DHT22_RCV_BAD_ACK2;
 
 	// ACK strobe received --> receive 40 bits
@@ -53,15 +55,15 @@ uint32_t DHT22_GetReadings(void) {
 	while (i < 40) {
 		// Measure bit start impulse (T_low = 50us)
 		wait = 0;
-		while (((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) == (uint32_t)Bit_RESET) && (wait++ < 20)) Delay_us(1);
+		while (!(DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) && (wait++ < 20)) Delay_us(1);
 		if (wait > 16) {
 			// invalid bit start impulse length
 			bits[i] = 0xffff;
-			while (((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) == (uint32_t)Bit_SET) && (wait++ < 20)) Delay_us(1);
+			while ((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) && (wait++ < 20)) Delay_us(1);
 		} else {
 			// Measure bit impulse length (T_h0 = 25us, T_h1 = 70us)
 			wait = 0;
-			while (((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) == (uint32_t)Bit_SET) && (wait++ < 20)) Delay_us(1);
+			while ((DHT22_GPIO_PORT->IDR & DHT22_GPIO_PIN) && (wait++ < 20)) Delay_us(1);
 			bits[i] = (wait < 16) ? wait : 0xffff;
 		}
 
