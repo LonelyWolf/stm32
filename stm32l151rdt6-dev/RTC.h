@@ -1,12 +1,25 @@
-// Define to prevent recursive inclusion -------------------------------------
 #ifndef __RTC_H
 #define __RTC_H
 
 
+#include <stm32l1xx.h>
+
+
+// Сode related to RTC wake-up
+//   0 - RTC wake-up is not used
+//   1 - RTC wake-up code enabled
+#define USE_WKUP              1
+
+// Сode related to RTC alarms
+//   0 - RTC alarms is not used
+//   1 - RTC alarms code enabled
+#define USE_ALARMS            0
+
+
 // RTC ALARM internally connected to EXTI17
-#define RTC_ALARM_EXTI       1 << 17
+#define RTC_ALARM_EXTI        (1 << 17)
 // RTC WKUP internally connected to EXTI20
-#define RTC_WKUP_EXTI        1 << 20
+#define RTC_WKUP_EXTI         (1 << 20)
 
 // The RTC initialization timeout
 #define RTC_INIT_TIMEOUT      ((uint32_t)0x00002000)
@@ -57,10 +70,10 @@
 #define RTC_MONTH_NOVEMBER    ((uint8_t)0x11)
 #define RTC_MONTH_DECEMBER    ((uint8_t)0x12)
 
-// Unix epoch time in Julian calendar (UnixTime = 00:00:00 01.01.1970 => JDN = 2440588)
-#define JULIAN_DATE_BASE     2440588
+// Count epoch value from 01.01.2015 (this value represents days JDN of 01.01.2015)
+// To user Unix epoch time define '2440588' here
+#define JULIAN_DATE_BASE      2457023
 
-static const uint16_t week_day[] = { 0x4263, 0xA8BD, 0x42BF, 0x4370, 0xABBF, 0xA8BF, 0x43B2 };
 
 // Days of week text notation (first element is empty, because RTC count days from '1')
 static char const * const RTC_DOW_STR[] = {
@@ -75,6 +88,7 @@ static char const * const RTC_DOW_STR[] = {
 };
 
 
+// RTC time structure
 typedef struct {
 	uint8_t RTC_Hours;   // RTC time hour, the value range is [0..23] or [0..12] depending of hour format
 	uint8_t RTC_Minutes; // RTC time minutes, the value range is [0..59]
@@ -82,6 +96,7 @@ typedef struct {
 	uint8_t RTC_H12;     // RTC AM/PM time
 } RTC_TimeTypeDef;
 
+// RTC date structure
 typedef struct {
 	uint8_t RTC_WeekDay; // RTC date week day (one of RTC_DOW_XXX definitions)
 	uint8_t RTC_Month;   // RTC date month (in BCD format, one of RTC_MONTH_XXX definitions)
@@ -98,12 +113,17 @@ extern RTC_DateTypeDef RTC_Date; // Current RTC date
 ErrorStatus RTC_WaitForSynchro(void);
 ErrorStatus RTC_EnterInitMode(void);
 ErrorStatus RTC_Config(void);
+#if (USE_WKUP)
 ErrorStatus RTC_SetWakeUp(uint32_t interval);
-ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
-void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
+#endif // USE_WKUP
+#if (USE_ALARMS)
 void RTC_SetAlarm(uint32_t Alarm, RTC_TimeTypeDef *time, uint8_t AlarmDateDay, uint32_t AlarmMask);
 ErrorStatus RTC_AlarmCmd(uint32_t Alarm, FunctionalState NewState);
+#endif // USE_ALARMS
 void RTC_ITConfig(uint32_t IT, FunctionalState NewState);
+
+ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
+void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 
 uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date);

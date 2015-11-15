@@ -3,6 +3,9 @@
 #define __I2C_H
 
 
+#include <stm32l1xx.h>
+
+
 // I2C HAL
 
 // I2C1
@@ -52,6 +55,7 @@ typedef enum {
 #define I2C_F_STOPF       ((uint32_t)0x80000010) // Stop detection
 #define I2C_F_BTF         ((uint32_t)0x80000004) // Byte transfer finished
 #define I2C_F_ADDR        ((uint32_t)0x80000002) // Address sent
+#define I2C_F_SB          ((uint32_t)0x80000001) // Start condition generated
 
 // I2C flags (SR2 register)
 #define I2C_F_BUSY        ((uint32_t)0x00000002) // Bus busy

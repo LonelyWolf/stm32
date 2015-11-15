@@ -55,13 +55,9 @@ uint8_t BMC050_ACC_GetDeviceID(void) {
 }
 
 // Read BMC050 temperature value
-// return: temperature value (value 245 means 24.5C)
+// return: temperature value (value of '245' represents 24.5C)
 int16_t BMC050_ReadTemp(void) {
-	float f;
-
-	f = (((int8_t)BMC050_ReadReg(BMC050_ACC_ADDR,BMC050_REG_ACC_OUT_TEMP) * 0.5) + 24.0) * 10;
-
-	return (uint16_t)f;
+	return (((int8_t)BMC050_ReadReg(BMC050_ACC_ADDR,BMC050_REG_ACC_OUT_TEMP) * 10) >> 1) + 240;
 }
 
 // Set accelerometer G-range

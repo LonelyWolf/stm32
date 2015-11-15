@@ -1,5 +1,5 @@
-#include <stm32l1xx_rcc.h>
-#include <misc.h>
+// Delay functions using timer
+
 
 #include "delay.h"
 
@@ -14,28 +14,26 @@ void TIM6_IRQHandler(void) {
 }
 
 // Initialize delay timer
+// input:
+//   func_CallBack - callback function which will be called on every timer counter overflow
+//                   or NULL value if no callback needed
 void Delay_Init(funcCallback_TypeDef func_CallBack) {
-	NVIC_InitTypeDef NVICInit;
+	// Configure timer counter to overflow every half second
 
-	// Overflow every half second
-	// One timer tick = 0,00005s = 0.05ms = 50us
+	// One timer tick = 0.00005s = 0.05ms = 50us
 	DELAY_TIM_APB  |= DELAY_TIM_PERIPH; // Enable the TIMx peripheral
 	DELAY_TIM->CR1 |= TIM_CR1_ARPE; // Auto-preload enable
 	DELAY_TIM->PSC  = SystemCoreClock / 20000; // Delay timer prescaler, must be 1600
-	DELAY_TIM->ARR  = 9999; // Delay timer auto reload value (20000 ticks pers second)
+	DELAY_TIM->ARR  = 9999; // Delay timer auto reload value (20000 ticks per second)
 	DELAY_TIM->EGR  = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
 	DELAY_TIM->SR   = 0; // Clear timer flags
 
-	// TIMx IRQ
-	NVICInit.NVIC_IRQChannel = DELAY_TIM_IRQN;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
-	NVICInit.NVIC_IRQChannelPreemptionPriority = 0x07; // middle priority
-	NVICInit.NVIC_IRQChannelSubPriority = 0x07; // middle priority
-	NVIC_Init(&NVICInit);
-
 	// Set callback function and enable interrupt if it not NULL
 	delay_CallBack = func_CallBack;
-	if (delay_CallBack) DELAY_TIM->DIER |= TIM_DIER_UIE; // Enable TIMx interrupt
+	if (delay_CallBack) {
+		DELAY_TIM->DIER |= TIM_DIER_UIE;
+		NVIC_EnableIRQ(DELAY_TIM_IRQN);
+	}
 
 	// Timer counter enable
 	DELAY_TIM->CR1 |= TIM_CR1_CEN;
@@ -43,16 +41,16 @@ void Delay_Init(funcCallback_TypeDef func_CallBack) {
 
 // Disable delay timer
 void Delay_Disable(void) {
-	RCC->APB1ENR &= ~DELAY_TIM_PERIPH; // Disable the TIMx peripheral
+	DELAY_TIM_APB &= ~DELAY_TIM_PERIPH; // Disable the TIMx peripheral
 }
 
 // Enable delay timer (without full initialization)
 // note: delay TIM peripheral must be already configured (by Delay_Init)
 void Delay_Enable(void) {
-	RCC->APB1ENR |= DELAY_TIM_PERIPH; // Enable the TIMx peripheral
+	DELAY_TIM_APB |= DELAY_TIM_PERIPH; // Enable the TIMx peripheral
 }
 
-// Loop delay for 1 millisecond
+// Loop delay for about one millisecond
 void Delay_msec(void) {
 	volatile uint16_t tStart;
 	volatile uint16_t tEnd;
@@ -65,10 +63,9 @@ void Delay_msec(void) {
 	} while (tDiff < 19);
 }
 
-// Loop delay for mSecs milliseconds
+// Milliseconds loop delay
+// input:
+//   mSecs - number of milliseconds
 void Delay_ms(volatile uint32_t mSecs) {
-	while (mSecs > 0) {
-		Delay_msec();
-		mSecs--;
-	}
+	while (mSecs--) Delay_msec();
 }

@@ -70,7 +70,7 @@ int main(void) {
 	TIM9->ARR   =  SystemCoreClock/44100; // Audio sample rate 44.1kHz
 	TIM9->CR2  &= ~TIM_CR2_MMS; // Master mode selection reset
 	TIM9->CR2  |=  TIM_CR2_MMS_1; // The update event is selected as trigger output (TRGO)
-	TIM9->DIER |=  TIM_DIER_UIE; // ÒIMx update interrupt enable
+	TIM9->DIER |=  TIM_DIER_UIE; // TIMx update interrupt enable
 	TIM9->EGR   =  TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
 
 	// Configure DAC channel2
@@ -208,7 +208,7 @@ void TIM2_IRQHandler(void) {
 		TIM2->SR &= ~TIM_SR_UIF; // Clear the TIM2 interrupt pending bit
 
 	    if ((Out_Data_Offset < In_Data_Offset) && !MUTE_DATA) {
-	    	TIM3->CCR3 = stream_buffer[Out_Data_Offset];
+	    	TIM3->CCR1 = stream_buffer[Out_Data_Offset];
 	    	Out_Data_Offset++;
 	    }
 
@@ -220,27 +220,27 @@ int main(void) {
 	Delay_Init(NULL);
 
 	// Enable PORTB peripheral
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOB,ENABLE);
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA,ENABLE);
 
-	// Beeper pin (PB0 -> TIM3_CH3)
+	// Beeper pin (PA6 -> TIM3_CH1)
 	PORT.GPIO_Mode  = GPIO_Mode_AF;
 	PORT.GPIO_Speed = GPIO_Speed_40MHz;
 	PORT.GPIO_OType = GPIO_OType_PP;
 	PORT.GPIO_PuPd  = GPIO_PuPd_UP;
-	PORT.GPIO_Pin   = GPIO_Pin_0;
-	GPIO_Init(GPIOB,&PORT);
-	GPIO_PinAFConfig(GPIOB,GPIO_PinSource0,GPIO_AF_TIM3); // Alternative function of PB0 -> TIM3_CH3
+	PORT.GPIO_Pin   = GPIO_Pin_6;
+	GPIO_Init(GPIOA,&PORT);
+	GPIO_PinAFConfig(GPIOA,GPIO_PinSource6,GPIO_AF_TIM3); // Alternative function of PA6 -> TIM3_CH1
 
-	// Configure TIM3 (PWM output on CH3)
+	// Configure TIM3 (PWM output on CH1)
 	RCC->APB1ENR |= RCC_APB1Periph_TIM3; // Enable the TIM3 peripheral
 	TIM3->CR1   |= TIM_CR1_ARPE; // Auto-preload enable
-	TIM3->CCMR2 |= TIM_CCMR2_OC3PE; // Output compare 3 preload enable
-	TIM3->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1; // PWM mode 1
+	TIM3->CCMR1 |= TIM_CCMR1_OC1PE; // Output compare 1 preload enable
+	TIM3->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1; // PWM mode 1
 	TIM3->PSC    = 0; // TIM3CLK = 32MHz
 	TIM3->ARR    = 0xFF; // PWM frequency = 125kHz
-	TIM3->CCR3   = 0x7F; // 50% duty cycle
-	TIM3->CCER  |= TIM_CCER_CC3P; // Output polarity
-	TIM3->CCER  |= TIM_CCER_CC3E; // BEEPER TIMx_CH3 output compare enable
+	TIM3->CCR1   = 0x7F; // 50% duty cycle
+	TIM3->CCER  |= TIM_CCER_CC1NP; // Output polarity
+	TIM3->CCER  |= TIM_CCER_CC1E; // BEEPER TIM3_CH1 output compare enable
 	TIM3->EGR    = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
 
 	// Configure TIM2 (OCMode_Timing)
@@ -251,7 +251,7 @@ int main(void) {
 	TIM2->CCER  |= TIM_CCER_CC1P;
 	TIM2->CCR1   = 0;
 	TIM2->EGR    = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
-	TIM2->DIER  |= TIM_DIER_UIE; // ÒIMx update interrupt enable
+	TIM2->DIER  |= TIM_DIER_UIE; // TIMx update interrupt enable
 
 	// TIM2 IRQ
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
@@ -325,7 +325,7 @@ int main(void) {
 	TIM3->CCER  |= TIM_CCER_CC3P; // Output polarity
 	TIM3->CCER  |= TIM_CCER_CC3E; // BEEPER TIMx_CH3 output compare enable
 	TIM3->EGR    = TIM_EGR_UG; // Generate an update event to reload the prescaler value immediately
-	TIM3->DIER  |= TIM_DIER_UIE; // ÒIMx update interrupt enable
+	TIM3->DIER  |= TIM_DIER_UIE; // TIMx update interrupt enable
 
 	// TIM3 IRQ
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);

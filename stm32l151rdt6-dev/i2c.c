@@ -31,7 +31,7 @@ I2C_Status I2Cx_WaitEvent(I2C_TypeDef* I2Cx, uint32_t I2C_Event) {
 // return:
 //   I2C_SUCCESS if flag set or I2C_ERROR in case of timeout
 I2C_Status I2Cx_WaitFlagSet(I2C_TypeDef* I2Cx, uint32_t I2C_Flag) {
-	volatile uint32_t wait = I2C_WAIT_TIMEOUT;
+	uint32_t wait = I2C_WAIT_TIMEOUT;
 	volatile uint16_t *preg;
 
 	// Determine which I2C register to be read
@@ -53,7 +53,7 @@ I2C_Status I2Cx_WaitFlagSet(I2C_TypeDef* I2Cx, uint32_t I2C_Flag) {
 // return:
 //   I2C_SUCCESS if flag cleared or I2C_ERROR in case of timeout
 I2C_Status I2Cx_WaitFlagReset(I2C_TypeDef* I2Cx, uint32_t I2C_Flag) {
-	volatile uint32_t wait = I2C_WAIT_TIMEOUT;
+	uint32_t wait = I2C_WAIT_TIMEOUT;
 	volatile uint16_t *preg;
 
 	// Determine which I2C register to be read
@@ -331,8 +331,8 @@ I2C_Status I2Cx_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t SlaveAddress, uint32_t 
 	do {
 		// Initiate a START sequence
 		I2Cx->CR1 |= I2C_CR1_START;
-		// Wait for EV5
-		if (I2Cx_WaitFlagSet(I2Cx,I2C_F_BUSY) == I2C_ERROR) return I2C_ERROR;
+		// Wait for START condition generated
+		if (I2Cx_WaitFlagSet(I2Cx,I2C_F_SB) == I2C_ERROR) return I2C_ERROR;
 
 		// Send the slave address (EV5)
 		I2Cx->DR = SlaveAddress & ~I2C_OAR1_ADD0; // Last bit be reset (transmitter mode)

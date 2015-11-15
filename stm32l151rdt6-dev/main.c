@@ -23,6 +23,7 @@
 #include "nRF24.h"
 #include "uart.h"
 #include "ST7541.h"
+#include "NMEA.h"
 #include "GPS.h"
 
 // USB stuff
@@ -202,6 +203,11 @@ uint16_t USART_FIFO_pos;               // Write position in USART FIFO
 // GPS
 uint32_t _NMEA_total_count; // Count of received NMEA sentences
 uint32_t _NMEA_total_size; // Total amount of NMEA data received (bytes)
+
+// Charger STAT pin
+uint8_t _STAT_ft = 0;
+uint8_t _STAT_pu = 0;
+uint8_t _STAT_pd = 0;
 
 // SPL
 GPIO_InitTypeDef PORT;
@@ -396,7 +402,6 @@ void DMA1_Channel6_IRQHandler() {
 		// Clear the DMA1 channel6 half-transfer flag
 		DMA1->IFCR = DMA_IFCR_CHTIF6;
 	}
-
 
 	// Channel6 transfer complete
 	if (DMA1->ISR & DMA_ISR_TCIF6) {
@@ -870,7 +875,7 @@ int main(void) {
 	ST7541_Init();
 //	ST7541_Contrast(6,6,36); // External booster 10.6V
 //	ST7541_Contrast(7,7,24); // Internal booster/External booster 12.5V
-	ST7541_Contrast(6,6,30); // Internal booster
+	ST7541_Contrast(6,6,32); // Internal booster
 	ST7541_Fill(0x0000);
 
 	// Enable the display SPI port DMA TX interrupt
@@ -1138,7 +1143,7 @@ int main(void) {
 	// Configure GPIO pin as input with pull-up
 	CHRG_STAT_PORT->MODER &= ~GPIO_MODER_MODER2; // Input mode (reset state)
 	CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating (clear bits)
-	CHRG_STAT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR2_0; // Pull-up
+//	CHRG_STAT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR2_0; // Pull-up
 
 
 
@@ -1790,7 +1795,7 @@ int main(void) {
 	_NMEA_total_count = 0;
 	GPS_new_data = FALSE;
 	GPS_parsed = FALSE;
-	GPS_InitData();
+	NMEA_InitData();
 
 	// The GPS USART port initialization
 	UARTx_Init(GPS_USART_PORT,USART_TX | USART_RX,9600); // Use slow speed at startup
@@ -1895,10 +1900,6 @@ int main(void) {
 
 	while(1) {
 		while (!GPS_new_data && !_new_packet) {
-
-			// Wait for DMA transaction completed before start new drawing
-//			while (ST7541_SPI_PORT.DMA_TX.State == DMA_STATE_BUSY);
-
 			// Redraw screen only if DMA transaction completed
 			if (ST7541_SPI_PORT.DMA_TX.State != DMA_STATE_BUSY) {
 				ST7541_Fill(0x0000);
@@ -1938,9 +1939,11 @@ int main(void) {
 				// GPS info
 				i = 0;
 				i += PutStr(i,30,"NMEA:",fnt5x7) - 1;
-				i += PutIntU(i,30,GPS_sentences_parsed,fnt5x7) - 1;
+				i += PutIntU(i,30,NMEA_sentences_parsed,fnt5x7) - 1;
 				i += DrawChar(i,30,'/',fnt5x7) - 1;
-				i += PutIntU(i,30,GPS_sentences_unknown,fnt5x7) + 5;
+				i += PutIntU(i,30,NMEA_sentences_unknown,fnt5x7) - 1;
+				i += DrawChar(i,30,'/',fnt5x7) - 1;
+				i += PutIntU(i,30,NMEA_sentences_invalid,fnt5x7) + 5;
 				i += PutStr(i,30,"Size:",fnt5x7) - 1;
 				i += PutIntU(i,30,GPS_buf_cntr,fnt5x7);
 
@@ -1957,31 +1960,78 @@ int main(void) {
 				i += PutIntU(i,15,_NMEA_total_count,fnt3x5) + 3;
 				i += PutIntU(i,15,_NMEA_total_size,fnt3x5);
 
+				if (GPSData.valid) {
+					// Latitude + longitude
+					i = 0;
+					i += PutIntF(i,46,GPSData.latitude,6,fnt5x7);
+					i += DrawChar(i,46,',',fnt5x7);
+					i += PutIntF(i,46,GPSData.longitude,6,fnt5x7);
+				} else {
+					// No coordinates
+					i = 0;
+					i += PutStr(i,46,"No coordinates",fnt5x7);
+				}
+
 				// ALS readings
 				i = 0;
-				i += PutStr(i,47,"ALS:",fnt5x7) - 1;
-				i += PutIntU(i,47,lux,fnt5x7);
-				i += PutStr(i,47,"lux G",fnt5x7);
-				i += PutIntU(i,47,TSL2581_gain,fnt5x7) + 3;
-				i += PutIntU(i,47,d0,fnt5x7) + 3;
-//				i += PutIntU(i,47,d1,fnt5x7) + 2;
+				i += PutStr(i,54,"ALS:",fnt5x7) - 1;
+				i += PutIntU(i,54,lux,fnt5x7);
+				i += PutStr(i,54,"lux G",fnt5x7);
+				i += PutIntU(i,54,TSL2581_gain,fnt5x7) + 3;
+				i += PutIntU(i,54,d0,fnt5x7) + 3;
+//				i += PutIntU(i,54,d1,fnt5x7) + 2;
 
 				// Barometer readings
 				i = 0;
-				i += PutStr(i,55,"BAR:",fnt5x7) - 1;
-				i += PutIntF(i,55,RT,1,fnt5x7);
-				i += DrawChar(i,55,'C',fnt5x7) + 5;
-				i += PutIntF(i,55,RP,1,fnt5x7);
-				i += PutStr(i,55,"mmHg",fnt5x7);
+				i += PutStr(i,62,"BAR:",fnt5x7) - 1;
+				i += PutIntF(i,62,RT,1,fnt5x7);
+				i += DrawChar(i,62,'C',fnt5x7) + 5;
+				i += PutIntF(i,62,RP,1,fnt5x7);
+				i += PutStr(i,62,"mmHg",fnt5x7);
 
 				// Voltages
 				i = 0;
-				i += PutStr(i,65,"Vb:",fnt5x7) - 1;
-				i += PutIntF(i,65,Vbat << 1,3,fnt5x7);
-				i += DrawChar(i,65,'V',fnt5x7) + 3;
-				i += PutStr(i,65,"Vc:",fnt5x7) - 1;
-				i += PutIntF(i,65,Vcpu,3,fnt5x7);
-				i += DrawChar(i,65,'V',fnt5x7) + 3;
+				i += PutStr(i,70,"Vb:",fnt5x7) - 1;
+				i += PutIntF(i,70,Vbat << 1,3,fnt5x7);
+				i += DrawChar(i,70,'V',fnt5x7) + 3;
+				i += PutStr(i,70,"Vc:",fnt5x7) - 1;
+				i += PutIntF(i,70,Vcpu,3,fnt5x7);
+				i += DrawChar(i,70,'V',fnt5x7) + 3;
+
+				// Charger STAT pin
+				i = 0;
+				i += PutStr(i,78,"FT:",fnt5x7) - 1;
+				i += PutIntU(i,78,_STAT_ft,fnt5x7) + 3;
+				i += PutStr(i,78,"PU:",fnt5x7) - 1;
+				i += PutIntU(i,78,_STAT_pu,fnt5x7) + 3;
+				i += PutStr(i,78,"PD:",fnt5x7) - 1;
+				i += PutIntU(i,78,_STAT_pd,fnt5x7) + 3;
+				if ((_STAT_ft == 1) && (_STAT_pd == 1)) {
+					// High
+					j = 0;
+				} else {
+					if (_STAT_pu == 0) {
+						// Low
+						j = 1;
+					} else {
+						// HiZ
+						j = 2;
+					}
+				}
+				switch (j) {
+					case 0:
+						PutStr(i,78,"High",fnt5x7);
+						break;
+					case 1:
+						PutStr(i,78,"Low",fnt5x7);
+						break;
+					case 2:
+						PutStr(i,78,"HiZ",fnt5x7);
+						break;
+					default:
+						PutStr(i,78,"WTF?",fnt5x7);
+						break;
+				}
 
 				// Draw icons
 				// RF icon
@@ -2066,7 +2116,7 @@ int main(void) {
 					hX += dX;
 					hY += dY;
 					if ((hX <  1) || (hX > SCR_W - 17)) dX *= -1;
-					if ((hY < 73) || (hY > SCR_H - 24)) dY *= -1;
+					if ((hY < 87) || (hY > SCR_H - 24)) dY *= -1;
 				}
 
 				ST7541_Flush_DMA(NOBLOCK);
@@ -2131,7 +2181,7 @@ int main(void) {
 //				Vcpu    = (uint16_t)(((*VREFINT_CAL * 3.0) / Vrefint_raw) * 1000);
 
 				// Convert ADC readings to voltage (using 64-bit integer calculations)
-				// this is 128 bytes less code, therefore a bit faster
+				// this is 128 bytes less code than float calculations
 				Vbat    = (uint16_t)(((uint64_t)(*VREFINT_CAL * ADC_IN1_raw) * 3000) / ((uint32_t)Vrefint_raw << 12));
 				Vrefint = (uint16_t)(((uint32_t)Vrefint_raw * 3000) >> 12);
 				Vcpu    = (uint16_t)(((uint32_t)*VREFINT_CAL * 3000) / (uint32_t)Vrefint_raw);
@@ -2208,6 +2258,23 @@ int main(void) {
 		    		// Initialize the USB device
 		    		USB_Init();
 				}
+
+				CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Clear bits
+				CHRG_STAT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR2_1; // Pull-down
+				asm volatile ("nop; nop; nop; nop; nop; nop; nop");
+				_STAT_pd = (CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) ? 1 : 0;
+
+				// Get charger STAT pin state
+				CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Floating
+				asm volatile ("nop; nop; nop; nop; nop; nop; nop");
+				_STAT_ft = (CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) ? 1 : 0;
+
+				CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Clear bits
+				CHRG_STAT_PORT->PUPDR |=  GPIO_PUPDR_PUPDR2_0; // Pull-up
+				asm volatile ("nop; nop; nop; nop; nop; nop; nop");
+				_STAT_pu = (CHRG_STAT_PORT->IDR & CHRG_STAT_PIN) ? 1 : 0;
+
+				CHRG_STAT_PORT->PUPDR &= ~GPIO_PUPDR_PUPDR2; // Leave it floating (clear bits)
 			}
 		}
 
@@ -2218,60 +2285,98 @@ int main(void) {
 			// Update total bytes counter
 			_NMEA_total_size  += GPS_buf_cntr;
 
-			// Parse received data
-			GPS_Parse();
+			// Parse data received from GPS receiver
+			NMEA_ParseBuf(GPS_buf,&GPS_buf_cntr);
+
+			// Reset the new GPS data flag (data were parsed)
+			GPS_new_data = FALSE;
+
+			// Set flag indicating what GPS data was parsed
+			GPS_parsed = TRUE;
 
 			// Update NMEA sentences counter
-			_NMEA_total_count += GPS_sentences_parsed + GPS_sentences_unknown;
+			_NMEA_total_count += NMEA_sentences_parsed + NMEA_sentences_invalid + NMEA_sentences_unknown;
 		}
 
 		if (GPS_parsed) {
 			// GPS data parsed
+
+			// Update related variables if at least one sentence was parsed
+			if (NMEA_sentences_parsed) {
+				NMEA_CheckUsedSats();
+				if (GPSData.fix == 3) {
+					// GPS altitude makes sense only in case of 3D fix
+					CurData.GPSAlt = GPSData.altitude;
+					if (CurData.GPSAlt > CurData.MaxGPSAlt) CurData.MaxGPSAlt = CurData.GPSAlt;
+					if (CurData.GPSAlt < CurData.MinGPSAlt) CurData.MinGPSAlt = CurData.GPSAlt;
+				}
+				if (GPSData.fix == 2 || GPSData.fix == 3) {
+					// GPS speed makes sense only in case of 2D or 3D position fix
+					CurData.GPSSpeed = GPSData.speed;
+					if (CurData.GPSSpeed > CurData.MaxGPSSpeed) CurData.MaxGPSSpeed = CurData.GPSSpeed;
+				}
+			}
+
 ///*
-			printf("GPS: NMEA=%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" FIX=\"%sVALID\" ",
-					GPS_sentences_parsed,
-					GPS_sentences_unknown,
+			printf("GPS: NMEA=%u/%u/%u SAT=%u/%u FIX=%u MODE=\"%c\" FIX=\"%sVALID\"\r\n",
+					NMEA_sentences_parsed,
+					NMEA_sentences_unknown,
+					NMEA_sentences_invalid,
 					GPSData.sats_used,
 					GPSData.sats_view,
 					GPSData.fix,
 					GPSData.mode,
 					GPSData.valid ? "" : "IN"
 			);
-			printf("DFIX=%u %u DATE=%u %u DT=\"%sVALID\"\r\n",
-					GPSData.fix_time,
-					GPSData.fix_date,
-					GPSData.time,
-					GPSData.date,
-					GPSData.datetime_valid ? "" : "IN"
-			);
 //*/
 
+			if (GPSData.valid) {
+				printf("GPS: LAT=%i LON=%i SPD=%u.%02ukm/h CRS=%u.%02u ALT=%im\r\n",
+						GPSData.latitude,
+						GPSData.longitude,
+						GPSData.speed / 100,
+						GPSData.speed % 100,
+						GPSData.course / 100,
+						GPSData.course % 100,
+						GPSData.altitude
+					);
+			}
+
+/*
+			printf("GPS: FIX[%02u:%02u:%02u %02u.%02u.%04u]\t",
+					GPSData.fix_time.Hours,
+					GPSData.fix_time.Minutes,
+					GPSData.fix_time.Seconds,
+					GPSData.fix_date.Date,
+					GPSData.fix_date.Month,
+					GPSData.fix_date.Year
+				);
+			printf("DATE[%02u:%02u:%02u %02u.%02u.%04u]\t",
+					GPSData.time.Hours,
+					GPSData.time.Minutes,
+					GPSData.time.Seconds,
+					GPSData.fix_date.Date,
+					GPSData.fix_date.Month,
+					GPSData.fix_date.Year
+				);
+			printf("Date is %sVALID\r\n",GPSData.datetime_valid ? "" : "IN");
+*/
+
+/*
 			if (GPSData.datetime_valid) {
 				// Date and time obtained from GPS
-				_time.RTC_Hours   =  GPSData.fix_time / 3600;
-				_time.RTC_Minutes = (GPSData.fix_time / 60) % 60;
-				_time.RTC_Seconds =  GPSData.fix_time % 60;
-				i = GPSData.fix_date / 1000000;
-				_date.RTC_Date  = i;
-				_date.RTC_Month = (GPSData.fix_date - (i * 1000000)) / 10000;
-				i = GPSData.fix_date % 10000;
-				_date.RTC_Year = i - ((i > 1980) ? 2000 : 1900);
+				_time.RTC_Hours   = GPSData.time.Hours;
+				_time.RTC_Minutes = GPSData.time.Minutes;
+				_time.RTC_Seconds = GPSData.time.Seconds;
+				_date.RTC_Date    = GPSData.date.Date;
+				_date.RTC_Month   = GPSData.date.Month;
+				_date.RTC_Year    = GPSData.date.Year - ((GPSData.date.Year > 1980) ? 2000 : 1900);
 
 				RTC_AdjustTimeZone(&_time,&_date,3); // 3 --> +3 GMT offset
 //				RTC_CalcDOW(&_date);
 				RTC_SetDateTime(&_time,&_date);
-
-///*
-				printf("SET: %02u:%02u:%02u %02u.%02u.%02u %s\r\n",
-						_time.RTC_Hours,
-						_time.RTC_Minutes,
-						_time.RTC_Seconds,
-						_date.RTC_Date,
-						_date.RTC_Month,
-						_date.RTC_Year,
-						RTC_DOW_STR[_date.RTC_WeekDay]);
-//*/
 			}
+*/
 
 			GPS_parsed = FALSE;
 		}
@@ -2425,9 +2530,9 @@ int main(void) {
 			);
 
 			// Date and time obtained from GPS
-			_time.RTC_Hours   =  GPSData.fix_time / 3600;
-			_time.RTC_Minutes = (GPSData.fix_time / 60) % 60;
-			_time.RTC_Seconds =  GPSData.fix_time % 60;
+			_time.RTC_Hours   = GPSData.fix_time.Hours;
+			_time.RTC_Minutes = GPSData.fix_time.Minutes;
+			_time.RTC_Seconds = GPSData.fix_time.Seconds;
 			i = GPSData.fix_date / 1000000;
 			_date.RTC_Date  = i;
 			_date.RTC_Month = (GPSData.fix_date - (i * 1000000)) / 10000;
