@@ -78,8 +78,8 @@ enum {
 
 
 // Function prototypes
-inline uint8_t LTC2942_GetStatus(void);
-inline uint8_t LTC2942_GetControl(void);
+uint8_t LTC2942_GetStatus(void);
+uint8_t LTC2942_GetControl(void);
 uint32_t LTC2942_GetVoltage(void);
 int32_t LTC2942_GetTemperature(void);
 uint16_t LTC2942_GetAC(void);
@@ -89,11 +89,11 @@ void LTC2942_SetADCMode(uint8_t mode);
 void LTC2942_SetPrescaler(uint8_t psc);
 void LTC2942_SetALCCMode(uint8_t mode);
 void LTC2942_SetAnalog(uint8_t state);
-inline void LTC2942_SetChargeThresholdH(uint16_t level);
-inline void LTC2942_SetChargeThresholdL(uint16_t level);
-inline void LTC2942_SetVoltageThresholdH(uint8_t level);
-inline void LTC2942_SetVoltageThresholdL(uint8_t level);
-inline void LTC2942_SetTemperatureThresholdH(uint8_t level);
-inline void LTC2942_SetTemperatureThresholdL(uint8_t level);
+void LTC2942_SetChargeThresholdH(uint16_t level);
+void LTC2942_SetChargeThresholdL(uint16_t level);
+void LTC2942_SetVoltageThresholdH(uint8_t level);
+void LTC2942_SetVoltageThresholdL(uint8_t level);
+void LTC2942_SetTemperatureThresholdH(uint8_t level);
+void LTC2942_SetTemperatureThresholdL(uint8_t level);
 
 #endif // __LTC2942_H

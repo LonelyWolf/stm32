@@ -1,3 +1,7 @@
+// Library to interact with the LTC2942-1 chip via I2C interface.
+// Compatible with LTC2941.
+
+
 #include "i2c.h"
 #include "ltc2942.h"
 

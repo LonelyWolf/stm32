@@ -43,7 +43,9 @@ int main(void) {
 
 	// Set prescaler M value
 	// M=16 for 600mAh battery, the 1LSB of AC value is 0,010625mAh
-	LTC2942_SetPrescaler(LTC2942_PSCM_16);
+//	LTC2942_SetPrescaler(LTC2942_PSCM_16);
+	// M=8 for 400mAh battery, the 1LSB of AC value is 0,0053125mAh
+	LTC2942_SetPrescaler(LTC2942_PSCM_8);
 
 	// Disable AL/CC pin
 	LTC2942_SetALCCMode(LTC2942_ALCC_DISABLED);
@@ -66,7 +68,8 @@ int main(void) {
 				i, /* Battery voltage */
 				j, /* Chip temperature */
 				(k * 10000) / 65535, /* Accumulated charge in percent */
-				(k * 85 * 16) / 128000, /* Very rough current charge capacity (16 - prescaler M value) */
+				(k * 85 * 8) / 128000, /* Very rough current charge capacity (8 - prescaler M value) */
+//				(k * 85 * 16) / 128000, /* Very rough current charge capacity (16 - prescaler M value) */
 				k, /* Raw accumulated charge (HEX) */
 				k  /* Raw accumulated charge (DEC) */
 			);
