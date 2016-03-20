@@ -14,7 +14,7 @@ static uint8_t scr_orientation = SCR_ORIENT_NORMAL;
 // Video RAM buffer (128x128x4bit = 8192 bytes)
 static uint8_t vRAM[(SCR_W * SCR_H) >> 1] __attribute__((aligned(4)));
 
-// Pixel grayscale level look-up table
+// Look-up table of pixel grayscale level
 static const uint32_t GS_LUT[] = {
 		0x00000000, // 0 (white)
 		0x01000000, // 1
@@ -34,7 +34,7 @@ static const uint32_t GS_LUT[] = {
 		0x01010101  // 15 (black)
 };
 
-// Look-up table for pixel clear (vertical offset in byte)
+// Look-up table of masks to clear pixel
 static const uint32_t POC_LUT[] = {
 		0xFEFEFEFE, // 0
 		0xFDFDFDFD, // 1
@@ -44,6 +44,38 @@ static const uint32_t POC_LUT[] = {
 		0xDFDFDFDF, // 5
 		0xBFBFBFBF, // 6
 		0x7F7F7F7F  // 7
+};
+
+// Look-up table of mask for partial page filing
+static const uint32_t LUT_PPM[] = {
+		0x00000000, // 0
+		0x80808080, // 1
+		0xC0C0C0C0, // 2
+		0xE0E0E0E0, // 3
+		0xF0F0F0F0, // 4
+		0xF8F8F8F8, // 5
+		0xFCFCFCFC, // 6
+		0xFEFEFEFE  // 7
+};
+
+// Look-up table of full page by grayscale level
+static const uint32_t LUT_SBC[] = {
+		0x00000000, // 0 (white)
+		0xFF000000, // 1
+		0x00FF0000, // 2
+		0xFFFF0000, // 3
+		0x0000FF00, // 4
+		0xFF00FF00, // 5
+		0x00FFFF00, // 6
+		0xFFFFFF00, // 7
+		0x000000FF, // 8
+		0xFF0000FF, // 9
+		0x00FF00FF, // 10
+		0xFFFF00FF, // 11
+		0x0000FFFF, // 12
+		0xFF00FFFF, // 13
+		0x00FFFFFF, // 14
+		0xFFFFFFFF  // 15 (black)
 };
 
 // Grayscale palette (4 bytes for each level of gray, 4 * 14 bytes total)
@@ -86,18 +118,6 @@ static void ST7528_cmd_double(uint8_t cmd1, uint8_t cmd2) {
 	SPIx_SendRecv(&ST7528_SPI_PORT,cmd2);
 	ST7528_CS_H();
 }
-
-/*
-// Send data byte to display
-// input:
-//   data - data byte
-static void ST7528_data(uint8_t data) {
-	ST7528_A0_H(); // A0 HIGH -> data transmit
-	ST7528_CS_L();
-	SPIx_SendRecv(&ST7528_SPI_PORT,data);
-	ST7528_CS_H();
-}
-*/
 
 // Initialize the display control GPIO pins
 void ST7528_InitGPIO(void) {
@@ -265,11 +285,11 @@ void ST7528_Flush(void) {
 		// Transmit one page
 		ST7528_A0_H(); // Data transmit
 		ST7528_CS_L();
-		SPIx_SendBuf(&ST7528_SPI_PORT,ptr,SCR_W * 4);
+		SPIx_SendBuf(&ST7528_SPI_PORT,ptr,SCR_PAGE_WIDTH * 4);
 		ST7528_CS_H();
 
 		// Move vRAM pointer to the next page and increase display page number
-		ptr += SCR_W * 4;
+		ptr += SCR_PAGE_WIDTH * 4;
 		buf[2]++;
 	}
 }
@@ -442,17 +462,17 @@ void ST7528_Orientation(uint8_t orientation) {
 //   GS - grayscale pixel color [0..15]
 void LCD_Pixel(uint8_t X, uint8_t Y, uint8_t GS) {
 	// Pointer to the pixel byte in video buffer computed by
-	// formula ((Y / 8) * (SCR_W * 4)) + (X * 4), since screen
+	// formula ((Y / 8) * (SCR_PAGE_WIDTH * 4)) + (X * 4), since screen
 	// width is 128 the formula can be simplified
 	register uint32_t *ptr;
 	// Vertical offset of pixel in display page
 	register uint32_t voffs;
 	// Bitmap for one pixel (4 consecutive bytes), get it from
 	// the look-up table (it is better in terms of performance)
-	register uint32_t bits = GS_LUT[GS];
+	register uint32_t bmap = GS_LUT[GS];
 
+	// X and Y coordinate values must be swapped if screen rotated either clockwise or counter-clockwise
 	if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
-		// Swap X and Y coordinates if screen rotated for 90 degrees either clockwise or counter-clockwise
 		voffs = X & 0x07;
 		ptr = (uint32_t *)&vRAM[((X >> 3) << 9) + (Y << 2)];
 	} else {
@@ -461,72 +481,376 @@ void LCD_Pixel(uint8_t X, uint8_t Y, uint8_t GS) {
 	}
 
 	// Vertical shift of the pixel bitmap
-	bits <<= voffs;
+	bmap <<= voffs;
 
 	// Clear pixel in vRAM (take mask from look-up table)
 	*ptr &= POC_LUT[voffs];
 
 	// Finally write new pixel color in vRAM
-	*ptr |= bits;
+	*ptr |= bmap;
+}
+
+// Optimized draw horizontal line
+// input:
+//   X - horizontal coordinate of the left pixel
+//   Y - vertical coordinate of line
+//   W - line width (in pixels)
+//   GS - grayscale pixel color
+static void LCD_HLineInt(uint8_t X, uint8_t Y, uint8_t W, uint8_t GS) {
+	register uint32_t bmap = GS_LUT[GS] << (Y & 0x07);
+	register uint32_t bmsk = POC_LUT[Y & 0x07];
+	register uint32_t *ptr = (uint32_t *)&vRAM[((Y >> 3) << 9) + (X << 2)];
+
+	do {
+		*ptr   &= bmsk;
+		*ptr++ |= bmap;
+	} while (W--);
+}
+
+// Optimized draw vertical line
+// input:
+//   X - horizontal coordinate of the line
+//   Y - vertical coordinate of the top pixel
+//   H - line height (in pixels)
+//   GS - grayscale pixel color
+static void LCD_VLineInt(uint8_t X, uint8_t Y, uint8_t H, uint8_t GS) {
+	register uint32_t bmap = LUT_SBC[GS];
+	register uint32_t vofs = (Y & 0x07);
+	register uint32_t *ptr = (uint32_t *)&vRAM[((Y >> 3) << 9) + (X << 2)];
+
+	// If the vertical line is not aligned to the screen page, the drawing function must
+	// mask a bits in the bitmap corresponding to the pixels above the top of the line
+	// Another PITA is what the end of the line can be at the same page, thus the drawing
+	// function must also mask a bits in the bitmap corresponding to the pixels below the line
+	if (vofs) {
+		vofs = 8 - vofs;
+
+		if (vofs > H) {
+			// The line ends at the same page where it begins
+			// Mask pixels in the bitmap, apply them to the vRAM and bail out
+			*ptr &= ~LUT_PPM[vofs] |  LUT_PPM[vofs - H];
+			*ptr |=  LUT_PPM[vofs] & ~LUT_PPM[vofs - H] & bmap;
+
+			return;
+		}
+
+		// The line continued at the next page
+		*ptr &= ~LUT_PPM[vofs];
+		*ptr |=  LUT_PPM[vofs] & bmap;
+		ptr  += SCR_PAGE_WIDTH;
+		H    -= vofs;
+	}
+
+	// Draw part of the line which aligned to the screen pages (8 pixels at once)
+	if (H > 7) {
+		do {
+			*ptr = bmap;
+			ptr += SCR_PAGE_WIDTH;
+			H -= 8;
+		} while (H > 7);
+	}
+
+	// If end of the line is not aligned to the screen page mask a bits
+	// corresponding to the pixels below the line
+	if (H) {
+		vofs = LUT_PPM[8 - H];
+		*ptr &=  vofs;
+		*ptr |= ~vofs & bmap;
+	}
 }
 
 // Draw horizontal line
 // input:
-//   X1, X2 - left and right horizontal coordinates (X1 must be less than X2)
-//   Y - vertical coordinate
+//   X1 - horizontal coordinate of line begin
+//   X2 - horizontal coordinate of line end
+//   Y - vertical coordinate of line
 //   GS - grayscale pixel color
 void LCD_HLine(uint8_t X1, uint8_t X2, uint8_t Y, uint8_t GS) {
-	uint8_t X,eX;
+	uint8_t X,W;
 
 	if (X1 > X2) {
-		X = X1; eX = X2;
+		X = X2; W = X1 - X2;
 	} else {
-		X = X2; eX = X1;
+		X = X1; W = X2 - X1;
 	}
-	do {
-		LCD_Pixel(X,Y,GS);
-	} while (X-- > eX);
+
+	if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
+		LCD_VLineInt(Y,X,W + 1,GS);
+	} else {
+		LCD_HLineInt(X,Y,W,GS);
+	}
 }
 
 // Draw vertical line
 // input:
-//   X - horizontal coordinate
-//   Y1,Y2 - top and bottom vertical coordinates (Y1 must be less than Y2)
+//   X - horizontal coordinate of line
+//   Y1 - vertical coordinate of line begin
+//   Y2 - vertical coordinate of line end
 //   GS - grayscale pixel color
 void LCD_VLine(uint8_t X, uint8_t Y1, uint8_t Y2, uint8_t GS) {
-	uint8_t Y,eY;
+	uint8_t Y,H;
 
 	if (Y1 > Y2) {
-		Y = Y1; eY = Y2;
+		Y = Y2; H = Y1 - Y2;
 	} else {
-		Y = Y2; eY = Y1;
+		Y = Y1; H = Y2 - Y1;
 	}
-	do {
-		LCD_Pixel(X,Y,GS);
-	} while (Y-- > eY);
+
+	if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
+		LCD_HLineInt(Y,X,H,GS);
+	} else {
+		LCD_VLineInt(X,Y,H + 1,GS);
+	}
 }
 
 // Draw rectangle
 // input:
-//   X1,Y1 - top left coordinates
-//   X2,Y2 - bottom right coordinates
+//   X1,X2 - horizontal coordinates of the opposite rectangle corners
+//   Y1,Y2 - vertical coordinates of the opposite rectangle corners
 //   GS - grayscale pixel color
 void LCD_Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, uint8_t GS) {
 	LCD_HLine(X1,X2,Y1,GS);
 	LCD_HLine(X1,X2,Y2,GS);
-	LCD_VLine(X1,Y1 + 1,Y2 - 1,GS);
-	LCD_VLine(X2,Y1 + 1,Y2 - 1,GS);
+	LCD_VLine(X1,Y1,Y2,GS);
+	LCD_VLine(X2,Y1,Y2,GS);
 }
 
 // Draw filled rectangle
 // input:
 //   X1,Y1 - top left coordinates
 //   X2,Y2 - bottom right coordinates
-//   GS - grayscale pixel color
 void LCD_FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, uint8_t GS) {
-	uint8_t Y;
+	uint8_t Z,E,T,L;
 
-	for (Y = Y1; Y <= Y2; Y++) LCD_HLine(X1,X2,Y,GS);
+	// Most optimal way to draw a filled rectangle draw it by optimized
+	// vertical line function
+
+	// Calculate coordinates based on screen rotation
+	if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
+		if (X1 > X2) {
+			T = X2; L = X1 - X2;
+		} else {
+			T = X1; L = X2 - X1;
+		}
+		if (Y1 > Y2) {
+			Z = Y1; E = Y2;
+		} else {
+			Z = Y2; E = Y1;
+		}
+	} else {
+		if (Y1 > Y2) {
+			T = Y2; L = Y1 - Y2;
+		} else {
+			T = Y1; L = Y2 - Y1;
+		}
+		if (X1 > X2) {
+			Z = X1; E = X2;
+		} else {
+			Z = X2; E = X1;
+		}
+	}
+	L++;
+
+	// Fill a rectangle
+	do {
+		LCD_VLineInt(Z,T,L,GS);
+	} while (Z-- > E);
+}
+
+// Draw line
+// input:
+//   X1,Y1 - coordinates of line start
+//   X2,Y2 - coordinates of line end
+//   GS - grayscale pixel color
+void LCD_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint8_t GS) {
+	int16_t dX = X2 - X1;
+	int16_t dY = Y2 - Y1;
+	int16_t dXsym = (dX > 0) ? 1 : -1;
+	int16_t dYsym = (dY > 0) ? 1 : -1;
+
+	// Absolute values of dX/dY
+	dX *= dXsym;
+	dY *= dYsym;
+
+	// Draw either horizontal or vertical line by optimized functions
+	if (dX == 0) {
+		if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
+			if (dYsym < 0) {
+				LCD_HLineInt(Y2,X1,dY,GS);
+			} else {
+				LCD_HLineInt(Y1,X1,dY,GS);
+			}
+		} else {
+			if (dYsym < 0) {
+				LCD_VLineInt(X1,Y2,dY + 1,GS);
+			} else {
+				LCD_VLineInt(X1,Y1,dY + 1,GS);
+			}
+		}
+
+		return;
+	}
+	if (dY == 0) {
+		if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
+			if (dXsym < 0) {
+				LCD_VLineInt(Y1,X2,dX + 1,GS);
+			} else {
+				LCD_VLineInt(Y1,X1,dX + 1,GS);
+			}
+		} else {
+			if (dXsym < 0) {
+				LCD_HLineInt(X2,Y1,dX,GS);
+			} else {
+				LCD_HLineInt(X1,Y1,dX,GS);
+			}
+		}
+
+		return;
+	}
+
+	// Precalculations for speed-up
+	int16_t dX2 = dX << 1;
+	int16_t dY2 = dY << 1;
+	int16_t di;
+
+	if (dX >= dY) {
+		di = dY2 - dX;
+		while (X1 != X2) {
+			LCD_Pixel(X1,Y1,GS);
+			X1 += dXsym;
+			if (di < 0) {
+				di += dY2;
+			} else {
+				di += dY2 - dX2;
+				Y1 += dYsym;
+			}
+		}
+	} else {
+		di = dX2 - dY;
+		while (Y1 != Y2) {
+			LCD_Pixel(X1,Y1,GS);
+			Y1 += dYsym;
+			if (di < 0) {
+				di += dX2;
+			} else {
+				di += dX2 - dY2;
+				X1 += dXsym;
+			}
+		}
+	}
+	LCD_Pixel(X1,Y1,GS);
+}
+
+// Draw circle
+// input:
+//   Xc,Yc - circle center coordinates
+//   R - circle radius
+//   GS - grayscale pixel color
+void LCD_Circle(int16_t Xc, int16_t Yc, uint8_t R, uint8_t GS) {
+	int16_t err = 1 - R;
+	int16_t dx  = 0;
+	int16_t dy  = -2 * R;
+	int16_t x   = 0;
+	int16_t y   = R;
+	// Screen width and height for less calculations
+	int16_t sh  = scr_height - 1;
+	int16_t sw  = scr_width  - 1;
+
+	// Draw pixels with respect of screen boundaries
+	while (x < y) {
+		if (err >= 0) {
+			dy  += 2;
+			err += dy;
+			y--;
+		}
+		dx  += 2;
+		err += dx + 1;
+		x++;
+
+		// Draw eight pixels of each octant
+		if (Xc + x < sw) {
+			if (Yc + y < sh) LCD_Pixel(Xc + x,Yc + y,GS);
+			if (Yc - y > -1) LCD_Pixel(Xc + x,Yc - y,GS);
+		}
+		if (Xc - x > -1) {
+			if (Yc + y < sh) LCD_Pixel(Xc - x,Yc + y,GS);
+			if (Yc - y > -1) LCD_Pixel(Xc - x,Yc - y,GS);
+		}
+		if (Xc + y < sw) {
+			if (Yc + x < sh) LCD_Pixel(Xc + y,Yc + x,GS);
+			if (Yc - x > -1) LCD_Pixel(Xc + y,Yc - x,GS);
+		}
+		if (Xc - y > -1) {
+			if (Yc + x < sh) LCD_Pixel(Xc - y,Yc + x,GS);
+			if (Yc - x > -1) LCD_Pixel(Xc - y,Yc - x,GS);
+		}
+	}
+
+	// Vertical and horizontal points
+	if (Xc + R < sw) LCD_Pixel(Xc + R,Yc,GS);
+	if (Xc - R > -1) LCD_Pixel(Xc - R,Yc,GS);
+	if (Yc + R < sh) LCD_Pixel(Xc,Yc + R,GS);
+	if (Yc - R > -1) LCD_Pixel(Xc,Yc - R,GS);
+}
+
+// Draw ellipse
+// input:
+//   Xc,Yc - ellipse center coordinates
+//   Ra,Rb - horizontal and vertical radiuses
+//   GS - grayscale pixel color
+void LCD_Ellipse(uint16_t Xc, uint16_t Yc, uint16_t Ra, uint16_t Rb, uint8_t GS) {
+	int16_t x  = 0;
+	int16_t y  = Rb;
+	int32_t A2 = Ra * Ra;
+	int32_t B2 = Rb * Rb;
+	int32_t C1 = -((A2 >> 2) + (Ra & 0x01) + B2);
+	int32_t C2 = -((B2 >> 2) + (Rb & 0x01) + A2);
+	int32_t C3 = -((B2 >> 2) + (Rb & 0x01));
+	int32_t t  = -A2 * y;
+	int32_t dX = B2 * x * 2;
+	int32_t dY = -A2 * y * 2;
+	int32_t dXt2 = B2 * 2;
+	int32_t dYt2 = A2 * 2;
+	// Screen width and height for less calculations
+	int16_t sh = scr_height - 1;
+	int16_t sw = scr_width  - 1;
+
+	// Draw pixels with respect of screen boundaries
+	while ((y >= 0) && (x <= Ra)) {
+		if ((Xc + x < sw) && (Yc + y < sh)) {
+			LCD_Pixel(Xc + x,Yc + y,GS);
+		}
+		if (x || y) {
+			if ((Xc - x > -1) && (Yc - y > -1)) {
+				LCD_Pixel(Xc - x,Yc - y,GS);
+			}
+		}
+		if (x && y) {
+			if ((Xc + x < sw) && (Yc - y > - 1)) {
+				LCD_Pixel(Xc + x,Yc - y,GS);
+			}
+			if ((Xc - x > -1) && (Yc + y < sh)) {
+				LCD_Pixel(Xc - x,Yc + y,GS);
+			}
+		}
+
+		if ((t + x*B2 <= C1) || (t + y*A2 <= C3)) {
+			dX += dXt2;
+			t  += dX;
+			x++;
+		} else if (t - y*A2 > C2) {
+			dY += dYt2;
+			t  += dY;
+			y--;
+		} else {
+			dX += dXt2;
+			dY += dYt2;
+			t  += dX;
+			t  += dY;
+			x++;
+			y--;
+		}
+	}
 }
 
 // Draw a single character
@@ -922,5 +1246,80 @@ void LCD_DrawBitmapGS(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t*
 			}
 		}
 		pY++;
+	}
+}
+
+// Inverts area of image in video buffer
+// input:
+//   X,Y - coordinates of top left area corner
+//   W - area width (pixels)
+//   H - area height (pixels)
+void LCD_Invert(uint8_t X, uint8_t Y, uint8_t W, uint8_t H) {
+	register uint32_t vofs;
+	register uint32_t *ptr;
+	register uint32_t mask;
+	register uint32_t dX;
+	uint8_t dH;
+	uint8_t dW;
+	uint8_t rW;
+
+	// X and Y coordinate values must be swapped if screen rotated either clockwise or counter-clockwise
+	if (scr_orientation & (SCR_ORIENT_CW | SCR_ORIENT_CCW)) {
+		dH   = W;
+		dW   = H;
+		ptr  = (uint32_t *)&vRAM[((X >> 3) << 9) + (Y << 2)];
+		rW   = SCR_PAGE_WIDTH - H;
+		vofs = X & 0x07;
+	} else {
+		dH   = H;
+		dW   = W;
+		ptr  = (uint32_t *)&vRAM[((Y >> 3) << 9) + (X << 2)];
+		rW   = SCR_PAGE_WIDTH - W;
+		vofs = Y & 0x07;
+	}
+
+	// If the vertical coordinate of area is not aligned to the screen page, the bits
+	// in the mask corresponding to the pixels above the area must be reset
+	// Also if the area ends at the same page, the bits in the mask corresponding to
+	// the pixels below the area must be reset
+	if (vofs) {
+		// Get bit mask from the look-up table
+		vofs = 8 - vofs;
+		mask = LUT_PPM[vofs];
+
+		// Trim mask if he area ends at the same page
+		if (vofs > dH) mask &= ~LUT_PPM[vofs - dH];
+
+		// Invert row
+		dX = dW;
+		while (dX--) { *ptr++ ^= mask; }
+
+		// Bail out in case of area end
+		if (vofs > dH) return;
+
+		// Jump to the next page
+		dH  -= vofs;
+		ptr += rW;
+	}
+
+	// Invert pixels on whole page (8 rows at once)
+	if (dH > 7) {
+		do {
+			dX   = dW;
+			while (dX--) { *ptr++ ^= 0xFFFFFFFF; }
+			ptr += rW;
+			dH  -= 8;
+		} while (dH > 7);
+	}
+
+	// If end of the area is not aligned to the screen page the bits corresponding
+	// to the pixels below the area must be masked
+	if (dH) {
+		// Get a bit mask from the look-up table
+		mask = ~LUT_PPM[8 - dH];
+
+		// Invert row
+		dX = dW;
+		while (dX--) { *ptr++ ^= mask; }
 	}
 }

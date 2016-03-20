@@ -249,84 +249,84 @@ void SPIx_SetSpeed(SPI_HandleTypeDef *SPI, uint16_t SPI_prescaler) {
 // Send byte to SPI
 // input:
 //   SPI - pointer to the SPI port handle
-//   data - byte to send
-// note: TX only mode
-// note: function waits for transfer completion
+//   data - byte to be sent
+// note: for TX only mode
 void SPIx_Send(SPI_HandleTypeDef *SPI, uint8_t data) {
 	while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
 	SPI->Instance->DR = data; // Send byte to SPI (TXE cleared)
 }
 
-// Send data buffer to SPI
-// input:
-//   SPI - pointer to the SPI port
-//   pBuf - pointer to the data buffer
-//   length - length of the data buffer
-// note: TX only mode
-// note: function waits for transfer completion of the last byte
-void SPIx_SendBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
-	do {
-		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->Instance->DR = *pBuf++;
-	} while (--length);
-	while (SPI->Instance->SR & SPI_SR_BSY); // Wait for the transmission of the last byte
-}
-
-// Send data buffer to SPI (16-bit frame)
-// input:
-//   SPI - pointer to the SPI port
-//   pBuf - pointer to the data buffer
-//   length - length of the data buffer
-// note: TX only mode
-// note: function waits for transfer completion of the last byte
-void SPIx_SendBuf16(SPI_HandleTypeDef *SPI, uint16_t *pBuf, uint32_t length) {
-	do {
-		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->Instance->DR = *pBuf++;
-	} while (--length);
-	while (SPI->Instance->SR & SPI_SR_BSY); // Wait for the transmission of the last byte
-}
-
 // Send byte to SPI and return received byte
 // input:
 //   SPI - pointer to the SPI port handle
-//   data - byte to send
-// return: byte received by SPI
-// note: full duplex mode
+//   data - byte to be sent
+// return: received byte
 uint8_t SPIx_SendRecv(SPI_HandleTypeDef *SPI, uint8_t data) {
-	while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
 	SPI->Instance->DR = data; // Send byte to SPI (TXE cleared)
 	while (!(SPI->Instance->SR & SPI_SR_RXNE)); // Wait while receive buffer is empty
 
 	return SPI->Instance->DR; // Return received byte
 }
 
-// Transmit block of data from specified data buffer and receive data in same buffer
+// Send data buffer to SPI
 // input:
 //   SPI - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
-//   length - length of the data buffer
+//   count - amount of data to be sent
+// note: TX only mode
+// note: function waits for the last transfer completion
+void SPIx_SendBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t count) {
+	SPI->Instance->DR = *pBuf++;
+	while (--count) {
+		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->Instance->DR = *pBuf++;
+	}
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait for transmission end
+}
+
+// Send data buffer to SPI (16-bit frame)
+// input:
+//   SPI - pointer to the SPI port handle
+//   pBuf - pointer to the data buffer
+//   count - amount of data to be sent
+// note: TX only mode
+// note: function waits for the last transfer completion
+void SPIx_SendBuf16(SPI_HandleTypeDef *SPI, uint16_t *pBuf, uint32_t count) {
+	SPI->Instance->DR = *pBuf++;
+	while (--count) {
+		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
+		SPI->Instance->DR = *pBuf++;
+	};
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait for transmission end
+}
+
+// Transmit block of data from specified data buffer and receive data in same buffer
+// input:
+//   SPI - pointer to the SPI port handle
+//   pRXbuf - pointer to the buffer with data for transmit
+//   pRXbuf - pointer to the buffer for received data
+//   count - amount of data to be sent
 // note: receive only in full duplex mode
 // note: function waits for transfer completion of the last byte
-void SPIx_SendRecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
-	while (length--) {
+void SPIx_SendRecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pTXbuf, uint8_t *pRXbuf, uint32_t count) {
+	while (count--) {
 		while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
-		SPI->Instance->DR = *pBuf; // Send byte (TXE cleared)
+		SPI->Instance->DR = *pTXbuf++; // Transmit byte (TXE cleared)
 		while (!(SPI->Instance->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
-		*pBuf++ = SPI->Instance->DR; // Read received byte
+		*pRXbuf++ = SPI->Instance->DR; // Read received byte
 	}
-	while (SPI->Instance->SR & SPI_SR_BSY); // Wait for the transmission of the last byte
+	while (SPI->Instance->SR & SPI_SR_BSY); // Wait for transmission end
 }
 
 #if (SPI_USE_DMA)
 
-// Initialize the DMA peripheral for SPI
+// Initialize the SPI TX DMA channel
 // input:
 //   SPI - pointer to the SPI port handle
-//   pBuf - pointer to the data buffer
-//   length - length of the data buffer
+//   pBuf - pointer to the buffer with data for transmit
+//   count - amount of data to be sent
 // note: the corresponding DMA peripheral clock must be already enabled
-void SPIx_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+void SPIx_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t count) {
 	// DMA: memory -> SPI, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
 //	SPI->DMA_TX.Channel->CCR   = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_PL_0;
 
@@ -335,22 +335,22 @@ void SPIx_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t lengt
 
 	SPI->DMA_TX.Channel->CPAR  = (uint32_t)(&(SPI->Instance->DR)); // Address of the peripheral data register
 	SPI->DMA_TX.Channel->CMAR  = (uint32_t)pBuf; // Memory address
-	SPI->DMA_TX.Channel->CNDTR = length; // Number of data
+	SPI->DMA_TX.Channel->CNDTR = count; // Number of DMA transactions
 	SPI->DMA_TX.State = DMA_STATE_READY;
 }
 
-// Initialize the DMA peripheral for SPI
+// Initialize the SPI RX DMA channel
 // input:
 //   SPI - pointer to the SPI port handle
-//   pBuf - pointer to the data buffer
-//   length - length of the data buffer
+//   pBuf - pointer to the buffer for received data
+//   count - amount of data to be sent
 // note: the corresponding DMA peripheral clock must be already enabled
-void SPIx_Configure_DMA_RX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
+void SPIx_Configure_DMA_RX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t count) {
 	// DMA: SPI -> memory, no circular mode, 8-bits, memory increment, medium channel priority, channel disabled
 	SPI->DMA_RX.Channel->CCR   = DMA_CCR_MINC | DMA_CCR_PL_0;
 	SPI->DMA_RX.Channel->CPAR  = (uint32_t)(&(SPI->Instance->DR)); // Address of the peripheral data register
 	SPI->DMA_RX.Channel->CMAR  = (uint32_t)pBuf; // Memory address
-	SPI->DMA_RX.Channel->CNDTR = length; // Number of data
+	SPI->DMA_RX.Channel->CNDTR = count; // Number of DMA transactions
 	SPI->DMA_RX.State = DMA_STATE_READY;
 }
 
@@ -398,7 +398,7 @@ void SPIx_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState Ne
 	}
 }
 
-// Handle DMA interrupt request
+// Handle SPI DMA interrupt request
 // input:
 //   SPI - pointer to the SPI port handle
 // note: must be called from a corresponding DMA IRQ handler
@@ -408,13 +408,13 @@ void SPIx_DMA_Handler(DMA_HandleTypeDef *hDMA) {
 	// Get DMA flags status
 	flags = hDMA->Instance->ISR;
 
+	// Half transfer
 	if (flags & hDMA->HTIF) {
-		// Half transfer
 		hDMA->State = DMA_STATE_HT;
 	}
 
+	// Transfer complete
 	if (flags & hDMA->TCIF) {
-		// Transfer complete
 		hDMA->State = DMA_STATE_TC;
 	}
 

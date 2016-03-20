@@ -103,6 +103,9 @@
 #define SCR_W                (uint8_t)128 // width
 #define SCR_H                (uint8_t)128 // height
 
+// Screen page width
+#define SCR_PAGE_WIDTH       (uint32_t)128 // In pixels
+
 
 // Frame frequency enumeration
 enum {
@@ -160,7 +163,7 @@ enum {
 	ST7528_PWM_60 = (uint8_t)0x02  // 60PWM
 };
 
-// DC-DC converter circuit enumaration
+// DC-DC converter circuit enumeration
 enum {
 	ST7528_BOOST_3X = (uint8_t)0x00, // 3 times boosting
 	ST7528_BOOST_4X = (uint8_t)0x01, // 4 times boosting
@@ -245,6 +248,9 @@ void LCD_HLine(uint8_t X1, uint8_t X2, uint8_t Y, uint8_t GS);
 void LCD_VLine(uint8_t X, uint8_t Y1, uint8_t Y2, uint8_t GS);
 void LCD_Rect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, uint8_t GS);
 void LCD_FillRect(uint8_t X1, uint8_t Y1, uint8_t X2, uint8_t Y2, uint8_t GS);
+void LCD_Line(int16_t X1, int16_t Y1, int16_t X2, int16_t Y2, uint8_t GS);
+void LCD_Circle(int16_t Xc, int16_t Yc, uint8_t R, uint8_t GS);
+void LCD_Ellipse(uint16_t Xc, uint16_t Yc, uint16_t Ra, uint16_t Rb, uint8_t GS);
 
 uint8_t LCD_PutChar(uint8_t X, uint8_t Y, uint8_t Char, const Font_TypeDef *Font);
 uint16_t LCD_PutStr(uint8_t X, uint8_t Y, const char *str, const Font_TypeDef *Font);
@@ -257,5 +263,7 @@ uint8_t LCD_PutHex(uint8_t X, uint8_t Y, uint32_t num, const Font_TypeDef *Font)
 
 void LCD_DrawBitmap(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
 void LCD_DrawBitmapGS(uint8_t X, uint8_t Y, uint8_t W, uint8_t H, const uint8_t* pBMP);
+
+void LCD_Invert(uint8_t X, uint8_t Y, uint8_t W, uint8_t H);
 
 #endif // __ST7528_H

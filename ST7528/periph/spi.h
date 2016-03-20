@@ -92,14 +92,14 @@ void SPI3_HandleInit(void);
 void SPIx_Init(const SPI_HandleTypeDef *SPI, uint32_t clock_conf, uint16_t SPI_DIR, uint16_t prescaler);
 void SPIx_SetSpeed(SPI_HandleTypeDef *SPI, uint16_t SPI_prescaler);
 void SPIx_Send(SPI_HandleTypeDef *SPI, uint8_t data);
-void SPIx_SendBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length);
-void SPIx_SendBuf16(SPI_HandleTypeDef *SPI, uint16_t *pBuf, uint32_t length);
 uint8_t SPIx_SendRecv(SPI_HandleTypeDef *SPI, uint8_t data);
-void SPIx_SendRecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length);
+void SPIx_SendBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t count);
+void SPIx_SendBuf16(SPI_HandleTypeDef *SPI, uint16_t *pBuf, uint32_t count);
+void SPIx_SendRecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pTXbuf, uint8_t *pRXbuf, uint32_t count);
 
 #if (SPI_USE_DMA)
-void SPIx_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length);
-void SPIx_Configure_DMA_RX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length);
+void SPIx_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t count);
+void SPIx_Configure_DMA_RX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t count);
 void SPIx_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState NewState);
 void SPIx_DMA_Handler(DMA_HandleTypeDef *hDMA);
 #endif // SPI_USE_DMA
