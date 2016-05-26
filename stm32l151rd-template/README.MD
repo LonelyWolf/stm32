@@ -4,4 +4,4 @@ Only minimal system initialization.
 
 Used:
 - ARM CMSIS library for Cortex-M3 (v4.30)
-- STM32L1xx startup, headers and vector table (v2.1.3)
+- STM32L1xx startup, headers and vector table (v2.1.2)
