@@ -14,7 +14,7 @@ void Delay_ms(uint32_t mSecs) {
 	while (TimingDelay != 0);
 }
 
-// Do delay for nSecs microseconds
+// Do delay for uSecs microseconds
 void Delay_us(uint32_t uSecs) {
 	SysTick_Config(SystemCoreClock / DELAY_TICK_FREQUENCY_US);
 	TimingDelay = uSecs+1;
