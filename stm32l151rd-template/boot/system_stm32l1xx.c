@@ -2,8 +2,8 @@
   ******************************************************************************
   * @file    system_stm32l1xx.c
   * @author  MCD Application Team
-  * @version V2.1.3
-  * @date    04-March-2016
+  * @version V2.2.0
+  * @date    01-July-2016
   * @brief   CMSIS Cortex-M3 Device Peripheral Access Layer System Source File.
   *             
   *   This file provides two functions and one global variable to be called from 
@@ -75,6 +75,39 @@
 /**
   * @}
   */
+
+/** @addtogroup STM32L1xx_System_Private_Defines
+  * @{
+  */
+
+// The value of External High Speed oscillator (HSE)
+#if !defined(HSE_VALUE)
+  #define HSE_VALUE             ((uint32_t)16000000) // Hz
+#endif // HSE_VALUE
+
+#if !defined(HSE_STARTUP_TIMEOUT)
+  #define HSE_STARTUP_TIMEOUT   ((uint32_t)5000)
+#endif // HSE_STARTUP_TIMEOUT
+
+// The default value of Internal Multiple Speed oscillator (MSI)
+// This value is the default MSI range value after reset
+#if !defined(MSI_VALUE)
+  #define MSI_VALUE             ((uint32_t)2097000) // Hz
+#endif // MSI_VALUE
+
+// The value of Internal High Speed oscillator (HSI)
+#if !defined(HSI_VALUE)
+  #define HSI_VALUE             ((uint32_t)16000000) // Hz
+#endif // HSI_VALUE
+
+// The value of External Low Speed oscillator (LSE)
+#if !defined(LSE_VALUE)
+  #define LSE_VALUE             ((uint32_t)32768) // Hz
+#endif // LSE_VALUE
+
+#if !defined(LSE_STARTUP_TIMEOUT)
+  #define LSE_STARTUP_TIMEOUT   ((uint32_t)5000)
+#endif // HSE_STARTUP_TIMEOUT
 
 /*!< Uncomment the following line if you need to use external SRAM mounted
      on STM32L152D_EVAL board as data memory  */
