@@ -11,7 +11,7 @@
 *.lai
 *.la
 *.a
-*.ld
+#*.ld
 
 # Compiled binaries
 *.bin
@@ -21,6 +21,9 @@
 
 # Eclipse workfiles
 *.xml
+.settings
+Debug
+Release
 
 # CooCox workfiles
 *.cogui
