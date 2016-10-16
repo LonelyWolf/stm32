@@ -11,44 +11,44 @@
 // return: combination of PWR_RESET_SRC_xx values (bitmap)
 uint32_t PWR_GetResetSource(void) {
 	uint32_t result = PWR_RESET_SRC_UNKNOWN;
-    uint32_t reg;
+	uint32_t reg;
 	uint32_t pwrstate = 0;
 
 	// The source of reset
-    reg = RCC->CSR;
-    if (reg & RCC_CSR_SFTRSTF) {
-    	// Software reset
-    	result |= PWR_RESET_SRC_SOFT;
-    } else if (reg & RCC_CSR_BORRSTF) {
-    	// BOR reset
-    	result |= PWR_RESET_SRC_BOR;
-    } else if (reg & RCC_CSR_PINRSTF) {
-    	// Reset from NRST pin
-    	result |= PWR_RESET_SRC_PIN;
-    }
-    if (reg & RCC_CSR_LPWRRSTF) {
-    	// Reset after illegal Stop, Standby or Shutdown mode entry
-    	result |= PWR_RESET_SRC_LPWR;
-    }
-    if (reg & RCC_CSR_WWDGRSTF) {
-    	// Window watchdog reset
-    	result |= PWR_RESET_SRC_WWDG;
-    }
-    if (reg & RCC_CSR_IWDGRSTF) {
-    	// Independent watchdog reset
-    	result |= PWR_RESET_SRC_IWDG;
-    }
-    if (reg & RCC_CSR_FWRSTF) {
-    	// Firewall reset
-    	result |= PWR_RESET_SRC_FWR;
-    }
-    if (reg & RCC_CSR_OBLRSTF) {
-    	// Option byte load reset
-    	result |= PWR_RESET_SRC_OBL;
-    }
+	reg = RCC->CSR;
+	if (reg & RCC_CSR_SFTRSTF) {
+		// Software reset
+		result |= PWR_RESET_SRC_SOFT;
+	} else if (reg & RCC_CSR_BORRSTF) {
+		// BOR reset
+		result |= PWR_RESET_SRC_BOR;
+	} else if (reg & RCC_CSR_PINRSTF) {
+		// Reset from NRST pin
+		result |= PWR_RESET_SRC_PIN;
+	}
+	if (reg & RCC_CSR_LPWRRSTF) {
+		// Reset after illegal Stop, Standby or Shutdown mode entry
+		result |= PWR_RESET_SRC_LPWR;
+	}
+	if (reg & RCC_CSR_WWDGRSTF) {
+		// Window watchdog reset
+		result |= PWR_RESET_SRC_WWDG;
+	}
+	if (reg & RCC_CSR_IWDGRSTF) {
+		// Independent watchdog reset
+		result |= PWR_RESET_SRC_IWDG;
+	}
+	if (reg & RCC_CSR_FWRSTF) {
+		// Firewall reset
+		result |= PWR_RESET_SRC_FWR;
+	}
+	if (reg & RCC_CSR_OBLRSTF) {
+		// Option byte load reset
+		result |= PWR_RESET_SRC_OBL;
+	}
 
-    // Clear the reset flags
-    RCC->CSR |= RCC_CSR_RMVF;
+// Clear the reset flags
+RCC->CSR |= RCC_CSR_RMVF;
 
 	// Remember state of the PWR peripheral and enable it
 	pwrstate = RCC->APB1ENR1;
@@ -161,7 +161,7 @@ void PWR_EnterSTANDBYMode(void) {
 	// Enter to the SHUTDOWN mode
 	__WFI();
 
-    // After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
+	// After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
 }
 
 // Enter SHUTDOWN mode
@@ -179,5 +179,5 @@ void PWR_EnterSHUTDOWNMode(void) {
 	// Enter to the SHUTDOWN mode
 	__WFI();
 
-    // After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
+	// After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
 }

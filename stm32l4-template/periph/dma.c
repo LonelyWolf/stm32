@@ -29,15 +29,6 @@ DMA_TypeDef *DMA_GetChannelPeripheral(DMA_Channel_TypeDef *channel) {
 // Configure DMA request for DMA channel
 // note: no need to call this for MEMORY to MEMORY channels
 void DMA_SetRequest(DMA_TypeDef *DMAx, uint32_t request, uint32_t index) {
-/*
-	DMA_Request_TypeDef *cselr;
-
-	cselr = (DMAx == DMA1) ? DMA1_CSELR : DMA2_CSELR;
-	cselr->CSELR &= ~(DMA_CSELR_C1S << index);
-	cselr->CSELR |= request << index;
-*/
-
-///*
 	if (DMAx == DMA1) {
 		// DMA1
 		DMA1_CSELR->CSELR &= ~(DMA_CSELR_C1S << index);
@@ -47,5 +38,4 @@ void DMA_SetRequest(DMA_TypeDef *DMAx, uint32_t request, uint32_t index) {
 		DMA2_CSELR->CSELR &= ~(DMA_CSELR_C1S << index);
 		DMA2_CSELR->CSELR |= request << index;
 	}
-//*/
 }

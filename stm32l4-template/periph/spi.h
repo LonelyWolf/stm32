@@ -12,7 +12,6 @@
 #define SPI1_USE                   1
 #define SPI2_USE                   1
 #define SPI3_USE                   0
-#define RCC_PLL_MAIN               ((uint32_t)0x00000001U) // Main PLL
 
 // Enable DMA functions
 //   0 - DMA is not used

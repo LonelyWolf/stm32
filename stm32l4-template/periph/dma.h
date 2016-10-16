@@ -125,6 +125,7 @@ __STATIC_INLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16_t le
 // Get number of remaining transactions for specified DMA channel
 // input:
 //   channel - pointer to the DMA channel handle
+// return: number of remaining transactions
 __STATIC_INLINE uint16_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
 	return (channel->CNDTR);
 }

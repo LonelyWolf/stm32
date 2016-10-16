@@ -21,7 +21,7 @@ void Delay_Init(void) {
 	SysTick->CTRL = (SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk);
 }
 
-/*
+#if (!DELAY_INLINE)
 // Do a delay for a specified number of milliseconds
 // input:
 //   ms - number of milliseconds to wait
@@ -34,4 +34,4 @@ void Delay_ms(uint32_t ms) {
 		}
 	}
 }
-*/
+#endif

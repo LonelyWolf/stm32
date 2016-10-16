@@ -114,26 +114,26 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 
 		// Wait for STOP, NACK or BERR
 		wait = delay_val;
-        while (!((reg = I2Cx->ISR) & (I2C_ISR_STOPF | I2C_ISR_NACKF | I2C_ISR_BERR)) && --wait);
-        if (wait == 0) return I2C_ERROR;
+		while (!((reg = I2Cx->ISR) & (I2C_ISR_STOPF | I2C_ISR_NACKF | I2C_ISR_BERR)) && --wait);
+		if (wait == 0) return I2C_ERROR;
 
-    	// Wait while STOP flag is reset
+		// Wait while STOP flag is reset
 		wait = delay_val;
-    	while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
-        if (wait == 0) return I2C_ERROR;
+		while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
+		if (wait == 0) return I2C_ERROR;
 
-    	// Clear the NACK, STOP and BERR flags
-    	I2Cx->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF;
+		// Clear the NACK, STOP and BERR flags
+		I2Cx->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF;
 
-    	// Check for BERR flag
-    	if (reg & I2C_ISR_BERR) {
-    		// TODO: I2C: how to handle the misplaced START/STOP?
-    	} else {
-    		// Device responded if NACK flag is not set
-    		if (!(reg & I2C_ISR_NACKF)) {
-    			return I2C_SUCCESS;
-    		}
-    	}
+		// Check for BERR flag
+		if (reg & I2C_ISR_BERR) {
+			// TODO: I2C: how to handle the misplaced START/STOP?
+		} else {
+			// Device responded if NACK flag is not set
+			if (!(reg & I2C_ISR_NACKF)) {
+				return I2C_SUCCESS;
+			}
+		}
 	}
 
 	return I2C_ERROR;
@@ -298,7 +298,7 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 	wait = delay_val;
 	while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
 
-    // Clear the STOP flag
+	// Clear the STOP flag
 	I2Cx->ICR = I2C_ICR_STOPCF;
 
 	// Reset configuration register

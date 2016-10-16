@@ -48,8 +48,8 @@ ErrorStatus RTC_EnterInitMode(void) {
 
 	// Check if the initialization mode is already set
 	if (!(RTC->ISR & RTC_ISR_INITF)) {
-	    // Set the initialization mode
-	    RTC->ISR = RTC_ISR_INIT;
+		// Set the initialization mode
+		RTC->ISR = RTC_ISR_INIT;
 
 		// Wait till RTC is in INIT state or timeout
 		while (!(RTC->ISR & RTC_ISR_INITF) && --wait);

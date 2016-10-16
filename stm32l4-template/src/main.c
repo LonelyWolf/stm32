@@ -101,57 +101,58 @@ void Clock_Clk48Disable(void) {
 
 
 int main(void) {
-    // Initialize the MCU clock system
+	// Initialize the MCU clock system
 	SystemInit();
 	SetSysClock();
 	SystemCoreClockUpdate();
 
 
-    // Initialize debug output port (USART2)
+	// Initialize debug output port (USART2)
 	//   clock source: SYSCLK
 	//   mode: transmit only
-    USART2_HandleInit();
+	USART2_HandleInit();
 	RCC_SetClockUSART(RCC_USART2_CLK_SRC,RCC_PERIPH_CLK_SYSCLK);
-    USART_Init(&hUSART2,USART_MODE_TX);
+	USART_Init(&hUSART2,USART_MODE_TX);
 
-    // Configure USART:
-    //   oversampling by 16
-    //   115200, 8-N-1
-    //   no hardware flow control
-    USART_SetOversampling(&hUSART2,USART_OVERS16);
-    USART_SetBaudRate(&hUSART2,115200);
-    USART_SetDataMode(&hUSART2,USART_DATAWIDTH_8B,USART_PARITY_NONE,USART_STOPBITS_1);
-    USART_SetHWFlow(&hUSART2,USART_HWCTL_NONE);
-    USART_Enable(&hUSART2);
-    USART_CheckIdleState(&hUSART2,0xC5C10); // Timeout of about 100ms at 80MHz CPU
+	// Configure USART:
+	//   oversampling by 16
+	//   115200, 8-N-1
+	//   no hardware flow control
+	USART_SetOversampling(&hUSART2,USART_OVERS16);
+	USART_SetBaudRate(&hUSART2,115200);
+	USART_SetDataMode(&hUSART2,USART_DATAWIDTH_8B,USART_PARITY_NONE,USART_STOPBITS_1);
+	USART_SetHWFlow(&hUSART2,USART_HWCTL_NONE);
+	USART_Enable(&hUSART2);
+	USART_CheckIdleState(&hUSART2,0xC5C10); // Timeout of about 100ms at 80MHz CPU
 
 
-    // Say "hello world"
+	// Say "hello world"
 	RCC_ClocksTypeDef Clocks;
 	RCC_GetClocksFreq(&Clocks);
-    printf("\r\n---STM32L476RG---\r\n");
-    printf("Template (%s @ %s)\r\n",__DATE__,__TIME__);
-    printf("CPU: %.3uMHz\r\n",SystemCoreClock / 1000);
-    printf("SYSCLK=%.3uMHz, HCLK=%.3uMHz\r\n",Clocks.SYSCLK_Frequency / 1000,Clocks.HCLK_Frequency / 1000);
-    printf("APB1=%.3uMHz, APB2=%.3uMHz\r\n",Clocks.PCLK1_Frequency / 1000,Clocks.PCLK2_Frequency / 1000);
-    printf("System clock: %s\r\n",_sysclk_src_str[RCC_GetSysClockSource()]);
+	printf("\r\n---STM32L476RG---\r\n");
+	printf("Template (%s @ %s)\r\n",__DATE__,__TIME__);
+	printf("CPU: %.3uMHz\r\n",SystemCoreClock / 1000);
+	printf("SYSCLK=%.3uMHz, HCLK=%.3uMHz\r\n",Clocks.SYSCLK_Frequency / 1000,Clocks.HCLK_Frequency / 1000);
+	printf("APB1=%.3uMHz, APB2=%.3uMHz\r\n",Clocks.PCLK1_Frequency / 1000,Clocks.PCLK2_Frequency / 1000);
+	printf("System clock: %s\r\n",_sysclk_src_str[RCC_GetSysClockSource()]);
 
 
 	// Initialize delay functions (for blinky)
-    Delay_Init();
+	Delay_Init();
 
 
-    // Initialize the PA5 pin (LED on the Nucleo board)
-    // Enable the GPIOC peripheral
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
-    // Configure PA5 as push-pull output without pull-up, with lowest speed
-    GPIO_set_mode(GPIOA,GPIO_Mode_OUT,GPIO_PUPD_NONE,GPIO_PIN_5);
-    GPIO_out_cfg(GPIOA,GPIO_OT_PP,GPIO_SPD_LOW,GPIO_PIN_5);
+	// Initialize the PA5 pin (LED on the Nucleo board)
+	// Enable the GPIOC peripheral
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+	// Configure PA5 as push-pull output without pull-up, at lowest speed
+	GPIO_set_mode(GPIOA,GPIO_Mode_OUT,GPIO_PUPD_NONE,GPIO_PIN_5);
+	GPIO_out_cfg(GPIOA,GPIO_OT_PP,GPIO_SPD_LOW,GPIO_PIN_5);
 
 
-    // The main loop
-    while (1) {
-    	Delay_ms(500);
-    	GPIO_PIN_INVERT(GPIOA,GPIO_PIN_5);
-    }
+	// The main loop
+	while (1) {
+		// Invert the PA5 pin state every half of second
+		Delay_ms(500);
+		GPIO_PIN_INVERT(GPIOA,GPIO_PIN_5);
+	}
 }
