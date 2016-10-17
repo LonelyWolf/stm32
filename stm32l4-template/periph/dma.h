@@ -39,12 +39,18 @@
 #define DMA_MODE_NORMAL            ((uint32_t)0x00000000U) // Normal mode
 #define DMA_MODE_CIRCULAR          DMA_CCR_CIRC            // Circular mode
 
+// Definitions of DMA channel flags
+#define DMA_FLAG_GI                DMA_ISR_GIF1  // Global interrupt
+#define DMA_FLAG_TC                DMA_ISR_TCIF1 // Transfer complete
+#define DMA_FLAG_HT                DMA_ISR_HTIF1 // Half transfer
+#define DMA_FLAG_TE                DMA_ISR_TEIF1 // Transfer error
+
 // Definitions of clear DMA flag values
-#define DMA_CF_GL                  DMA_IFCR_CGIF1  // Global interrupt
+#define DMA_CF_GI                  DMA_IFCR_CGIF1  // Global interrupt
 #define DMA_CF_TC                  DMA_IFCR_CTCIF1 // Transfer complete
 #define DMA_CF_HT                  DMA_IFCR_CHTIF1 // Half transfer
-#define DMA_CF_EF                  DMA_IFCR_CTEIF1 // Transfer error
-#define DMA_CF_ALL                 (DMA_CF_GL | DMA_CF_TC | DMA_CF_HT | DMA_CF_EF)
+#define DMA_CF_TE                  DMA_IFCR_CTEIF1 // Transfer error
+#define DMA_CF_ALL                 (DMA_CF_GI | DMA_CF_TC | DMA_CF_HT | DMA_CF_TE)
 
 // Definitions of DMA channel interrupts
 #define DMA_IRQ_TC                 DMA_CCR_TCIE // Transfer complete
@@ -104,11 +110,21 @@ __STATIC_INLINE void DMA_DisableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) 
 	channel->CCR &= ~(irq & (DMA_CCR_TCIE | DMA_CCR_HTIE | DMA_CCR_TEIE));
 }
 
+// Get the specified flags for the specified DMA channel
+// input:
+//   DMAx - pointer to the DMA peripheral handler (DMA1, etc.)
+//   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
+//   flags - flags to check, any combination of DMA_FLAG_xx values
+// return: specified flags state, zero if all flags are reset
+__STATIC_INLINE uint32_t DMA_GetFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
+	return (DMAx->ISR & ((flags & (DMA_ISR_GIF1 | DMA_ISR_TCIF1 | DMA_ISR_HTIF1 | DMA_ISR_TEIF1)) << channel_index));
+}
+
 // Clear the specified flags for the specified DMA channel
 // input:
 //   DMAx - pointer to the DMA peripheral handler (DMA1, etc.)
 //   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
-//   flags - flags to be cleared, combination of DMA_CF_xx values
+//   flags - flags to be cleared, any combination of DMA_CF_xx values
 __STATIC_INLINE void DMA_ClearFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
 	DMAx->IFCR |= (flags & DMA_CF_ALL) << channel_index;
 }

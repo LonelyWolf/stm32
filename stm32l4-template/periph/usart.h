@@ -174,7 +174,7 @@ __STATIC_INLINE void USART_Disable(USART_HandleTypeDef *USARTx) {
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 //   flag - flag to check, can be any of USART_FLAG_xx or USART_ISR_xx values
 // return: state of the flag, zero if it is reset
-__STATIC_INLINE uint32_t USART_GetFlag(USART_HandleTypeDef *USARTx, uint32_t flag) {
+__STATIC_INLINE uint32_t USART_GetFlags(USART_HandleTypeDef *USARTx, uint32_t flag) {
 	return (USARTx->Instance->ISR & flag);
 }
 
@@ -182,7 +182,7 @@ __STATIC_INLINE uint32_t USART_GetFlag(USART_HandleTypeDef *USARTx, uint32_t fla
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 //   flag - any combination of USART_ICR_xx values
-__STATIC_INLINE void USART_ClearFlag(USART_HandleTypeDef *USARTx, uint32_t flag) {
+__STATIC_INLINE void USART_ClearFlags(USART_HandleTypeDef *USARTx, uint32_t flag) {
 	USARTx->Instance->ICR = flag;
 }
 
