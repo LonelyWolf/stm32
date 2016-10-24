@@ -137,12 +137,12 @@ int main(void) {
 	printf("System clock: %s\r\n",_sysclk_src_str[RCC_GetSysClockSource()]);
 
 
-	// Initialize delay functions (for blinky)
+	// Initialize delay functions
 	Delay_Init();
 
 
 	// Initialize the PA5 pin (LED on the Nucleo board)
-	// Enable the GPIOC peripheral
+	// Enable the GPIOA peripheral
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 	// Configure PA5 as push-pull output without pull-up, at lowest speed
 	GPIO_set_mode(GPIOA,GPIO_Mode_OUT,GPIO_PUPD_NONE,GPIO_PIN_5);
