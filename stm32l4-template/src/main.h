@@ -14,6 +14,7 @@
 //#include "i2c.h"
 //#include "rtc.h"
 //#include "spi.h"
+//#include "crc.h"
 #include "usart.h"
 #include "delay.h"
 

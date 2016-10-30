@@ -57,6 +57,16 @@
 #define DMA_IRQ_HT                 DMA_CCR_HTIE // Halt transfer
 #define DMA_IRQ_TE                 DMA_CCR_TEIE // Transfer error
 
+// Definitions of DMA channel memory data alignment
+#define DMA_MALIGN_8BIT            ((uint32_t)0x00000000U) // Byte
+#define DMA_MALIGN_16BIT           DMA_CCR_MSIZE_0         // Half-word
+#define DMA_MALIGN_32BIT           DMA_CCR_MSIZE_1         // Word
+
+// Definitions of DMA channel peripheral data alignment
+#define DMA_PALIGN_8BIT            ((uint32_t)0x00000000U) // Byte
+#define DMA_PALIGN_16BIT           DMA_CCR_PSIZE_0         // Half-word
+#define DMA_PALIGN_32BIT           DMA_CCR_PSIZE_1         // Word
+
 
 // DMA states enumeration
 typedef enum {
