@@ -4,18 +4,19 @@ This "library" is aimed to deal with Nordic nRF24L01+ transceiver.
 
 ## Structure
 The library basically consists four files:
-> nrf24.c
-> nrf24.h
-> nrf24_hal.c
-> nrf24_hal.h
+* nrf24.c
+* nrf24.h
+* nrf24_hal.c
+* nrf24_hal.h
 
 `nrf24.c` and `nrf24.h` - hardware independent part, does all things with the transceiver.
+
 `nrf24_hal.c` and `nrf24_hal.h` - hardware dependent part, provides functions to work with SPI port and GPIO pins.
 
 The user must implement the following functions in the `*_hal.*` part:
-> nRF24_LL_RW() - send a byte via SPI and return a received one.
-> nRF24_CSN_L() - set CSN pin to LOW state.
-> nRF24_CSN_H() - set CSN ping to HIGH state.
+* nRF24_LL_RW() - send a byte via SPI and return a received one.
+* nRF24_CSN_L() - set CSN pin to LOW state.
+* nRF24_CSN_H() - set CSN ping to HIGH state.
 
 Other things such as initialization of SPI or GPIO can also be placed to HAL part. All this at the user discretion. One thing must be done: all hardware must be properly initialized prior to use nRF24 functions.
 
@@ -27,7 +28,7 @@ Other things such as initialization of SPI or GPIO can also be placed to HAL par
 
 ## Sample transceiver configuration
 ### Receiver, one logic address (pipe#1), without ShockBurst
-```
+```tcc
 uint8_t ADDR[] = { 'n', 'R', 'F', '2', '4' }; // the address for RX pipe
 nRF24_DisableAA(); // disable ShockBurst
 nRF24_SetRFChannel(90); // set RF channel to 2490MHz
@@ -41,7 +42,7 @@ nRF24_SetPowerMode(nRF24_PWR_UP); // wake-up transceiver (in case if it sleeping
 // then pull CE pin to HIGH, and the nRF24 will start a receive...
 ```
 ### Transmiter, without ShockBurst
-```
+```tcc
 uint8_t ADDR[] = { 'n', 'R', 'F', '2', '4' }; // the TX address
 nRF24_DisableAA(); // disable ShockBurst
 nRF24_SetRFChannel(90); // set RF channel to 2490MHz
@@ -58,7 +59,7 @@ nRF24_SetPowerMode(nRF24_PWR_UP); // wake-up transceiver (in case if it sleeping
 ## Receive
 Configure nRF24 for data receive, pull the CE pin HIGH. After this the transceiver begins to listen ether waiting for data packet. The main software can poll the nRF24 status or for an IRQ. The polling method is far from optimal and if it possible, it is better to use the dedicated IRQ pin.
 Simple example code of receiver in polling mode:
-```
+```tcc
 uint8_t nRF24_payload[32]; // buffer for payload
 uint8_t payload_length; // variable to store a length of received payload
 uint8_t pipe; // pipe number
@@ -84,7 +85,7 @@ The `MAX_RT` bit means that the maximum number of retransmissions reached and th
 Then software de-asserts CE pin (pull it LOW), thus disabling transmission mode.
 The polling method is far from optimal and if it possible, it is better to use the dedicated IRQ pin.
 Simple example code of transmitter in polling mode:
-```
+```tcc
 uint8_t status;
 nRF24_WritePayload(pBuf, length); // transfer payload data to transceiver
 nRF24_CE_H(); // assert CE pin (transmission starts)
@@ -122,6 +123,7 @@ Waits for data receive in infinite loop. When a packet is received, dumps it con
 Stuffs the payload by the sequence of bytes, calls the transmit function and prints result of transmission to UART. Then waits for a half of second and repeats the transmission.
 - `#define DEMO_TX_MULTI` - transmitter with multiple TX addresses (three addresses, each with different payload length)
 Stuffs the payload by the sequence of bytes, calls the transmit function and prints result of transmission to UART. Then waits for a half of second and repeats the transmission. With one difference: the TX address and length of the payload changed on every transmission.
+- `#define DEMO_RX_SOLAR` - dull receiver for the solar powered temperature sensor, useless without sensor but shows receiver with Auto-ACK enabled.
 
 ## Note
 - Doesn't support a dynamic payload length, maybe this will be added in future.
