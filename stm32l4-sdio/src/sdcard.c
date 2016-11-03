@@ -133,7 +133,6 @@ static void SD_Cmd(uint8_t cmd, uint32_t arg, uint32_t resp_type) {
 // return: SDResult
 static SDResult SD_GetR1Resp(uint8_t cmd) {
 	volatile uint32_t wait = SD_CMD_TIMEOUT;
-	uint32_t res = SDR_Success;
 	uint32_t respR1;
 
 	// Wait for response, error or timeout
@@ -403,7 +402,6 @@ SDResult SD_SetBlockSize(uint32_t block_size) {
 // note: SDIO peripheral clock must be on and SDIO GPIO configured
 SDResult SD_Init(void) {
 	volatile uint32_t wait;
-	uint32_t response[4];
 	uint32_t sd_type = SD_STD_CAPACITY; // SD card capacity
 	SDResult cmd_res;
 
@@ -668,14 +666,14 @@ void SD_SetBusClock(uint32_t clk_div) {
 // Parse information about specific card
 // note: CSD/CID register values already must be in the SDCard structure
 void SD_GetCardInfo(void) {
-	uint32_t dev_size, dev_size_mul, rd_block_len;
+	uint32_t dev_size;
+	uint32_t dev_size_mul;
 
 	// Parse the CSD register
 	SDCard.CSDVer = SDCard.CSD[0] >> 6; // CSD version
 	if (SDCard.Type != SDCT_MMC) {
 		// SD
 		SDCard.MaxBusClkFreq = SDCard.CSD[3];
-		rd_block_len = SDCard.CSD[5] & 0x0f; // Max. read data block length
 		if (SDCard.CSDVer == 0) {
 			// CSD v1.00 (SDSCv1, SDSCv2)
 			dev_size  = (uint32_t)(SDCard.CSD[6] & 0x03) << 10; // Device size
@@ -685,7 +683,7 @@ void SD_GetCardInfo(void) {
 			dev_size_mul |= (SDCard.CSD[10] & 0x80) >> 7;
 			SDCard.BlockCount  = (dev_size + 1);
 			SDCard.BlockCount *= (1 << (dev_size_mul + 2));
-			SDCard.BlockSize =  1 << (rd_block_len);
+			SDCard.BlockSize   =  1 << (SDCard.CSD[5] & 0x0f); // Maximum read data block length
 		} else {
 			// CSD v2.00 (SDHC, SDXC)
 			dev_size  = (SDCard.CSD[7] & 0x3f) << 16;
@@ -963,10 +961,7 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	uint32_t STA; // To speed up SDIO flags checking
 	register uint32_t STA_mask; // Mask for SDIO flags checking
 	uint32_t data_sent = 0; // Counter of transferred bytes
-	uint32_t data_left; // Words counter in last portion of data
 	uint8_t card_state; // Card state
-	uint32_t cntr;
-
 
 	// Initialize the data control register
 	SDMMC1->DCTRL = 0;
@@ -1031,13 +1026,14 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 		do {
 			if ((SDMMC1->STA & SDMMC_STA_TXFIFOHE) && (data_sent < length)) {
 				// TX FIFO half empty, at least 8 words can be written
-				if (length - data_sent < 32) {
+				uint32_t data_left = length - data_sent;
+				if (data_left < 32) {
 					// Write last portion of data to the TX FIFO
-					data_left = ((length - data_sent) % 4 == 0) ? ((length - data_sent) >> 2) : (((length - data_sent) >> 2) + 1);
-					for (cntr = 0; cntr < data_left; cntr++) {
+					data_left = ((data_left & 0x03) == 0) ? (data_left >> 2) : ((data_left >> 2) + 1);
+					data_sent += data_left << 2;
+					while (data_left--) {
 						SDMMC1->FIFO = *pBuf++;
 					}
-					data_sent += data_left << 2;
 				} else {
 					// Write 8 words to the TX FIFO
 					SDMMC1->FIFO = *pBuf++;
@@ -1093,8 +1089,6 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 //   direction - DMA channel direction, one of SDIO_DMA_DIR_xx values
 // note: the DMA peripheral (DMA2) must be already enabled
 void SD_Configure_DMA(uint32_t *pBuf, uint32_t length, uint8_t direction) {
-	uint32_t reg;
-
 	// Populate SDIO DMA channel handle
 	SDIO_DMA_CH.Channel  = SDIO_DMA_CHANNEL;
 	SDIO_DMA_CH.Instance = DMA_GetChannelPeripheral(SDIO_DMA_CHANNEL);
@@ -1134,7 +1128,6 @@ void SD_Configure_DMA(uint32_t *pBuf, uint32_t length, uint8_t direction) {
 SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length >> 9;
-	uint32_t response;
 
 	// Initialize the data control register
 	SDMMC1->DCTRL = 0;
@@ -1186,7 +1179,6 @@ SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length >> 9;
-	uint32_t response;
 
 	// Initialize the data control register
 	SDMMC1->DCTRL = 0;
@@ -1296,8 +1288,6 @@ SDResult SD_CheckWrite(uint32_t length) {
 	volatile uint32_t wait = SD_DATA_W_TIMEOUT;
 	volatile uint32_t STA;
 	uint8_t card_state;
-
-	uint32_t ds,ss;
 
 	// Wait for SDIO receive complete or error occurred
 	if (blk_count > 1) {

@@ -19,7 +19,7 @@ void CRC_CalcBuffer(register uint32_t *pBuf, register uint32_t length) {
 		CRC_PutData32(__builtin_bswap32(*pBuf++));
 #else
 		CRC_PutData32((((*pBuf) >> 24) | (((*pBuf) & 0x00FF0000) >> 8) | (((*pBuf) & 0x0000FF00) << 8) | ((*pBuf) << 24)));
-		(void)*pBuf++;
+		pBuf++;
 #endif // __GNUC__
 		length -= 4;
 	}

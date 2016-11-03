@@ -98,8 +98,6 @@ ErrorStatus RTC_Init(uint32_t psc_asynch, uint32_t psc_synch) {
 // note: access to the backup domain must be enabled
 // note: must called only when RTC_CR WUTE bit = 0 and RTC_ISR WUTWF bit = 1
 ErrorStatus RTC_SetWakeupClock(uint32_t clk_cfg) {
-	volatile uint32_t wait;
-
 	// Disable the write protection for RTC registers
 	RTC_WriteProtectionDisable();
 
@@ -112,7 +110,7 @@ ErrorStatus RTC_SetWakeupClock(uint32_t clk_cfg) {
 		RTC_ClearWUTF();
 
 		// Wait until WUTWF flag is set
-		wait = RTC_CalcDelay(RTC_TIMEOUT);
+		volatile uint32_t wait = RTC_CalcDelay(RTC_TIMEOUT);
 		while (!(RTC->ISR & RTC_ISR_WUTWF) && --wait);
 		if (!(RTC->ISR & RTC_ISR_WUTWF)) {
 			// Enable the write protection for RTC registers
@@ -190,8 +188,8 @@ void RTC_AlarmInit(uint32_t alarm, RTC_TimeTypeDef *alarm_time, uint32_t alarm_m
 			((alarm_time->RTC_Minutes / 10) << 12) + ((alarm_time->RTC_Minutes % 10) <<  8) +
 			((alarm_time->RTC_Seconds / 10) <<  4) +  (alarm_time->RTC_Seconds % 10) +
 			((alarm_dateday / 10) << 28) + ((alarm_dateday % 10) << 24) +
-			 (alarm_time->RTC_H12 << 16) +
-			  alarm_mask;
+			(alarm_time->RTC_H12 << 16) +
+			alarm_mask;
 
 	// Disable the write protection for RTC registers
 	RTC_WriteProtectionDisable();
@@ -270,12 +268,12 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	TR =   (((time->RTC_Hours   / 10) << 20) + ((time->RTC_Hours   % 10) << 16) +
 			((time->RTC_Minutes / 10) << 12) + ((time->RTC_Minutes % 10) <<  8) +
 			((time->RTC_Seconds / 10) <<  4) +  (time->RTC_Seconds % 10) +
-			 (time->RTC_H12 << 12)) & RTC_TR_RESERVED_MASK;
+			(time->RTC_H12 << 12)) & RTC_TR_RESERVED_MASK;
 	// Calculate value for date register
 	DR =   (((date->RTC_Year  / 10) << 20) + ((date->RTC_Year  % 10) << 16) +
 			((date->RTC_Month / 10) << 12) + ((date->RTC_Month % 10) <<  8) +
 			((date->RTC_Date  / 10) <<  4) +  (date->RTC_Date  % 10) +
-			 (date->RTC_WeekDay << 13)) & RTC_DR_RESERVED_MASK;
+			(date->RTC_WeekDay << 13)) & RTC_DR_RESERVED_MASK;
 
 	// Disable the write protection for RTC registers
 	RTC_WriteProtectionDisable();
