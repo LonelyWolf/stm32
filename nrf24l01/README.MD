@@ -36,7 +36,7 @@ nRF24_SetDataRate(nRF24_DR_2Mbps); // 2Mbit/s data rate
 nRF24_SetCRCScheme(nRF24_CRC_1byte); // 1-byte CRC scheme
 nRF24_SetAddrWidth(5); // address width is 5 bytes
 nRF24_SetAddr(nRF24_PIPE1, ADDR); // program pipe address
-nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 10); // enable RX pipe#1 with Auto-ACK: disabled, payload length: 10 bytes
+nRF24_SetRXPipe(nRF24_PIPE1, nRF24_AA_OFF, 10); // enable RX pipe#1 with Auto-ACK: disabled, payload length: 10 bytes
 nRF24_SetOperationalMode(nRF24_MODE_RX); // switch transceiver to the RX mode
 nRF24_SetPowerMode(nRF24_PWR_UP); // wake-up transceiver (in case if it sleeping)
 // then pull CE pin to HIGH, and the nRF24 will start a receive...
