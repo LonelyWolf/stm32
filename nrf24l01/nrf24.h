@@ -62,9 +62,11 @@
 #define nRF24_MASK_EN_RX           (uint8_t)0x3F // Mask ERX_P[5:0] bits in EN_RXADDR register
 #define nRF24_MASK_RX_PW           (uint8_t)0x3F // Mask [5:0] bits in RX_PW_Px register
 #define nRF24_MASK_RETR_ARD        (uint8_t)0xF0 // Mask for ARD[7:4] bits in SETUP_RETR register
-#define nRF24_MASK_RETR_ARC        (uint8_t)0x0F // Mask for ARC[7:4] bits in SETUP_RETR register
+#define nRF24_MASK_RETR_ARC        (uint8_t)0x0F // Mask for ARC[3:0] bits in SETUP_RETR register
 #define nRF24_MASK_RXFIFO          (uint8_t)0x03 // Mask for RX FIFO status bits [1:0] in FIFO_STATUS register
 #define nRF24_MASK_TXFIFO          (uint8_t)0x30 // Mask for TX FIFO status bits [5:4] in FIFO_STATUS register
+#define nRF24_MASK_PLOS_CNT        (uint8_t)0xF0 // Mask for PLOS_CNT[7:4] bits in OBSERVE_TX register
+#define nRF24_MASK_ARC_CNT         (uint8_t)0x0F // Mask for ARC_CNT[3:0] bits in OBSERVE_TX register
 
 // Fake address to test transceiver presence (5 bytes long)
 #define nRF24_TEST_ADDR            "nRF24"
@@ -207,14 +209,17 @@ void nRF24_SetDataRate(uint8_t data_rate);
 void nRF24_SetCRCScheme(uint8_t scheme);
 void nRF24_SetRXPipe(uint8_t pipe, uint8_t aa_state, uint8_t payload_len);
 void nRF24_ClosePipe(uint8_t pipe);
-void nRF24_DisableAA(void);
+void nRF24_EnableAA(uint8_t pipe);
+void nRF24_DisableAA(uint8_t pipe);
 
 uint8_t nRF24_GetStatus(void);
 uint8_t nRF24_GetIRQFlags(void);
 uint8_t nRF24_GetStatus_RXFIFO(void);
 uint8_t nRF24_GetStatus_TXFIFO(void);
 uint8_t nRF24_GetRXSource(void);
+uint8_t nRF24_GetRetransmitCounters(void);
 
+void nRF24_ResetPLOS(void);
 void nRF24_FlushTX(void);
 void nRF24_FlushRX(void);
 void nRF24_ClearIRQFlags(void);

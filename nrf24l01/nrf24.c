@@ -301,17 +301,33 @@ void nRF24_ClosePipe(uint8_t pipe) {
 	nRF24_WriteReg(nRF24_REG_EN_RXADDR, reg);
 }
 
-// Disable the auto retransmit (a.k.a. enhanced ShockBurst)
-void nRF24_DisableAA(void) {
+// Enable the auto retransmit (a.k.a. enhanced ShockBurst) for the specified RX pipe
+// input:
+//   pipe - number of the RX pipe, value from 0 to 5
+void nRF24_EnableAA(uint8_t pipe) {
 	uint8_t reg;
 
-	// Clear ARC[3:0] bits of the SETUP_RETR register
-	reg  = nRF24_ReadReg(nRF24_REG_SETUP_RETR);
-	reg &= ~nRF24_MASK_RETR_ARC;
-	nRF24_WriteReg(nRF24_REG_SETUP_RETR, reg);
+	// Set bit in EN_AA register
+	reg  = nRF24_ReadReg(nRF24_REG_EN_AA);
+	reg |= (1 << pipe);
+	nRF24_WriteReg(nRF24_REG_EN_AA, reg);
+}
 
-	// Clear entire EN_AA register
-	nRF24_WriteReg(nRF24_REG_EN_AA, 0x00);
+// Disable the auto retransmit (a.k.a. enhanced ShockBurst) for one or all RX pipes
+// input:
+//   pipe - number of the RX pipe, value from 0 to 5, any other value will disable AA for all RX pipes
+void nRF24_DisableAA(uint8_t pipe) {
+	uint8_t reg;
+
+	if (pipe > 5) {
+		// Disable Auto-ACK for ALL pipes
+		nRF24_WriteReg(nRF24_REG_EN_AA, 0x00);
+	} else {
+		// Clear bit in the EN_AA register
+		reg  = nRF24_ReadReg(nRF24_REG_EN_AA);
+		reg &= ~(1 << pipe);
+		nRF24_WriteReg(nRF24_REG_EN_AA, reg);
+	}
 }
 
 // Get value of the STATUS register
@@ -343,6 +359,23 @@ uint8_t nRF24_GetStatus_TXFIFO(void) {
 // return: pipe number or 0x07 if the RX FIFO is empty
 uint8_t nRF24_GetRXSource(void) {
 	return ((nRF24_ReadReg(nRF24_REG_STATUS) & nRF24_MASK_RX_P_NO) >> 1);
+}
+
+// Get auto retransmit statistic
+// return: value of OBSERVE_TX register which contains two counters encoded in nibbles:
+//   high - lost packets count (max value 15, can be reseted by write to RF_CH register)
+//   low  - retransmitted packets count (max value 15, reseted when new transmission starts)
+uint8_t nRF24_GetRetransmitCounters(void) {
+	return (nRF24_ReadReg(nRF24_REG_OBSERVE_TX));
+}
+
+// Reset packet lost counter (PLOS_CNT bits in OBSERVER_TX register)
+void nRF24_ResetPLOS(void) {
+	uint8_t reg;
+
+	// The PLOS counter is reset after write to RF_CH register
+	reg = nRF24_ReadReg(nRF24_REG_RF_CH);
+	nRF24_WriteReg(nRF24_REG_RF_CH, reg);
 }
 
 // Flush the TX FIFO

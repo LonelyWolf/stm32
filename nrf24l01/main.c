@@ -11,15 +11,17 @@
 // Define what part of demo will be compiled:
 //   0 : disable
 //   1 : enable
-#define DEMO_RX_SINGLE    0 // Single address receiver (1 pipe)
-#define DEMO_RX_MULTI     0 // Multiple address receiver (3 pipes)
-#define DEMO_RX_SOLAR     0 // Solar temperature sensor receiver
-#define DEMO_TX_SINGLE    0 // Single address transmitter (1 pipe)
-#define DEMO_TX_MULTI     0 // Multiple address transmitter (3 pipes)
+#define DEMO_RX_SINGLE      0 // Single address receiver (1 pipe)
+#define DEMO_RX_MULTI       0 // Multiple address receiver (3 pipes)
+#define DEMO_RX_SOLAR       0 // Solar temperature sensor receiver
+#define DEMO_TX_SINGLE      0 // Single address transmitter (1 pipe)
+#define DEMO_TX_MULTI       0 // Multiple address transmitter (3 pipes)
+#define DEMO_RX_SINGLE_ESB  1 // Single address receiver with Enhanced ShockBurst (1 pipe)
+#define DEMO_TX_SINGLE_ESB  0 // Single address transmitter with Enhanced ShockBurst (1 pipe)
 
 
 // Kinda foolproof :)
-#if ((DEMO_RX_SINGLE + DEMO_RX_MULTI + DEMO_RX_SOLAR + DEMO_TX_SINGLE + DEMO_TX_MULTI) != 1)
+#if ((DEMO_RX_SINGLE + DEMO_RX_MULTI + DEMO_RX_SOLAR + DEMO_TX_SINGLE + DEMO_TX_MULTI + DEMO_RX_SINGLE_ESB + DEMO_TX_SINGLE_ESB) != 1)
 #error "Define only one DEMO_xx, use the '1' value"
 #endif
 
@@ -38,7 +40,7 @@ uint8_t payload_length;
 
 
 
-#if ((DEMO_TX_SINGLE) || (DEMO_TX_MULTI))
+#if ((DEMO_TX_SINGLE) || (DEMO_TX_MULTI) || (DEMO_TX_SINGLE_ESB))
 
 // Helpers for transmit mode demo
 
@@ -53,6 +55,8 @@ typedef enum {
 	nRF24_TX_TIMEOUT,                // It was timeout during packet transmit
 	nRF24_TX_MAXRT                   // Transmit failed with maximum auto retransmit count
 } nRF24_TXResult;
+
+nRF24_TXResult tx_res;
 
 // Function to transmit data packet
 // input:
@@ -198,8 +202,8 @@ int main(void) {
 
     // The transmitter sends a 5-byte packets to the address '0xE7 0x1C 0xE3' without Auto-ACK (ShockBurst disabled)
 
-    // Disable ShockBurst
-    nRF24_DisableAA();
+    // Disable ShockBurst for all RX pipes
+    nRF24_DisableAA(0xFF);
 
     // Set RF channel
     nRF24_SetRFChannel(115);
@@ -215,7 +219,7 @@ int main(void) {
 
     // Configure RX PIPE#1
     static const uint8_t nRF24_ADDR[] = { 0xE7, 0x1C, 0xE3 };
-    nRF24_SetAddr(nRF24_PIPE1, nRF24_ADDR); // program pipe address
+    nRF24_SetAddr(nRF24_PIPE1, nRF24_ADDR); // program address for RX pipe #1
     nRF24_SetRXPipe(nRF24_PIPE1, nRF24_AA_OFF, 5); // Auto-ACK: disabled, payload length: 5 bytes
 
     // Set operational mode (PRX == receiver)
@@ -272,8 +276,8 @@ int main(void) {
     // The transmitter sends packets of different length to the three different logical addresses,
     // cycling them one after another, that packets comes to different pipes (0, 1 and 4)
 
-    // Disable ShockBurst
-    nRF24_DisableAA();
+    // Disable ShockBurst for all RX pipes
+    nRF24_DisableAA(0xFF);
 
     // Set RF channel
     nRF24_SetRFChannel(115);
@@ -289,17 +293,17 @@ int main(void) {
 
     // Configure RX PIPE#0
     static const uint8_t nRF24_ADDR0[] = { 'W', 'B', 'C' };
-    nRF24_SetAddr(nRF24_PIPE0, nRF24_ADDR0); // program pipe address
+    nRF24_SetAddr(nRF24_PIPE0, nRF24_ADDR0); // program address for RX pipe #0
     nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 11); // Auto-ACK: disabled, payload length: 11 bytes
 
     // Configure RX PIPE#1
     static const uint8_t nRF24_ADDR1[] = { 0xE7, 0x1C, 0xE3 };
-    nRF24_SetAddr(nRF24_PIPE1, nRF24_ADDR1); // program pipe address
+    nRF24_SetAddr(nRF24_PIPE1, nRF24_ADDR1); // program address for RX pipe #1
     nRF24_SetRXPipe(nRF24_PIPE1, nRF24_AA_OFF, 5); // Auto-ACK: disabled, payload length: 5 bytes
 
     // Configure RX PIPE#4
     static const uint8_t nRF24_ADDR4[] = { 0xE6 };
-    nRF24_SetAddr(nRF24_PIPE4, nRF24_ADDR4); // program pipe address
+    nRF24_SetAddr(nRF24_PIPE4, nRF24_ADDR4); // program address for RX pipe #4
     nRF24_SetRXPipe(nRF24_PIPE4, nRF24_AA_OFF, 32); // Auto-ACK: disabled, payload length: 32 bytes
 
     // Set operational mode (PRX == receiver)
@@ -478,8 +482,8 @@ int main(void) {
 
     // The transmitter sends a 5-byte packets to the address '0xE7 0x1C 0xE3' without Auto-ACK (ShockBurst disabled)
 
-    // Disable ShockBurst
-    nRF24_DisableAA();
+    // Disable ShockBurst for all RX pipes
+    nRF24_DisableAA(0xFF);
 
     // Set RF channel
     nRF24_SetRFChannel(115);
@@ -495,7 +499,7 @@ int main(void) {
 
     // Configure TX PIPE
     static const uint8_t nRF24_ADDR[] = { 0xE7, 0x1C, 0xE3 };
-    nRF24_SetAddr(nRF24_PIPETX, nRF24_ADDR); // program pipe address
+    nRF24_SetAddr(nRF24_PIPETX, nRF24_ADDR); // program TX address
 
     // Set TX power (maximum)
     nRF24_SetTXPower(nRF24_TXPWR_0dBm);
@@ -512,29 +516,35 @@ int main(void) {
 
     // The main loop
     j = 0;
+    payload_length = 5;
     while (1) {
     	// Prepare data packet
-    	for (i = 0; i < 5; i++) {
+    	for (i = 0; i < payload_length; i++) {
     		nRF24_payload[i] = j++;
     		if (j > 0x000000FF) j = 0;
     	}
 
     	// Print a payload
     	UART_SendStr("PAYLOAD:>");
-    	UART_SendBufHex((char *)nRF24_payload, 5);
+    	UART_SendBufHex((char *)nRF24_payload, payload_length);
     	UART_SendStr("< ... TX: ");
 
     	// Transmit a packet
-    	k = nRF24_TransmitPacket(nRF24_payload, 5);
-    	if (k == nRF24_TX_ERROR) {
-    		UART_SendStr("ERROR");
-    	} else if (k == nRF24_TX_MAXRT) {
-    		UART_SendStr("MAX RETRANSMIT");
-    	} else if (k == nRF24_TX_TIMEOUT) {
-    		UART_SendStr("TIMEOUT");
-    	} else {
-    		UART_SendStr("OK");
-    	}
+    	tx_res = nRF24_TransmitPacket(nRF24_payload, payload_length);
+    	switch (tx_res) {
+			case nRF24_TX_SUCCESS:
+				UART_SendStr("OK");
+				break;
+			case nRF24_TX_TIMEOUT:
+				UART_SendStr("TIMEOUT");
+				break;
+			case nRF24_TX_MAXRT:
+				UART_SendStr("MAX RETRANSMIT");
+				break;
+			default:
+				UART_SendStr("ERROR");
+				break;
+		}
     	UART_SendStr("\r\n");
 
     	// Wait ~0.5s
@@ -559,8 +569,8 @@ int main(void) {
     // The transmitter sends a data packets to the three logic addresses without Auto-ACK (ShockBurst disabled)
     // The payload length depends on the logic address
 
-    // Disable ShockBurst
-    nRF24_DisableAA();
+    // Disable ShockBurst for all RX pipes
+    nRF24_DisableAA(0xFF);
 
     // Set RF channel
     nRF24_SetRFChannel(115);
@@ -630,16 +640,21 @@ int main(void) {
     	UART_SendStr("< ... TX: ");
 
     	// Transmit a packet
-    	k = nRF24_TransmitPacket(nRF24_payload, payload_length);
-    	if (k == nRF24_TX_ERROR) {
-    		UART_SendStr("ERROR");
-    	} else if (k == nRF24_TX_MAXRT) {
-    		UART_SendStr("MAX RETRANSMIT");
-    	} else if (k == nRF24_TX_TIMEOUT) {
-    		UART_SendStr("TIMEOUT");
-    	} else {
-    		UART_SendStr("OK");
-    	}
+    	tx_res = nRF24_TransmitPacket(nRF24_payload, payload_length);
+    	switch (tx_res) {
+			case nRF24_TX_SUCCESS:
+				UART_SendStr("OK");
+				break;
+			case nRF24_TX_TIMEOUT:
+				UART_SendStr("TIMEOUT");
+				break;
+			case nRF24_TX_MAXRT:
+				UART_SendStr("MAX RETRANSMIT");
+				break;
+			default:
+				UART_SendStr("ERROR");
+				break;
+		}
     	UART_SendStr("\r\n");
 
     	// Proceed to next address
@@ -653,5 +668,182 @@ int main(void) {
     }
 
 #endif // DEMO_TX_MULTI
+
+/***************************************************************************/
+
+#if (DEMO_RX_SINGLE_ESB)
+
+    // This is simple receiver with Enhanced ShockBurst:
+	//   - RX address: 'ESB'
+	//   - payload: 10 bytes
+	//   - RF channel: 40 (2440MHz)
+	//   - data rate: 2Mbps
+	//   - CRC scheme: 2 byte
+
+    // The transmitter sends a 10-byte packets to the address 'ESB' with Auto-ACK (ShockBurst enabled)
+
+    // Set RF channel
+    nRF24_SetRFChannel(40);
+
+    // Set data rate
+    nRF24_SetDataRate(nRF24_DR_2Mbps);
+
+    // Set CRC scheme
+    nRF24_SetCRCScheme(nRF24_CRC_2byte);
+
+    // Set address width, its common for all pipes (RX and TX)
+    nRF24_SetAddrWidth(3);
+
+    // Configure RX PIPE
+    static const uint8_t nRF24_ADDR[] = { 'E', 'S', 'B' };
+    nRF24_SetAddr(nRF24_PIPE1, nRF24_ADDR); // program address for pipe
+    nRF24_SetRXPipe(nRF24_PIPE1, nRF24_AA_ON, 10); // Auto-ACK: enabled, payload length: 10 bytes
+
+    // Set TX power for Auto-ACK (maximum, to ensure that transmitter will hear ACK reply)
+    nRF24_SetTXPower(nRF24_TXPWR_0dBm);
+
+    // Set operational mode (PRX == receiver)
+    nRF24_SetOperationalMode(nRF24_MODE_RX);
+
+    // Clear any pending IRQ flags
+    nRF24_ClearIRQFlags();
+
+    // Wake the transceiver
+    nRF24_SetPowerMode(nRF24_PWR_UP);
+
+    // Put the transceiver to the RX mode
+    nRF24_CE_H();
+
+
+    // The main loop
+    while (1) {
+    	//
+    	// Constantly poll the status of the RX FIFO and get a payload if FIFO is not empty
+    	//
+    	// This is far from best solution, but it's ok for testing purposes
+    	// More smart way is to use the IRQ pin :)
+    	//
+    	if (nRF24_GetStatus_RXFIFO() != nRF24_STATUS_RXFIFO_EMPTY) {
+    		// Get a payload from the transceiver
+    		pipe = nRF24_ReadPayload(nRF24_payload, &payload_length);
+
+    		// Clear all pending IRQ flags
+			nRF24_ClearIRQFlags();
+
+			// Print a payload contents to UART
+			UART_SendStr("RCV PIPE#");
+			UART_SendInt(pipe);
+			UART_SendStr(" PAYLOAD:>");
+			UART_SendBufHex((char *)nRF24_payload, payload_length);
+			UART_SendStr("<\r\n");
+    	}
+    }
+
+#endif // DEMO_RX_SINGLE_ESB
+
+/***************************************************************************/
+
+#if (DEMO_TX_SINGLE_ESB)
+
+    // This is simple transmitter with Enhanced ShockBurst (to one logic address):
+	//   - TX address: 'ESB'
+	//   - payload: 10 bytes
+	//   - RF channel: 40 (2440MHz)
+	//   - data rate: 2Mbps
+	//   - CRC scheme: 2 byte
+
+    // The transmitter sends a 10-byte packets to the address 'ESB' with Auto-ACK (ShockBurst enabled)
+
+    // Set RF channel
+    nRF24_SetRFChannel(40);
+
+    // Set data rate
+    nRF24_SetDataRate(nRF24_DR_2Mbps);
+
+    // Set CRC scheme
+    nRF24_SetCRCScheme(nRF24_CRC_2byte);
+
+    // Set address width, its common for all pipes (RX and TX)
+    nRF24_SetAddrWidth(3);
+
+    // Configure TX PIPE
+    static const uint8_t nRF24_ADDR[] = { 'E', 'S', 'B' };
+    nRF24_SetAddr(nRF24_PIPETX, nRF24_ADDR); // program TX address
+    nRF24_SetAddr(nRF24_PIPE0, nRF24_ADDR); // program address for pipe#0, must be same as TX (for Auto-ACK)
+
+    // Set TX power (maximum)
+    nRF24_SetTXPower(nRF24_TXPWR_0dBm);
+
+    // Configure auto retransmit: 10 retransmissions with pause of 2500s in between
+    nRF24_SetAutoRetr(nRF24_ARD_2500us, 10);
+
+    // Enable Auto-ACK for pipe#0 (for ACK packets)
+    nRF24_EnableAA(nRF24_PIPE0);
+
+    // Set operational mode (PTX == transmitter)
+    nRF24_SetOperationalMode(nRF24_MODE_TX);
+
+    // Clear any pending IRQ flags
+    nRF24_ClearIRQFlags();
+
+    // Wake the transceiver
+    nRF24_SetPowerMode(nRF24_PWR_UP);
+
+
+    // Some variables
+    uint32_t packets_lost = 0; // global counter of lost packets
+    uint8_t otx;
+    uint8_t otx_plos_cnt; // lost packet count
+	uint8_t otx_arc_cnt; // retransmit count
+
+
+    // The main loop
+    payload_length = 10;
+    j = 0;
+    while (1) {
+    	// Prepare data packet
+    	for (i = 0; i < payload_length; i++) {
+    		nRF24_payload[i] = j++;
+    		if (j > 0x000000FF) j = 0;
+    	}
+
+    	// Print a payload
+    	UART_SendStr("PAYLOAD:>");
+    	UART_SendBufHex((char *)nRF24_payload, payload_length);
+    	UART_SendStr("< ... TX: ");
+
+    	// Transmit a packet
+    	tx_res = nRF24_TransmitPacket(nRF24_payload, payload_length);
+		otx = nRF24_GetRetransmitCounters();
+		otx_plos_cnt = (otx & nRF24_MASK_PLOS_CNT) >> 4; // packets lost counter
+		otx_arc_cnt  = (otx & nRF24_MASK_ARC_CNT); // auto retransmissions counter
+    	switch (tx_res) {
+			case nRF24_TX_SUCCESS:
+				UART_SendStr("OK");
+				break;
+			case nRF24_TX_TIMEOUT:
+				UART_SendStr("TIMEOUT");
+				break;
+			case nRF24_TX_MAXRT:
+				UART_SendStr("MAX RETRANSMIT");
+				packets_lost += otx_plos_cnt;
+				nRF24_ResetPLOS();
+				break;
+			default:
+				UART_SendStr("ERROR");
+				break;
+		}
+    	UART_SendStr("   ARC=");
+		UART_SendInt(otx_arc_cnt);
+		UART_SendStr(" LOST=");
+		UART_SendInt(packets_lost);
+		UART_SendStr("\r\n");
+
+    	// Wait ~0.5s
+    	Delay_ms(500);
+    }
+
+
+#endif // DEMO_TX_SINGLE_ESB
 
 }
