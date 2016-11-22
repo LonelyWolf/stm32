@@ -150,7 +150,7 @@ void SPI3_HandleInit(void) {
 
 // SPI peripheral initialization
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   clock_conf - SPI clock phase and polarity (one of SPI_CLK_XXX values)
 //   SPI_DIR - SPI lines configuration (one of SPI_DIR_XXX values)
 void SPI_Init(const SPI_HandleTypeDef *SPI, uint32_t clock_conf, uint16_t SPI_DIR) {
@@ -227,7 +227,7 @@ void SPI_Init(const SPI_HandleTypeDef *SPI, uint32_t clock_conf, uint16_t SPI_DI
 
 // Configure SPI baudrate prescaler
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   prescaler - SPI prescaler, one of SPI_BR_xx values
 // note: this function should not be called when communication is ongoing
 void SPI_SetBaudrate(SPI_HandleTypeDef *SPI, uint32_t prescaler) {
@@ -245,7 +245,7 @@ void SPI_SetBaudrate(SPI_HandleTypeDef *SPI, uint32_t prescaler) {
 
 // Send data buffer to SPI
 // input:
-//   SPI - pointer to the SPI port
+//   SPIx - pointer to the SPI port
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: TX only mode
@@ -260,7 +260,7 @@ void SPI_SendBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 
 // Send data buffer to SPI (16-bit frame)
 // input:
-//   SPI - pointer to the SPI port
+//   SPIx - pointer to the SPI port
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: TX only mode
@@ -275,9 +275,9 @@ void SPI_SendBuf16(SPI_HandleTypeDef *SPI, uint16_t *pBuf, uint32_t length) {
 
 // Send byte to SPI and return received byte
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   data - byte to send
-// return: byte received by SPI
+// return: byte received via SPI
 // note: full duplex mode
 uint8_t SPI_SendRecv(SPI_HandleTypeDef *SPI, uint8_t data) {
 	while (!(SPI->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
@@ -289,7 +289,7 @@ uint8_t SPI_SendRecv(SPI_HandleTypeDef *SPI, uint8_t data) {
 
 // Transmit block of data from specified data buffer and receive data in same buffer
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: receive only in full duplex mode
@@ -308,7 +308,7 @@ void SPI_SendRecvBuf(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length) {
 
 // Initialize the DMA peripheral for SPI
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: the corresponding DMA peripheral clock must be already enabled
@@ -327,7 +327,7 @@ void SPI_Configure_DMA_TX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length
 
 // Initialize the DMA peripheral for SPI
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   pBuf - pointer to the data buffer
 //   length - length of the data buffer
 // note: the corresponding DMA peripheral clock must be already enabled
@@ -342,7 +342,7 @@ void SPI_Configure_DMA_RX(SPI_HandleTypeDef *SPI, uint8_t *pBuf, uint32_t length
 
 // Enable/disable SPI RX/TX DMA channels
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   NewState - new state of channels (ENABLE/DISABLE)
 void SPI_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState NewState) {
 	if (NewState == ENABLE) {
@@ -386,7 +386,7 @@ void SPI_SetDMA(SPI_HandleTypeDef *SPI, uint8_t SPI_DMA_DIR, FunctionalState New
 
 // Handle DMA interrupt request
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 // note: must be called from a corresponding DMA IRQ handler
 void SPI_DMA_Handler(DMA_HandleTypeDef *hDMA) {
 	uint16_t flags;

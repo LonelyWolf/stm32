@@ -9,7 +9,7 @@
 // Define which SPI ports will be used
 //   0 - port is not used
 //   1 - port used
-#define SPI1_USE                   1
+#define SPI1_USE                   0
 #define SPI2_USE                   1
 #define SPI3_USE                   0
 
@@ -82,6 +82,10 @@ typedef struct {
 #define SPI_RXFIFO_THH             ((uint32_t)0x00000000U) // RXNE generated on FIFO level greater or equal to 1/2 (16-bit)
 #define SPI_RXFIFO_THQ             (SPI_CR2_FRXTH)         // RXNE generated on FIFO level greater or equal to 1/4 (8-bit)
 
+// Definition of SPI CRC length
+#define SPI_CRC_8BIT               ((uint32_t)0x00000000U) // 8-bit
+#define SPI_CRC_16BIT              (SPI_CR1_CRCL)          // 16-bit
+
 
 // SPI handles
 #if (SPI1_USE)
@@ -103,21 +107,21 @@ static const uint16_t SPI_dummy_TX = 0xffff;
 
 // Enable SPI peripheral
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 __STATIC_INLINE void SPI_Enable(SPI_HandleTypeDef *SPIx) {
 	SPIx->Instance->CR1 |= SPI_CR1_SPE;
 }
 
 // Disable SPI peripheral
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 __STATIC_INLINE void SPI_Disable(SPI_HandleTypeDef *SPIx) {
 	SPIx->Instance->CR1 &= ~SPI_CR1_SPE;
 }
 
 // Configure SPI data frame width
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   data_width - data frame width, one of SPI_DW_xx values
 __STATIC_INLINE void SPI_SetDataWidth(SPI_HandleTypeDef *SPIx, uint32_t data_width) {
 	SPIx->Instance->CR2 &= ~SPI_CR2_DS;
@@ -126,13 +130,58 @@ __STATIC_INLINE void SPI_SetDataWidth(SPI_HandleTypeDef *SPIx, uint32_t data_wid
 
 // Configure RXFIFO threshold level that triggers an RXNE event
 // input:
-//   SPI - pointer to the SPI port handle
+//   SPIx - pointer to the SPI port handle
 //   threshold - threshold configuration, one of SPI_RXFIFO_THx values
 __STATIC_INLINE void SPI_SetRXFIFOThreshold(SPI_HandleTypeDef *SPIx, uint32_t threshold) {
 	SPIx->Instance->CR2 &= ~SPI_CR2_FRXTH;
 	SPIx->Instance->CR2 |= (threshold & SPI_CR2_FRXTH);
 }
 
+// Configure SPI CRC length and polynomial value, then enable CRC calculation
+// input:
+//   SPIx - pointer to the SPI port handle
+//   crc_length - CRC length, one of SPI_CRC_xx values
+//   polynomial - new CRC polynomial, bust be odd value
+// note: must be called only when SPI is disabled
+__STATIC_INLINE void SPI_SetCRC(SPI_HandleTypeDef *SPIx, uint32_t crc_length, uint16_t polynomial) {
+	SPIx->Instance->CR1 &= ~(SPI_CR1_CRCL);
+	SPIx->Instance->CR1 |= (crc_length & SPI_CR1_CRCL);
+	SPIx->Instance->CRCPR = polynomial;
+	SPIx->Instance->CR1 |= SPI_CR1_CRCEN;
+}
+
+// Disable SPI CRC calculation
+// input:
+//   SPIx - pointer to the SPI port handle
+// note: must be called only when SPI is disabled
+__STATIC_INLINE void SPI_DisableCRC(SPI_HandleTypeDef *SPIx) {
+	SPIx->Instance->CR1 &= ~SPI_CR1_CRCEN;
+}
+
+// Reset SPI CRC TX/RX values
+// input:
+//   SPIx - pointer to the SPI port handle
+// note: must be called only when SPI is disabled
+__STATIC_INLINE void SPI_ResetCRC(SPI_HandleTypeDef *SPIx) {
+	SPIx->Instance->CR1 &= ~SPI_CR1_CRCEN;
+	SPIx->Instance->CR1 |=  SPI_CR1_CRCEN;
+}
+
+// Get SPI RX CRC value
+// input:
+//   SPIx - pointer to the SPI port handle
+// return: RX CRC value
+__STATIC_INLINE uint16_t SPI_GetCRCRX(SPI_HandleTypeDef *SPIx) {
+	return SPIx->Instance->RXCRCR;
+}
+
+// Get SPI TX CRC value
+// input:
+//   SPIx - pointer to the SPI port handle
+// return: TX CRC value
+__STATIC_INLINE uint16_t SPI_GetCRCTX(SPI_HandleTypeDef *SPIx) {
+	return SPIx->Instance->TXCRCR;
+}
 
 
 // Function prototypes
