@@ -387,7 +387,9 @@ void LCD_Pixel(uint8_t X, uint8_t Y, uint8_t Mode) {
 	}
 
 	// Return if offset went out outside of vRAM
-	if (offset > (SCR_W * SCR_H)) return;
+	if (offset > ((SCR_W * SCR_H) >> 3)) {
+		return;
+	}
 
 #if (SSD1306_USE_BITBAND)
 	switch (Mode) {
@@ -406,7 +408,7 @@ void LCD_Pixel(uint8_t X, uint8_t Y, uint8_t Mode) {
 		case LCD_PRES:
 			vRAM[offset] &= ~(1 << bpos);
 			break;
-		case LCD_PRES:
+		case LCD_PINV:
 			vRAM[offset] ^=  (1 << bpos);
 			break;
 		default:
