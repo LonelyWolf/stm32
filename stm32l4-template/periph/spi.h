@@ -9,7 +9,7 @@
 // Define which SPI ports will be used
 //   0 - port is not used
 //   1 - port used
-#define SPI1_USE                   0
+#define SPI1_USE                   1
 #define SPI2_USE                   1
 #define SPI3_USE                   0
 

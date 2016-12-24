@@ -97,15 +97,16 @@ typedef struct {
 //          2 - USART_CR2
 //          3 - USART_CR3
 //   ZZZZ - position of the interrupt flag in the USART_ISR register (4 bits)
-#define USART_IRQ_TXE              ((uint16_t)((7 << 8) | (1 << 5) | 7)) // Transmit data register empty
-#define USART_IRQ_TC               ((uint16_t)((6 << 8) | (1 << 5) | 6)) // Transmission complete
-#define USART_IRQ_RXNE             ((uint16_t)((5 << 8) | (1 << 5) | 5)) // Read data register not empty
-#define USART_IRQ_IDLE             ((uint16_t)((4 << 8) | (1 << 5) | 4)) // IDLE detected
-#define USART_IRQ_PE               ((uint16_t)((0 << 8) | (1 << 5) | 8)) // Parity error
-#define USART_IRQ_ERR              ((uint16_t)((0 << 8) | (3 << 5)))     // Error interrupt (parity, noise and frame errors)
-#define USART_IRQ_ORE              ((uint16_t)((3 << 8)))                // Overrun error (only flag position)
-#define USART_IRQ_NE               ((uint16_t)((2 << 8)))                // Noise detected (only flag position)
-#define USART_IRQ_FE               ((uint16_t)((1 << 8)))                // Frame error (only flag position)
+#define USART_IRQ_TXE              ((uint16_t)(( 7 << 8) | (1 << 5) |  7)) // Transmit data register empty
+#define USART_IRQ_TC               ((uint16_t)(( 6 << 8) | (1 << 5) |  6)) // Transmission complete
+#define USART_IRQ_RXNE             ((uint16_t)(( 5 << 8) | (1 << 5) |  5)) // Read data register not empty
+#define USART_IRQ_IDLE             ((uint16_t)(( 4 << 8) | (1 << 5) |  4)) // IDLE detected
+#define USART_IRQ_RTO              ((uint16_t)((11 << 8) | (1 << 5) | 26)) // Receiver timeout
+#define USART_IRQ_PE               ((uint16_t)(( 0 << 8) | (1 << 5) |  8)) // Parity error
+#define USART_IRQ_ERR              ((uint16_t)(( 0 << 8) | (3 << 5)))      // Error interrupt (parity, noise and frame errors)
+#define USART_IRQ_ORE              ((uint16_t)(( 3 << 8)))                 // Overrun error (only flag position)
+#define USART_IRQ_NE               ((uint16_t)(( 2 << 8)))                 // Noise detected (only flag position)
+#define USART_IRQ_FE               ((uint16_t)(( 1 << 8)))                 // Frame error (only flag position)
 
 // Definitions of USART status flags
 #define USART_FLAG_BUSY            USART_ISR_BUSY // Busy flag
@@ -119,6 +120,7 @@ typedef struct {
 #define USART_FLAG_NOISE           USART_ISR_NE   // START bit noise detected
 #define USART_FLAG_FRAMING_ERR     USART_ISR_FE   // Framing error
 #define USART_FLAG_PARITY_ERR      USART_ISR_PE   // Parity error
+#define USART_FLAG_RTO             USART_ISR_RTOF // Receiver timeout
 
 // Definition of combination to reset all of USART error flags
 #define USART_ERROR_FLAGS          (USART_ISR_ORE | USART_ISR_NE | USART_ISR_FE | USART_ISR_PE)
@@ -197,8 +199,31 @@ __STATIC_INLINE void USART_FlushRX(USART_HandleTypeDef *USARTx) {
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 // return: received byte
-__STATIC_INLINE uint8_t USART_ReadChar(USART_TypeDef *USARTx) {
-	return (uint8_t)(USARTx->RDR);
+__STATIC_INLINE uint8_t USART_ReadChar(USART_HandleTypeDef *USARTx) {
+	return (uint8_t)(USARTx->Instance->RDR);
+}
+
+// Enable receiver timeout
+// input:
+//   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
+__STATIC_INLINE void USART_EnableRxTimeout(USART_HandleTypeDef *USARTx) {
+	USARTx->Instance->CR2 |= USART_CR2_RTOEN;
+}
+
+// Disable receiver timeout
+// input:
+//   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
+__STATIC_INLINE void USART_DisableRxTimeout(USART_HandleTypeDef *USARTx) {
+	USARTx->Instance->CR2 &= ~USART_CR2_RTOEN;
+}
+
+// Set receiver timeout value
+// input:
+//   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
+//   timeout - timeout value expressed in number of bits duration, can be a value from 0 to 0xFFFFFF
+__STATIC_INLINE void USART_SetRxTimeout(USART_HandleTypeDef *USARTx, uint32_t timeout) {
+	USARTx->Instance->RTOR &= ~USART_RTOR_RTO;
+	USARTx->Instance->RTOR |= (timeout & USART_RTOR_RTO);
 }
 
 

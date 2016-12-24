@@ -12,7 +12,7 @@
 uint32_t PWR_GetResetSource(void) {
 	uint32_t result = PWR_RESET_SRC_UNKNOWN;
 	uint32_t reg;
-	uint32_t pwrstate = 0;
+	uint32_t pwrstate;
 
 	// The source of reset
 	reg = RCC->CSR;
@@ -47,8 +47,8 @@ uint32_t PWR_GetResetSource(void) {
 		result |= PWR_RESET_SRC_OBL;
 	}
 
-// Clear the reset flags
-RCC->CSR |= RCC_CSR_RMVF;
+	// Clear the reset flags
+	RCC->CSR |= RCC_CSR_RMVF;
 
 	// Remember state of the PWR peripheral and enable it
 	pwrstate = RCC->APB1ENR1;

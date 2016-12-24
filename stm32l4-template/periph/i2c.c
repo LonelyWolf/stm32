@@ -127,7 +127,7 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 
 		// Check for BERR flag
 		if (reg & I2C_ISR_BERR) {
-			// TODO: I2C: how to handle the misplaced START/STOP?
+			// FIXME: I2C: how to handle the misplaced START/STOP?
 		} else {
 			// Device responded if NACK flag is not set
 			if (!(reg & I2C_ISR_NACKF)) {

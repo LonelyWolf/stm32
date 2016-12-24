@@ -6,7 +6,6 @@
 void SetSysClock(void) {
 	RCC_PLLInitTypeDef pll;
 	RCC_CLKInitTypeDef clk;
-	ErrorStatus result;
 
 	// AHB, APB1 and APB2 dividers
 	clk.AHBdiv  = RCC_AHB_DIV1;
@@ -34,8 +33,7 @@ void SetSysClock(void) {
 
 		// Configure MSI speed to 16MHz
 		if (RCC_MSIConfig(RCC_MSI_16M) == ERROR) {
-			// The MSI has not started, this is really odd
-			// Put the MCU to SHUTDOWN mode
+			// Something really bad had happened, the MSI did not start
 			PWR_EnterSHUTDOWNMode();
 		}
 
@@ -44,25 +42,18 @@ void SetSysClock(void) {
 
 		// Configure AHB/APB dividers, configure main PLL and
 		// try to switch main system clock source to PLL
-		result = RCC_SetClockPLL(RCC_PLLSRC_MSI,&pll,&clk);
+		RCC_SetClockPLL(RCC_PLLSRC_MSI, &pll, &clk);
 	} else {
 		// Set HSE as clock source for PLLs
 		RCC_PLLSrcConfig(RCC_PLLSRC_HSE);
 
 		// Configure AHB/APB dividers, configure main PLL and
 		// try to switch main system clock source to PLL
-		result = RCC_SetClockPLL(RCC_PLLSRC_HSE,&pll,&clk);
-
-		if (result == SUCCESS) {
+		if (RCC_SetClockPLL(RCC_PLLSRC_HSE, &pll, &clk) == SUCCESS) {
 			// Since main clock successfully switched to PLL feed by HSE,
 			// the MSI clock can be disabled
 			RCC_MSIConfig(RCC_MSI_OFF);
 		}
-	}
-
-	// The PLL has not started, put the MCU to SHUTDOWN mode
-	if (result != SUCCESS) {
-		PWR_EnterSHUTDOWNMode();
 	}
 }
 
@@ -83,10 +74,10 @@ void Clock_Clk48Config(void) {
 	pll.PLLP = RCC_PLLSAI1P_DIV7;
 
 	// Configure PLLSAI1
-	RCC_PLLConfig(RCC_PLL_SAI1,&pll);
+	RCC_PLLConfig(RCC_PLL_SAI1, &pll);
 
 	// Enable PLLSAI1 PLLQ output
-	RCC_PLLOutEnable(RCC_PLL_SAI1,RCC_PLL_OUTQ);
+	RCC_PLLOutEnable(RCC_PLL_SAI1, RCC_PLL_OUTQ);
 
 	// Set PLLSAI1Q output as CLK48 clock
 	RCC_SetClock48M(RCC_CLK48_CLK_PLLSAI1Q);
@@ -95,7 +86,7 @@ void Clock_Clk48Config(void) {
 // Disable CLK48 clock
 void Clock_Clk48Disable(void) {
 	RCC_SetClock48M(RCC_CLK48_CLK_NONE);
-	RCC_PLLOutDisable(RCC_PLL_SAI1,RCC_PLL_OUTQ);
+	RCC_PLLOutDisable(RCC_PLL_SAI1, RCC_PLL_OUTQ);
 	RCC_PLLDisable(RCC_PLL_SAI1);
 }
 
@@ -111,30 +102,30 @@ int main(void) {
 	//   clock source: SYSCLK
 	//   mode: transmit only
 	USART2_HandleInit();
-	RCC_SetClockUSART(RCC_USART2_CLK_SRC,RCC_PERIPH_CLK_SYSCLK);
-	USART_Init(&hUSART2,USART_MODE_TX);
+	RCC_SetClockUSART(RCC_USART2_CLK_SRC, RCC_PERIPH_CLK_SYSCLK);
+	USART_Init(&hUSART2, USART_MODE_TX);
 
 	// Configure USART:
 	//   oversampling by 16
 	//   115200, 8-N-1
 	//   no hardware flow control
-	USART_SetOversampling(&hUSART2,USART_OVERS16);
-	USART_SetBaudRate(&hUSART2,115200);
-	USART_SetDataMode(&hUSART2,USART_DATAWIDTH_8B,USART_PARITY_NONE,USART_STOPBITS_1);
-	USART_SetHWFlow(&hUSART2,USART_HWCTL_NONE);
+	USART_SetOversampling(&hUSART2, USART_OVERS16);
+	USART_SetBaudRate(&hUSART2, 115200);
+	USART_SetDataMode(&hUSART2, USART_DATAWIDTH_8B, USART_PARITY_NONE, USART_STOPBITS_1);
+	USART_SetHWFlow(&hUSART2, USART_HWCTL_NONE);
 	USART_Enable(&hUSART2);
-	USART_CheckIdleState(&hUSART2,0xC5C10); // Timeout of about 100ms at 80MHz CPU
+	USART_CheckIdleState(&hUSART2, 0xC5C10); // Timeout of about 100ms at 80MHz CPU
 
 
 	// Say "hello world"
 	RCC_ClocksTypeDef Clocks;
 	RCC_GetClocksFreq(&Clocks);
 	printf("\r\n---STM32L476RG---\r\n");
-	printf("Template (%s @ %s)\r\n",__DATE__,__TIME__);
-	printf("CPU: %.3uMHz\r\n",SystemCoreClock / 1000);
-	printf("SYSCLK=%.3uMHz, HCLK=%.3uMHz\r\n",Clocks.SYSCLK_Frequency / 1000,Clocks.HCLK_Frequency / 1000);
-	printf("APB1=%.3uMHz, APB2=%.3uMHz\r\n",Clocks.PCLK1_Frequency / 1000,Clocks.PCLK2_Frequency / 1000);
-	printf("System clock: %s\r\n",_sysclk_src_str[RCC_GetSysClockSource()]);
+	printf("Template (%s @ %s)\r\n", __DATE__, __TIME__);
+	printf("CPU: %.3uMHz\r\n", SystemCoreClock / 1000);
+	printf("SYSCLK=%.3uMHz, HCLK=%.3uMHz\r\n", Clocks.SYSCLK_Frequency / 1000, Clocks.HCLK_Frequency / 1000);
+	printf("APB1=%.3uMHz, APB2=%.3uMHz\r\n", Clocks.PCLK1_Frequency / 1000, Clocks.PCLK2_Frequency / 1000);
+	printf("System clock: %s\r\n", _sysclk_src_str[RCC_GetSysClockSource()]);
 
 
 	// Initialize delay functions
@@ -145,14 +136,14 @@ int main(void) {
 	// Enable the GPIOA peripheral
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 	// Configure PA5 as push-pull output without pull-up, at lowest speed
-	GPIO_set_mode(GPIOA,GPIO_Mode_OUT,GPIO_PUPD_NONE,GPIO_PIN_5);
-	GPIO_out_cfg(GPIOA,GPIO_OT_PP,GPIO_SPD_LOW,GPIO_PIN_5);
+	GPIO_set_mode(GPIOA, GPIO_Mode_OUT,GPIO_PUPD_NONE, GPIO_PIN_5);
+	GPIO_out_cfg(GPIOA, GPIO_OT_PP,GPIO_SPD_LOW, GPIO_PIN_5);
 
 
 	// The main loop
 	while (1) {
 		// Invert the PA5 pin state every half of second
 		Delay_ms(500);
-		GPIO_PIN_INVERT(GPIOA,GPIO_PIN_5);
+		GPIO_PIN_INVERT(GPIOA, GPIO_PIN_5);
 	}
 }
