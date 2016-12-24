@@ -35,5 +35,8 @@ Release
 *.project
 debug.config
 
+# JLink
+*.jflash
+
 # Trash
 *.bak
