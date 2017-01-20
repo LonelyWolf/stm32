@@ -121,7 +121,7 @@ int main(void) {
 	RCC_ClocksTypeDef Clocks;
 	RCC_GetClocksFreq(&Clocks);
 	printf("\r\n---STM32L476RG---\r\n");
-	printf("Template (%s @ %s)\r\n", __DATE__, __TIME__);
+	printf("STM32L476 Template (%s @ %s)\r\n", __DATE__, __TIME__);
 	printf("CPU: %.3uMHz\r\n", SystemCoreClock / 1000);
 	printf("SYSCLK=%.3uMHz, HCLK=%.3uMHz\r\n", Clocks.SYSCLK_Frequency / 1000, Clocks.HCLK_Frequency / 1000);
 	printf("APB1=%.3uMHz, APB2=%.3uMHz\r\n", Clocks.PCLK1_Frequency / 1000, Clocks.PCLK2_Frequency / 1000);
@@ -136,8 +136,8 @@ int main(void) {
 	// Enable the GPIOA peripheral
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 	// Configure PA5 as push-pull output without pull-up, at lowest speed
-	GPIO_set_mode(GPIOA, GPIO_Mode_OUT,GPIO_PUPD_NONE, GPIO_PIN_5);
-	GPIO_out_cfg(GPIOA, GPIO_OT_PP,GPIO_SPD_LOW, GPIO_PIN_5);
+	GPIO_set_mode(GPIOA, GPIO_Mode_OUT, GPIO_PUPD_NONE, GPIO_PIN_5);
+	GPIO_out_cfg(GPIOA, GPIO_OT_PP, GPIO_SPD_LOW, GPIO_PIN_5);
 
 
 	// The main loop

@@ -45,6 +45,18 @@ __STATIC_INLINE void PWR_BkpAccessDisable(void) {
 	PWR->CR1 &= ~PWR_CR1_DBP;
 }
 
+// Enable Cortex sleep-on-exit mode
+// After execution of all IRQ handlers the MCU will enter back to sleep mode if it was woken by an interrupt
+__STATIC_INLINE void PWR_EnableSleepOnExit(void) {
+	SCB->SCR |= (uint32_t)SCB_SCR_SLEEPONEXIT_Msk;
+}
+
+// Disable Cortex sleep-on-exit mode
+// After execution of all IRQ handlers the MCU will back to main thread
+__STATIC_INLINE void PWR_DisableSleepOnExit(void) {
+	SCB->SCR &= ~((uint32_t)SCB_SCR_SLEEPONEXIT_Msk);
+}
+
 
 // Function prototypes
 uint32_t PWR_GetResetSource(void);
