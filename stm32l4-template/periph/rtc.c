@@ -23,7 +23,7 @@ static uint32_t RTC_CalcDelay(uint32_t delay) {
 	return cnt;
 }
 
-// Waits until the RTC Time and Date registers (RTC_TR and RTC_DR) are synchronized with RTC APB clock
+// Wait until the RTC Time and Date registers (RTC_TR and RTC_DR) are synchronized with RTC APB clock
 // return: SUCCESS if RTC registers are synchronized, ERROR otherwise
 // note: write protection to RTC registers must be disabled (RTC_WPR = 0xCA,0x53)
 // note: access to the RTC registers must be enabled (bit DBP set in PWR_CR register)
@@ -39,19 +39,17 @@ ErrorStatus RTC_WaitForSynchro(void) {
 	return (RTC->ISR & RTC_ISR_RSF) ? SUCCESS : ERROR;
 }
 
-// Enters the RTC Initialization mode
+// Enter RTC Initialization mode
 // return: SUCCESS if RTC is in initialization mode, ERROR otherwise
 // note: write protection to RTC registers must be disabled (RTC_WPR = 0xCA,0x53)
 // note: access to the RTC registers must be enabled (bit DBP set in PWR_CR register)
 ErrorStatus RTC_EnterInitMode(void) {
 	volatile uint32_t wait = RTC_CalcDelay(RTC_TIMEOUT_INIT);
 
-	// Check if the initialization mode is already set
+	// Check if initialization mode is already set
 	if (!(RTC->ISR & RTC_ISR_INITF)) {
-		// Set the initialization mode
+		// Set the initialization mode and wait till RTC is in INIT state or timeout
 		RTC->ISR = RTC_ISR_INIT;
-
-		// Wait till RTC is in INIT state or timeout
 		while (!(RTC->ISR & RTC_ISR_INITF) && --wait);
 	}
 
@@ -64,13 +62,11 @@ ErrorStatus RTC_EnterInitMode(void) {
 //   psc_synch - synchronous prescaler value (15-bit), possible values 0x00..0x7FFF
 // return: SUCCESS or ERROR
 // note: access to the backup domain must be enabled
-ErrorStatus RTC_Init(uint32_t psc_asynch, uint32_t psc_synch) {
-	// Disable the write protection for RTC registers
+ErrorStatus RTC_Init(uint32_t asynch, uint32_t synch) {
+	// Disable the write protection for RTC registers and enter RTC initialization mode
 	RTC_WriteProtectionDisable();
-
-	// Enter the RTC initialization mode
 	if (RTC_EnterInitMode() == ERROR) {
-		// Enable the write protection for RTC registers
+		// Enter to initialization mode failed, enable the write protection and bail out
 		RTC_WriteProtectionEnable();
 
 		return ERROR;
@@ -80,18 +76,16 @@ ErrorStatus RTC_Init(uint32_t psc_asynch, uint32_t psc_synch) {
 	RTC->CR &= ~RTC_CR_FMT;
 
 	// Configure synchronous and asynchronous prescalers
-	RTC->PRER = ((psc_asynch << 16) & RTC_PRER_PREDIV_A) | (psc_synch & RTC_PRER_PREDIV_S);
+	RTC->PRER = ((asynch << 16) & RTC_PRER_PREDIV_A) | (synch & RTC_PRER_PREDIV_S);
 
-	// Exit the RTC initialization mode
+	// Exit RTC initialization mode and enable write protection
 	RTC_ExitInitMode();
-
-	// Enable the write protection for RTC registers
 	RTC_WriteProtectionEnable();
 
 	return SUCCESS;
 }
 
-#if (USE_RTC_WAKEUP)
+#if (RTC_USE_WAKEUP)
 // Configure the RTC wakeup clock
 // input:
 //   clk_cfg - new wakeup clock selection, one of RTC_WUCLCK_xx values
@@ -171,9 +165,9 @@ ErrorStatus RTC_SetWakeup(uint32_t interval) {
 
 	return SUCCESS;
 }
-#endif // USE_RTC_WAKEUP
+#endif // RTC_USE_WAKEUP
 
-#if (USE_RTC_ALARMS)
+#if (RTC_USE_ALARMS)
 // Configure the RTC alarm
 // input:
 //   alarm - which alarm to configure (RTC_ALARM_A or RTC_ALARM_B)
@@ -234,7 +228,7 @@ ErrorStatus RTC_AlarmSet(uint32_t alarm, FunctionalState NewState) {
 
 	return wait;
 }
-#endif // USE_RTC_ALARMS
+#endif // RTC_USE_ALARMS
 
 // Enable or disable the specified RTC interrupts
 // input:
@@ -244,11 +238,10 @@ void RTC_ITConfig(uint32_t IT, FunctionalState NewState) {
 	// Disable the write protection for RTC registers
 	RTC_WriteProtectionDisable();
 
+	// Configure new state of interrupts
 	if (NewState == ENABLE) {
-		// Enable the specified interrupts
 		RTC->CR |=  IT;
 	} else {
-		// Disable the specified interrupts
 		RTC->CR &= ~IT;
 	}
 
@@ -262,37 +255,43 @@ void RTC_ITConfig(uint32_t IT, FunctionalState NewState) {
 //   Date - pointer to RTC date structure
 // return: SUCCESS if date and time set, ERROR otherwise
 ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	uint32_t TR,DR;
+	uint32_t TR;
+	uint32_t DR;
 
-	// Calculate value for time register
-	TR =   (((time->RTC_Hours   / 10) << 20) + ((time->RTC_Hours   % 10) << 16) +
-			((time->RTC_Minutes / 10) << 12) + ((time->RTC_Minutes % 10) <<  8) +
-			((time->RTC_Seconds / 10) <<  4) +  (time->RTC_Seconds % 10) +
-			(time->RTC_H12 << 12)) & RTC_TR_RESERVED_MASK;
-	// Calculate value for date register
-	DR =   (((date->RTC_Year  / 10) << 20) + ((date->RTC_Year  % 10) << 16) +
-			((date->RTC_Month / 10) << 12) + ((date->RTC_Month % 10) <<  8) +
-			((date->RTC_Date  / 10) <<  4) +  (date->RTC_Date  % 10) +
-			(date->RTC_WeekDay << 13)) & RTC_DR_RESERVED_MASK;
-
-	// Disable the write protection for RTC registers
+	// Disable write protection for RTC registers and enter initialization mode
 	RTC_WriteProtectionDisable();
-
-	// Enter the RTC initialization mode
 	if (RTC_EnterInitMode() == SUCCESS) {
-		// Write date and time to the RTC registers
+		// Calculate value of time register
+		TR =   (((time->RTC_Hours   / 10) << 20) + ((time->RTC_Hours   % 10) << 16) +
+				((time->RTC_Minutes / 10) << 12) + ((time->RTC_Minutes % 10) <<  8) +
+				((time->RTC_Seconds / 10) <<  4) +  (time->RTC_Seconds % 10) +
+				(time->RTC_H12 << 12)) & RTC_TR_RESERVED_MASK;
+
+		// Calculate value of date register
+		if (date->RTC_WeekDay == 0) {
+			// Value '000' is forbidden for WDU bits in RTC_DR register
+			date->RTC_WeekDay = 7;
+		}
+		DR =   (((date->RTC_Year  / 10) << 20) + ((date->RTC_Year  % 10) << 16) +
+				((date->RTC_Month / 10) << 12) + ((date->RTC_Month % 10) <<  8) +
+				((date->RTC_Date  / 10) <<  4) +  (date->RTC_Date  % 10) +
+				(date->RTC_WeekDay << 13)) & RTC_DR_RESERVED_MASK;
+
+		// Write date and time to the RTC registers and exit initialization mode
 		RTC->TR = TR;
 		RTC->DR = DR;
+		RTC_ExitInitMode();
 
-		// Exit the initialization mode
-		RTC->ISR &= ~RTC_ISR_INIT;
-
-		// Wait for synchronization if BYPSHAD bit is not set in the RTC_CR register
-		TR = SUCCESS;
 		if (!(RTC->CR & RTC_CR_BYPSHAD)) {
+			// Need to wait for synchronization of RTC registers
 			TR = RTC_WaitForSynchro();
+		} else {
+			TR = SUCCESS;
 		}
-	} else TR = ERROR;
+	} else {
+		// Timeout while entering initialization mode
+		TR = ERROR;
+	}
 
 	// Enable the write protection for RTC registers
 	RTC_WriteProtectionEnable();
@@ -306,7 +305,8 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 //   Date - pointer to RTC date structure
 // return: date and time in Time and Date structures
 void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	uint32_t TR,DR;
+	uint32_t TR;
+	uint32_t DR;
 
 	// Get date and time (clear reserved bits just for any case)
 	TR = RTC->TR & RTC_TR_RESERVED_MASK;
@@ -323,6 +323,7 @@ void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	date->RTC_WeekDay = (DR & RTC_DR_WDU) >> 13;
 }
 
+#if (RTC_USE_EPOCH)
 // Convert Date/Time structures to epoch time
 // input:
 //   time - pointer to the RTC time structure
@@ -369,7 +370,10 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 //   time - pointer to the RTC time structure
 //   date - pointer to the RTC date structure
 void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	uint32_t a,b,c,d;
+	uint32_t a;
+	uint32_t b;
+	uint32_t c;
+	uint32_t d;
 
 	// Calculate JDN (Julian day number) from a specified epoch value
 	a = (epoch / 86400) + RTC_JDN;
@@ -396,7 +400,7 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	time->RTC_Seconds =  epoch % 60;
 }
 
-// Adjust time with time zone offset
+// Adjust time and date by time zone offset
 // input:
 //   time - pointer to RTC_Time structure with time to adjust
 //   date - pointer to RTC_Date structure with date to adjust
@@ -405,12 +409,13 @@ void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t off
 	uint32_t epoch;
 
 	// Convert date/time to epoch
-	epoch  = RTC_ToEpoch(time,date);
+	epoch  = RTC_ToEpoch(time, date);
 	// Add or subtract offset in seconds
 	epoch += offset * 3600;
 	// Convert updated epoch back to date/time
-	RTC_FromEpoch(epoch,time,date);
+	RTC_FromEpoch(epoch, time, date);
 }
+#endif // RTC_USE_EPOCH
 
 // Calculate Day Of Week for specified date
 // input:
@@ -418,18 +423,22 @@ void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t off
 // return: RTC_WeekDay field of date structure will be modified
 // note: works for dates after 1583 A.D.
 void RTC_CalcDOW(RTC_DateTypeDef *date) {
-	int16_t adjustment,mm,yy;
+	int16_t adjustment;
+	int16_t month;
+	int16_t year;
 
 	// Calculate intermediate values
 	adjustment = (14 - date->RTC_Month) / 12;
-	mm = date->RTC_Month + (12 * adjustment) - 2;
-	yy = date->RTC_Year - adjustment;
+	month = date->RTC_Month + (12 * adjustment) - 2;
+	year = date->RTC_Year - adjustment;
 
 	// Calculate day of week (0 = Sunday ... 6 = Saturday)
-	date->RTC_WeekDay = (date->RTC_Date + ((13 * mm - 1) / 5) + yy + (yy / 4) - (yy / 100) + (yy / 400)) % 7;
+	date->RTC_WeekDay = (date->RTC_Date + ((13 * month - 1) / 5) + year + (year / 4) - (year / 100) + (year / 400)) % 7;
 
 	// Sunday?
-	if (!date->RTC_WeekDay) date->RTC_WeekDay = 7;
+	if (date->RTC_WeekDay == 0) {
+		date->RTC_WeekDay = 7;
+	}
 }
 
 // Write a data in a specified RTC backup data register
@@ -438,9 +447,8 @@ void RTC_CalcDOW(RTC_DateTypeDef *date) {
 //   data - data to be written
 // note: access to backup domain must be enabled
 void RTC_BKUPWrite(uint32_t bkup_reg, uint32_t data) {
-	__IO uint32_t addr;
+	__IO uint32_t addr = ((uint32_t)&RTC->BKP0R) + (bkup_reg << 2);
 
-	addr = ((uint32_t)&RTC->BKP0R) + (bkup_reg << 2);
 	*(__IO uint32_t *)addr = data;
 }
 
@@ -449,9 +457,7 @@ void RTC_BKUPWrite(uint32_t bkup_reg, uint32_t data) {
 //   bkup_reg - RTC backup data register number
 // return: value of a specified register
 uint32_t RTC_BKUPRead(uint32_t bkup_reg) {
-	__IO uint32_t addr;
-
-	addr = ((uint32_t)&RTC->BKP0R) + (bkup_reg << 2);
+	__IO uint32_t addr = ((uint32_t)&RTC->BKP0R) + (bkup_reg << 2);
 
 	return (*(__IO uint32_t *)addr);
 }

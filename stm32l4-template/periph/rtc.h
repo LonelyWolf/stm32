@@ -6,20 +6,27 @@
 #include "rcc.h"
 
 
-// Memo:
+// Memo for STM32L4:
 // RTC ALARM internally connected to EXTI18
 // RTC WKUP internally connected to EXTI20
 
 
-// Code related to RTC wake-up
+// Compilation parameters
+
+// Code related to RTC wake-up:
 //   0 - RTC wake-up is not used
 //   1 - RTC wake-up code enabled
-#define USE_RTC_WAKEUP             1
+#define RTC_USE_WAKEUP             0
 
-// Code related to RTC alarms
+// Code related to RTC alarms:
 //   0 - RTC alarms is not used
 //   1 - RTC alarms code enabled
-#define USE_RTC_ALARMS             0
+#define RTC_USE_ALARMS             0
+
+// Code related to epoch calculations
+//   0 - no epoch related functions
+//   1 - epoch related functions present
+#define RTC_USE_EPOCH              0
 
 
 // Reserved bits in the RTC_TR register
@@ -27,7 +34,7 @@
 // Reserved bits in the RTC_DR register
 #define RTC_DR_RESERVED_MASK       ((uint32_t)0x00FFFF3FU)
 
-#if (USE_RTC_ALARMS)
+#if (RTC_USE_ALARMS)
 // Alarms
 #define RTC_ALARM_A                RTC_CR_ALRAE
 #define RTC_ALARM_B                RTC_CR_ALRBE
@@ -38,7 +45,7 @@
 #define RTC_ALARM_MASK_HRS         RTC_ALRMAR_MSK3  // If set hours don't care
 #define RTC_ALARM_MASK_MIN         RTC_ALRMAR_MSK2  // If set minutes don't care
 #define RTC_ALARM_MASK_SEC         RTC_ALRMAR_MSK1  // If set seconds don't care
-#endif // USE_RTC_ALARMS
+#endif // RTC_USE_ALARMS
 
 // RTC interrupts
 #define RTC_IT_TS                  RTC_CR_TSIE   // Time stamp
@@ -77,10 +84,11 @@
 #define RTC_MONTH_NOVEMBER         ((uint8_t)0x11)
 #define RTC_MONTH_DECEMBER         ((uint8_t)0x12)
 
-// Definition of Julian day number value
-// Count epoch value from 01.01.2015 (this value represents days JDN of 01.01.2015)
-// To user Unix epoch time define '2440588' here
-#define RTC_JDN                    ((uint32_t)2457023U)
+
+// Definition of the Julian day number
+// Epoch will start at 31 Dec 1999 12:00:00 (since the STM32 RTC start counting from 01 Jan 2000 00:00:00)
+// note: to use Unix epoch time define '2440588' here
+#define RTC_JDN                    ((uint32_t)2451544U) // 31 Dec 1999 12:00:00
 
 
 // Days of week text notation
@@ -129,17 +137,17 @@ __STATIC_INLINE void RTC_WriteProtectionDisable(void) {
 
 // Disable the RTC initialization mode
 __STATIC_INLINE void RTC_ExitInitMode(void) {
-	RTC->ISR = ~RTC_ISR_INIT;
+	RTC->ISR &= ~RTC_ISR_INIT;
 }
 
-#if (USE_RTC_WAKEUP)
+#if (RTC_USE_WAKEUP)
 // Clear the RTC wakeup timer flag (WUTF)
 __STATIC_INLINE void RTC_ClearWUTF(void) {
 	RTC->ISR = ~((RTC_ISR_WUTF | RTC_ISR_INIT) & 0x0000FFFFU) | (RTC->ISR & RTC_ISR_INIT);
 }
-#endif // USE_RTC_WAKEUP
+#endif // RTC_USE_WAKEUP
 
-#if (USE_RTC_ALARMS)
+#if (RTC_USE_ALARMS)
 // Clear the RTC alarm A flag
 __STATIC_INLINE void RTC_ClearALRAF(void) {
 	RTC->ISR = ~((RTC_ISR_ALRAF | RTC_ISR_INIT) & 0x0000FFFFU) | (RTC->ISR & RTC_ISR_INIT);
@@ -149,32 +157,35 @@ __STATIC_INLINE void RTC_ClearALRAF(void) {
 __STATIC_INLINE void RTC_ClearALRBF(void) {
 	RTC->ISR = ~((RTC_ISR_ALRBF | RTC_ISR_INIT) & 0x0000FFFFU) | (RTC->ISR & RTC_ISR_INIT);
 }
-#endif // USE_RTC_ALARMS
+#endif // RTC_USE_ALARMS
 
 
 // Function prototypes
 ErrorStatus RTC_WaitForSynchro(void);
 ErrorStatus RTC_EnterInitMode(void);
-ErrorStatus RTC_Init(uint32_t psc_asynch, uint32_t psc_synch);
+ErrorStatus RTC_Init(uint32_t asynch, uint32_t synch);
 
-#if (USE_RTC_WAKEUP)
+#if (RTC_USE_WAKEUP)
 ErrorStatus RTC_SetWakeupClock(uint32_t clk_cfg);
 ErrorStatus RTC_SetWakeup(uint32_t interval);
-#endif // USE_RTC_WAKEUP
+#endif // RTC_USE_WAKEUP
 
-#if (USE_RTC_ALARMS)
+#if (RTC_USE_ALARMS)
 void RTC_AlarmInit(uint32_t alarm, RTC_TimeTypeDef *alarm_time, uint32_t alarm_mask, uint8_t alarm_dateday);
 ErrorStatus RTC_AlarmSet(uint32_t Alarm, FunctionalState NewState);
-#endif // USE_RTC_ALARMS
+#endif // RTC_USE_ALARMS
 
 void RTC_ITConfig(uint32_t IT, FunctionalState NewState);
 
 ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 
+#if (RTC_USE_EPOCH)
 uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t offset);
+#endif // RTC_USE_EPOCH
+
 void RTC_CalcDOW(RTC_DateTypeDef *date);
 
 void RTC_BKUPWrite(uint32_t bkup_reg, uint32_t data);
