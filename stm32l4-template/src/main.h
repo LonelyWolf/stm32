@@ -15,6 +15,7 @@
 //#include "rtc.h"
 //#include "spi.h"
 //#include "crc.h"
+//#include "rng.h"
 #include "usart.h"
 #include "delay.h"
 
