@@ -63,26 +63,32 @@ ErrorStatus RTC_EnterInitMode(void) {
 // return: SUCCESS or ERROR
 // note: access to the backup domain must be enabled
 ErrorStatus RTC_Init(uint32_t asynch, uint32_t synch) {
+	ErrorStatus result;
+
 	// Disable the write protection for RTC registers and enter RTC initialization mode
 	RTC_WriteProtectionDisable();
-	if (RTC_EnterInitMode() == ERROR) {
-		// Enter to initialization mode failed, enable the write protection and bail out
-		RTC_WriteProtectionEnable();
+	result = RTC_EnterInitMode();
+	if (result == SUCCESS) {
+		// Configure 24-hour format
+		RTC->CR &= ~RTC_CR_FMT;
 
-		return ERROR;
+		// Configure synchronous and asynchronous prescalers
+		RTC->PRER = ((asynch << 16) & RTC_PRER_PREDIV_A) | (synch & RTC_PRER_PREDIV_S);
+
+		// Exit RTC initialization mode and enable write protection
+		RTC_ExitInitMode();
+
+		if (!(RTC->CR & RTC_CR_BYPSHAD)) {
+			// Need to wait for synchronization of RTC registers
+			// when shadow registers are enabled
+			result = RTC_WaitForSynchro();
+		}
 	}
 
-	// Configure 24-hour format
-	RTC->CR &= ~RTC_CR_FMT;
-
-	// Configure synchronous and asynchronous prescalers
-	RTC->PRER = ((asynch << 16) & RTC_PRER_PREDIV_A) | (synch & RTC_PRER_PREDIV_S);
-
-	// Exit RTC initialization mode and enable write protection
-	RTC_ExitInitMode();
+	// Enable write protection
 	RTC_WriteProtectionEnable();
 
-	return SUCCESS;
+	return result;
 }
 
 #if (RTC_USE_WAKEUP)
