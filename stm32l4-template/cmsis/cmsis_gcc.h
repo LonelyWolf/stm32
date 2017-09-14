@@ -31,6 +31,11 @@
 #pragma GCC diagnostic ignored "-Wconversion"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+/* Fallback for __has_builtin */
+#ifndef __has_builtin
+  #define __has_builtin(x) (0)
+#endif
+
 /* CMSIS compiler specific defines */
 #ifndef   __ASM
   #define __ASM                                  __asm
@@ -55,6 +60,9 @@
 #endif
 #ifndef   __PACKED_STRUCT
   #define __PACKED_STRUCT                        struct __attribute__((packed, aligned(1)))
+#endif
+#ifndef   __PACKED_UNION
+  #define __PACKED_UNION                         union __attribute__((packed, aligned(1)))
 #endif
 #ifndef   __UNALIGNED_UINT32        /* deprecated */
   #pragma GCC diagnostic push
@@ -98,6 +106,9 @@
 #endif
 #ifndef   __ALIGNED
   #define __ALIGNED(x)                           __attribute__((aligned(x)))
+#endif
+#ifndef   __RESTRICT
+  #define __RESTRICT                             __restrict
 #endif
 
 
@@ -694,12 +705,17 @@ __attribute__((always_inline)) __STATIC_INLINE uint32_t __get_FPSCR(void)
 {
 #if ((defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)) && \
      (defined (__FPU_USED   ) && (__FPU_USED    == 1U))     )
+#if __has_builtin(__builtin_arm_get_fpscr) || (__GNUC__ > 7) || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)
+  /* see https://gcc.gnu.org/ml/gcc-patches/2017-04/msg00443.html */
+  return __builtin_arm_get_fpscr();
+#else
   uint32_t result;
 
   __ASM volatile ("VMRS %0, fpscr" : "=r" (result) );
   return(result);
+#endif
 #else
-   return(0U);
+  return(0U);
 #endif
 }
 
@@ -713,7 +729,12 @@ __attribute__((always_inline)) __STATIC_INLINE void __set_FPSCR(uint32_t fpscr)
 {
 #if ((defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)) && \
      (defined (__FPU_USED   ) && (__FPU_USED    == 1U))     )
+#if __has_builtin(__builtin_arm_set_fpscr) || (__GNUC__ > 7) || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)
+  /* see https://gcc.gnu.org/ml/gcc-patches/2017-04/msg00443.html */
+  __builtin_arm_set_fpscr(fpscr);
+#else
   __ASM volatile ("VMSR fpscr, %0" : : "r" (fpscr) : "vfpcc", "memory");
+#endif
 #else
   (void)fpscr;
 #endif
@@ -826,7 +847,7 @@ __attribute__((always_inline)) __STATIC_INLINE void __DMB(void)
 
 /**
   \brief   Reverse byte order (32 bit)
-  \details Reverses the byte order in integer value.
+  \details Reverses the byte order in unsigned integer value.
   \param [in]    value  Value to reverse
   \return               Reversed value
  */
@@ -845,13 +866,13 @@ __attribute__((always_inline)) __STATIC_INLINE uint32_t __REV(uint32_t value)
 
 /**
   \brief   Reverse byte order (16 bit)
-  \details Reverses the byte order in two unsigned short values.
+  \details Reverses the byte order in unsigned short value.
   \param [in]    value  Value to reverse
   \return               Reversed value
  */
-__attribute__((always_inline)) __STATIC_INLINE uint32_t __REV16(uint32_t value)
+__attribute__((always_inline)) __STATIC_INLINE uint16_t __REV16(uint16_t value)
 {
-  uint32_t result;
+  uint16_t result;
 
   __ASM volatile ("rev16 %0, %1" : __CMSIS_GCC_OUT_REG (result) : __CMSIS_GCC_USE_REG (value) );
   return(result);
@@ -864,15 +885,15 @@ __attribute__((always_inline)) __STATIC_INLINE uint32_t __REV16(uint32_t value)
   \param [in]    value  Value to reverse
   \return               Reversed value
  */
-__attribute__((always_inline)) __STATIC_INLINE int32_t __REVSH(int32_t value)
+__attribute__((always_inline)) __STATIC_INLINE int16_t __REVSH(int16_t value)
 {
 #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)
-  return (short)__builtin_bswap16(value);
+  return (int16_t)__builtin_bswap16(value);
 #else
-  int32_t result;
+  int16_t result;
 
   __ASM volatile ("revsh %0, %1" : __CMSIS_GCC_OUT_REG (result) : __CMSIS_GCC_USE_REG (value) );
-  return(result);
+  return result;
 #endif
 }
 
@@ -915,10 +936,10 @@ __attribute__((always_inline)) __STATIC_INLINE uint32_t __RBIT(uint32_t value)
      (defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1))    )
    __ASM volatile ("rbit %0, %1" : "=r" (result) : "r" (value) );
 #else
-  int32_t s = (4 /*sizeof(v)*/ * 8) - 1; /* extra shift needed at end */
+  uint32_t s = (4U /*sizeof(v)*/ * 8U) - 1U; /* extra shift needed at end */
 
   result = value;                      /* r will be reversed bits of v; first get LSB of v */
-  for (value >>= 1U; value; value >>= 1U)
+  for (value >>= 1U; value != 0U; value >>= 1U)
   {
     result <<= 1U;
     result |= value & 1U;
@@ -926,7 +947,7 @@ __attribute__((always_inline)) __STATIC_INLINE uint32_t __RBIT(uint32_t value)
   }
   result <<= s;                        /* shift when v's highest bits are zero */
 #endif
-  return(result);
+  return result;
 }
 
 
@@ -1074,11 +1095,12 @@ __attribute__((always_inline)) __STATIC_INLINE void __CLREX(void)
 /**
   \brief   Signed Saturate
   \details Saturates a signed value.
-  \param [in]  value  Value to be saturated
-  \param [in]    sat  Bit position to saturate to (1..32)
+  \param [in]  ARG1  Value to be saturated
+  \param [in]  ARG2  Bit position to saturate to (1..32)
   \return             Saturated value
  */
 #define __SSAT(ARG1,ARG2) \
+__extension__ \
 ({                          \
   int32_t __RES, __ARG1 = (ARG1); \
   __ASM ("ssat %0, %1, %2" : "=r" (__RES) :  "I" (ARG2), "r" (__ARG1) ); \
@@ -1089,11 +1111,12 @@ __attribute__((always_inline)) __STATIC_INLINE void __CLREX(void)
 /**
   \brief   Unsigned Saturate
   \details Saturates an unsigned value.
-  \param [in]  value  Value to be saturated
-  \param [in]    sat  Bit position to saturate to (0..31)
+  \param [in]  ARG1  Value to be saturated
+  \param [in]  ARG2  Bit position to saturate to (0..31)
   \return             Saturated value
  */
 #define __USAT(ARG1,ARG2) \
+ __extension__ \
 ({                          \
   uint32_t __RES, __ARG1 = (ARG1); \
   __ASM ("usat %0, %1, %2" : "=r" (__RES) :  "I" (ARG2), "r" (__ARG1) ); \
@@ -1209,6 +1232,51 @@ __attribute__((always_inline)) __STATIC_INLINE void __STRHT(uint16_t value, vola
 __attribute__((always_inline)) __STATIC_INLINE void __STRT(uint32_t value, volatile uint32_t *ptr)
 {
    __ASM volatile ("strt %1, %0" : "=Q" (*ptr) : "r" (value) );
+}
+
+#else  /* ((defined (__ARM_ARCH_7M__      ) && (__ARM_ARCH_7M__      == 1)) || \
+           (defined (__ARM_ARCH_7EM__     ) && (__ARM_ARCH_7EM__     == 1)) || \
+           (defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1))    ) */
+
+/**
+  \brief   Signed Saturate
+  \details Saturates a signed value.
+  \param [in]  value  Value to be saturated
+  \param [in]    sat  Bit position to saturate to (1..32)
+  \return             Saturated value
+ */
+__attribute__((always_inline)) __STATIC_INLINE int32_t __SSAT(int32_t val, uint32_t sat)
+{
+  if ((sat >= 1U) && (sat <= 32U)) {
+    const int32_t max = (int32_t)((1U << (sat - 1U)) - 1U);
+    const int32_t min = -1 - max ;
+    if (val > max) {
+      return max;
+    } else if (val < min) {
+      return min;
+    }
+  }
+  return val;
+}
+
+/**
+  \brief   Unsigned Saturate
+  \details Saturates an unsigned value.
+  \param [in]  value  Value to be saturated
+  \param [in]    sat  Bit position to saturate to (0..31)
+  \return             Saturated value
+ */
+__attribute__((always_inline)) __STATIC_INLINE uint32_t __USAT(int32_t val, uint32_t sat)
+{
+  if (sat <= 31U) {
+    const uint32_t max = ((1U << sat) - 1U);
+    if (val > (int32_t)max) {
+      return max;
+    } else if (val < 0) {
+      return 0U;
+    }
+  }
+  return val;
 }
 
 #endif /* ((defined (__ARM_ARCH_7M__      ) && (__ARM_ARCH_7M__      == 1)) || \
