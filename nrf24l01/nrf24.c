@@ -165,7 +165,7 @@ void nRF24_SetCRCScheme(uint8_t scheme) {
 	// Configure EN_CRC[3] and CRCO[2] bits of the CONFIG register
 	reg  = nRF24_ReadReg(nRF24_REG_CONFIG);
 	reg &= ~nRF24_MASK_CRC;
-	reg |= (scheme | nRF24_MASK_CRC);
+	reg |= (scheme & nRF24_MASK_CRC);
 	nRF24_WriteReg(nRF24_REG_CONFIG, reg);
 }
 
