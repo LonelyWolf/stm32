@@ -57,25 +57,33 @@
 #define DMA_IRQ_HT                 DMA_CCR_HTIE // Halt transfer
 #define DMA_IRQ_TE                 DMA_CCR_TEIE // Transfer error
 
-// Definitions of DMA channel memory data alignment
-#define DMA_MALIGN_8BIT            ((uint32_t)0x00000000U) // Byte
-#define DMA_MALIGN_16BIT           DMA_CCR_MSIZE_0         // Half-word
-#define DMA_MALIGN_32BIT           DMA_CCR_MSIZE_1         // Word
+// Definitions of DMA channel memory data size
+#define DMA_MSIZE_8BIT            ((uint32_t)0x00000000U) // Byte
+#define DMA_MSIZE_16BIT           DMA_CCR_MSIZE_0         // Half-word
+#define DMA_MSIZE_32BIT           DMA_CCR_MSIZE_1         // Word
 
-// Definitions of DMA channel peripheral data alignment
-#define DMA_PALIGN_8BIT            ((uint32_t)0x00000000U) // Byte
-#define DMA_PALIGN_16BIT           DMA_CCR_PSIZE_0         // Half-word
-#define DMA_PALIGN_32BIT           DMA_CCR_PSIZE_1         // Word
+// Definitions of DMA channel peripheral data size
+#define DMA_PSIZE_8BIT            ((uint32_t)0x00000000U) // Byte
+#define DMA_PSIZE_16BIT           DMA_CCR_PSIZE_0         // Half-word
+#define DMA_PSIZE_32BIT           DMA_CCR_PSIZE_1         // Word
+
+// Definitions of DMA memory increment mode
+#define DMA_MINC_ENABLE           DMA_CCR_MINC            // Enabled
+#define DMA_MINC_DISABLE          ((uint32_t)0x00000000U) // Disabled
+
+// Definitions of DMA peripheral increment mode
+#define DMA_PINC_ENABLE           DMA_CCR_PINC            // Enabled
+#define DMA_PINC_DISABLE          ((uint32_t)0x00000000U) // Disabled
 
 
 // DMA states enumeration
 typedef enum {
-	DMA_STATE_RESET = 0x00, // DMA not initialized or disabled
-	DMA_STATE_READY = 0x01, // DMA ready to use
-	DMA_STATE_HT    = 0x02, // DMA half transfer flag
-	DMA_STATE_TC    = 0x03, // DMA transfer complete flag
-	DMA_STATE_BUSY  = 0x04, // DMA transaction is ongoing
-	DMA_STATE_ERROR = 0x05  // DMA error
+	DMA_STATE_RESET = 0x00U, // DMA not initialized or disabled
+	DMA_STATE_READY = 0x01U, // DMA ready to use
+	DMA_STATE_HT    = 0x02U, // DMA half transfer flag
+	DMA_STATE_TC    = 0x03U, // DMA transfer complete flag
+	DMA_STATE_BUSY  = 0x04U, // DMA transaction is ongoing
+	DMA_STATE_ERROR = 0x05U  // DMA error
 } DMA_State_TypeDef;
 
 // DMA channel handle structure
@@ -120,7 +128,7 @@ __STATIC_INLINE void DMA_DisableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) 
 	channel->CCR &= ~(irq & (DMA_CCR_TCIE | DMA_CCR_HTIE | DMA_CCR_TEIE));
 }
 
-// Get the specified flags for the specified DMA channel
+// Get the specified flags for specified DMA channel
 // input:
 //   DMAx - pointer to the DMA peripheral handler (DMA1, etc.)
 //   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
@@ -130,7 +138,7 @@ __STATIC_INLINE uint32_t DMA_GetFlags(DMA_TypeDef *DMAx, uint32_t channel_index,
 	return (DMAx->ISR & ((flags & (DMA_ISR_GIF1 | DMA_ISR_TCIF1 | DMA_ISR_HTIF1 | DMA_ISR_TEIF1)) << channel_index));
 }
 
-// Clear the specified flags for the specified DMA channel
+// Clear the specified flags for specified DMA channel
 // input:
 //   DMAx - pointer to the DMA peripheral handler (DMA1, etc.)
 //   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
@@ -153,7 +161,43 @@ __STATIC_INLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16_t le
 //   channel - pointer to the DMA channel handle
 // return: number of remaining transactions
 __STATIC_INLINE uint16_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
-	return (channel->CNDTR);
+	return channel->CNDTR;
+}
+
+// Configure new memory address of DMA channel
+// input:
+//   channel - pointer to the DMA channel handle
+//   addr - new address
+__STATIC_INLINE void DMA_SetAddrM(DMA_Channel_TypeDef *channel, uint32_t addr) {
+	channel->CMAR = addr;
+}
+
+// Configure new peripheral address of DMA channel
+// input:
+//   channel - pointer to the DMA channel handle
+//   addr - new address
+__STATIC_INLINE void DMA_SetAddrP(DMA_Channel_TypeDef *channel, uint32_t addr) {
+	channel->CPAR = addr;
+}
+
+// Configure all parameters of DMA channel
+// input:
+//   channel - pointer to the DMA channel handle
+//   params - new parameters of DMA channel, must be a combination of all the following values:
+//     DMA_MODE_xx - channel mode (normal or circular)
+//     DMA_DIR_xx - data transfer direction
+//     DMA_PRIORITY_xx - channel priority level
+//     DMA_MSIZE_xx - memory data size
+//     DMA_PSIZE_xx - peripheral data size
+//     DMA_MINC_xx - memory increment state
+//     DMA_PINC_xx - peripheral increment state
+__STATIC_INLINE void DMA_ConfigChannel(DMA_Channel_TypeDef *channel, uint32_t params) {
+	channel->CCR = (params & \
+			(DMA_CCR_DIR | DMA_CCR_MEM2MEM | DMA_CCR_CIRC | \
+			DMA_CCR_PINC | DMA_CCR_MINC | \
+			DMA_CCR_PSIZE | DMA_CCR_MSIZE | \
+			DMA_CCR_PL)
+		);
 }
 
 

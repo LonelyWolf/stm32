@@ -2,9 +2,6 @@
 #define __MAIN_H
 
 
-// MCU header
-#include "stm32l4xx.h"
-
 // Internal peripherals
 #include "rcc.h"
 #include "pwr.h"
@@ -31,7 +28,7 @@ static char const * const _sysclk_src_str[] = {
 
 // Alias for printf, redirect output to debug USART port)
 #if (USART_USE_PRINTF)
-#define printf(...)                USART_printf(DBG_USART,__VA_ARGS__)
+#define printf(...)                USART_printf(DBG_USART, __VA_ARGS__)
 #endif
 
 

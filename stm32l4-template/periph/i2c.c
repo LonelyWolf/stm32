@@ -44,13 +44,13 @@ void I2C_Init(I2C_TypeDef* I2Cx) {
 
 		// Initialize the I2C1 GPIO
 		// SCL
-		GPIO_set_mode(I2C1_SCL_GPIO_PORT,GPIO_Mode_AF,GPIO_PUPD_NONE,I2C1_SCL_GPIO_PIN);
-		GPIO_out_cfg(I2C1_SCL_GPIO_PORT,GPIO_OT_OD,GPIO_SPD_LOW,I2C1_SCL_GPIO_PIN);
-		GPIO_af_cfg(I2C1_SCL_GPIO_PORT,I2C1_SCL_GPIO_SRC,GPIO_AF4); // AF4 = I2C1
+		GPIO_set_mode(I2C1_SCL_GPIO_PORT, GPIO_Mode_AF, GPIO_PUPD_NONE, I2C1_SCL_GPIO_PIN);
+		GPIO_out_cfg(I2C1_SCL_GPIO_PORT, GPIO_OT_OD, GPIO_SPD_LOW, I2C1_SCL_GPIO_PIN);
+		GPIO_af_cfg(I2C1_SCL_GPIO_PORT, I2C1_SCL_GPIO_SRC, GPIO_AF4); // AF4 = I2C1
 		// SDA
-		GPIO_set_mode(I2C1_SDA_GPIO_PORT,GPIO_Mode_AF,GPIO_PUPD_NONE,I2C1_SDA_GPIO_PIN);
-		GPIO_out_cfg(I2C1_SDA_GPIO_PORT,GPIO_OT_OD,GPIO_SPD_LOW,I2C1_SDA_GPIO_PIN);
-		GPIO_af_cfg(I2C1_SDA_GPIO_PORT,I2C1_SDA_GPIO_SRC,GPIO_AF4); // AF4 = I2C1
+		GPIO_set_mode(I2C1_SDA_GPIO_PORT, GPIO_Mode_AF, GPIO_PUPD_NONE, I2C1_SDA_GPIO_PIN);
+		GPIO_out_cfg(I2C1_SDA_GPIO_PORT, GPIO_OT_OD, GPIO_SPD_LOW, I2C1_SDA_GPIO_PIN);
+		GPIO_af_cfg(I2C1_SDA_GPIO_PORT, I2C1_SDA_GPIO_SRC, GPIO_AF4); // AF4 = I2C1
 	} else if (I2Cx == I2C2) {
 		// Reset the I2C2 peripheral to initial state
 		RCC->APB1RSTR1 |=  RCC_APB1RSTR1_I2C2RST;
@@ -64,13 +64,13 @@ void I2C_Init(I2C_TypeDef* I2Cx) {
 
 		// Initialize the I2C2 GPIO
 		// SCL
-		GPIO_set_mode(I2C2_SCL_GPIO_PORT,GPIO_Mode_AF,GPIO_PUPD_NONE,I2C2_SCL_GPIO_PIN);
-		GPIO_out_cfg(I2C2_SCL_GPIO_PORT,GPIO_OT_OD,GPIO_SPD_LOW,I2C2_SCL_GPIO_PIN);
-		GPIO_af_cfg(I2C2_SCL_GPIO_PORT,I2C2_SCL_GPIO_SRC,GPIO_AF4); // AF4 = I2C2
+		GPIO_set_mode(I2C2_SCL_GPIO_PORT, GPIO_Mode_AF, GPIO_PUPD_NONE, I2C2_SCL_GPIO_PIN);
+		GPIO_out_cfg(I2C2_SCL_GPIO_PORT, GPIO_OT_OD, GPIO_SPD_LOW, I2C2_SCL_GPIO_PIN);
+		GPIO_af_cfg(I2C2_SCL_GPIO_PORT, I2C2_SCL_GPIO_SRC, GPIO_AF4); // AF4 = I2C2
 		// SDA
-		GPIO_set_mode(I2C2_SDA_GPIO_PORT,GPIO_Mode_AF,GPIO_PUPD_NONE,I2C2_SDA_GPIO_PIN);
-		GPIO_out_cfg(I2C2_SDA_GPIO_PORT,GPIO_OT_OD,GPIO_SPD_LOW,I2C2_SDA_GPIO_PIN);
-		GPIO_af_cfg(I2C2_SDA_GPIO_PORT,I2C2_SDA_GPIO_SRC,GPIO_AF4); // AF4 = I2C2
+		GPIO_set_mode(I2C2_SDA_GPIO_PORT, GPIO_Mode_AF, GPIO_PUPD_NONE, I2C2_SDA_GPIO_PIN);
+		GPIO_out_cfg(I2C2_SDA_GPIO_PORT, GPIO_OT_OD, GPIO_SPD_LOW, I2C2_SDA_GPIO_PIN);
+		GPIO_af_cfg(I2C2_SDA_GPIO_PORT, I2C2_SDA_GPIO_SRC, GPIO_AF4); // AF4 = I2C2
 	} else if (I2Cx == I2C3) {
 		// Reset the I2C3 peripheral to initial state
 		RCC->APB1RSTR1 |=  RCC_APB1RSTR1_I2C3RST;
@@ -84,13 +84,13 @@ void I2C_Init(I2C_TypeDef* I2Cx) {
 
 		// Initialize the I2C3 GPIO
 		// SCL
-		GPIO_set_mode(I2C3_SCL_GPIO_PORT,GPIO_Mode_AF,GPIO_PUPD_NONE,I2C3_SCL_GPIO_PIN);
-		GPIO_out_cfg(I2C3_SCL_GPIO_PORT,GPIO_OT_OD,GPIO_SPD_LOW,I2C3_SCL_GPIO_PIN);
-		GPIO_af_cfg(I2C3_SCL_GPIO_PORT,I2C3_SCL_GPIO_SRC,GPIO_AF4); // AF4 = I2C3
+		GPIO_set_mode(I2C3_SCL_GPIO_PORT, GPIO_Mode_AF, GPIO_PUPD_NONE, I2C3_SCL_GPIO_PIN);
+		GPIO_out_cfg(I2C3_SCL_GPIO_PORT, GPIO_OT_OD, GPIO_SPD_LOW, I2C3_SCL_GPIO_PIN);
+		GPIO_af_cfg(I2C3_SCL_GPIO_PORT, I2C3_SCL_GPIO_SRC, GPIO_AF4); // AF4 = I2C3
 		// SDA
-		GPIO_set_mode(I2C3_SDA_GPIO_PORT,GPIO_Mode_AF,GPIO_PUPD_NONE,I2C3_SDA_GPIO_PIN);
-		GPIO_out_cfg(I2C3_SDA_GPIO_PORT,GPIO_OT_OD,GPIO_SPD_LOW,I2C3_SDA_GPIO_PIN);
-		GPIO_af_cfg(I2C3_SDA_GPIO_PORT,I2C3_SDA_GPIO_SRC,GPIO_AF4); // AF4 = I2C3
+		GPIO_set_mode(I2C3_SDA_GPIO_PORT, GPIO_Mode_AF, GPIO_PUPD_NONE, I2C3_SDA_GPIO_PIN);
+		GPIO_out_cfg(I2C3_SDA_GPIO_PORT, GPIO_OT_OD, GPIO_SPD_LOW, I2C3_SDA_GPIO_PIN);
+		GPIO_af_cfg(I2C3_SDA_GPIO_PORT, I2C3_SDA_GPIO_SRC, GPIO_AF4); // AF4 = I2C3
 	} else {
 		// Unknown I2C port specified
 	}
@@ -110,17 +110,17 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 
 	while (trials--) {
 		// Generate START
-		I2C_GenStart(I2Cx,devAddr);
+		I2C_GenStart(I2Cx, devAddr);
 
 		// Wait for STOP, NACK or BERR
 		wait = delay_val;
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_STOPF | I2C_ISR_NACKF | I2C_ISR_BERR)) && --wait);
-		if (wait == 0) return I2C_ERROR;
+		if (wait == 0) { return I2C_ERROR; }
 
 		// Wait while STOP flag is reset
 		wait = delay_val;
 		while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
-		if (wait == 0) return I2C_ERROR;
+		if (wait == 0) { return I2C_ERROR; }
 
 		// Clear the NACK, STOP and BERR flags
 		I2Cx->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF;
@@ -130,9 +130,7 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 			// FIXME: I2C: how to handle the misplaced START/STOP?
 		} else {
 			// Device responded if NACK flag is not set
-			if (!(reg & I2C_ISR_NACKF)) {
-				return I2C_SUCCESS;
-			}
+			if (!(reg & I2C_ISR_NACKF)) { return I2C_SUCCESS; }
 		}
 	}
 
@@ -177,7 +175,6 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 		if ((reg & I2C_ISR_NACKF) || (wait == 0))  {
 			// Clear the NACK flag
 			I2Cx->ICR = I2C_ICR_NACKCF;
-
 			return I2C_ERROR;
 		}
 
@@ -190,7 +187,7 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 			// Wait until TCR flag is set (Transfer Complete Reload)
 			wait = delay_val;
 			while (!(I2Cx->ISR & I2C_ISR_TCR) && --wait);
-			if (wait == 0) return I2C_ERROR;
+			if (wait == 0) { return I2C_ERROR; }
 
 			// Is this last part of buffer?
 			reg = I2Cx->CR2;
@@ -262,7 +259,6 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_RXNE | I2C_ISR_NACKF)) && --wait);
 		if ((reg & I2C_ISR_NACKF) || (wait == 0)) {
 			I2Cx->ICR = I2C_ICR_NACKCF;
-
 			return I2C_ERROR;
 		}
 
@@ -275,9 +271,7 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 			// Wait until TCR flag is set (Transfer Complete Reload)
 			wait = delay_val;
 			while (!(I2Cx->ISR & I2C_ISR_TCR) && --wait);
-			if (wait == 0) {
-				return I2C_ERROR;
-			}
+			if (wait == 0) { return I2C_ERROR; }
 
 			// Is this last part of buffer?
 			reg = I2Cx->CR2;

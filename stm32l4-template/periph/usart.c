@@ -42,17 +42,25 @@ void USART1_HandleInit(void) {
 
 #if (USART_USE_DMA)
 	// DMA TX channel
-	hUSART1.DMA_TX.Channel  = DMA1_Channel4; // Or DMA2_Channel6
+#if 1
+	hUSART1.DMA_TX.Channel  = DMA1_Channel4;
+#else
+	hUSART1.DMA_TX.Channel  = DMA2_Channel6;
+#endif
+	hUSART1.DMA_TX.Request  = DMA_REQUEST_2;
 	hUSART1.DMA_TX.Instance = DMA_GetChannelPeripheral(hUSART1.DMA_TX.Channel);
 	hUSART1.DMA_TX.ChIndex  = DMA_GetChannelIndex(hUSART1.DMA_TX.Channel);
-	hUSART1.DMA_TX.Request  = DMA_REQUEST_2;
 	hUSART1.DMA_TX.State    = DMA_STATE_RESET;
 
 	// DMA RX channel
-	hUSART1.DMA_RX.Channel  = DMA1_Channel5; // Or DMA2_Channel7
+#if 1
+	hUSART1.DMA_RX.Channel  = DMA1_Channel5;
+#else
+	hUSART1.DMA_RX.Channel  = DMA2_Channel7;
+#endif
+	hUSART1.DMA_RX.Request  = DMA_REQUEST_2;
 	hUSART1.DMA_RX.Instance = DMA_GetChannelPeripheral(hUSART1.DMA_RX.Channel);
 	hUSART1.DMA_RX.ChIndex  = DMA_GetChannelIndex(hUSART1.DMA_RX.Channel);
-	hUSART1.DMA_RX.Request  = DMA_REQUEST_2;
 	hUSART1.DMA_RX.State    = DMA_STATE_RESET;
 #endif // USART_USE_DMA
 }
@@ -79,16 +87,16 @@ void USART2_HandleInit(void) {
 #if (USART_USE_DMA)
 	// DMA TX channel
 	hUSART2.DMA_TX.Channel  = DMA1_Channel7;
+	hUSART2.DMA_TX.Request  = DMA_REQUEST_2;
 	hUSART2.DMA_TX.Instance = DMA_GetChannelPeripheral(hUSART2.DMA_TX.Channel);
 	hUSART2.DMA_TX.ChIndex  = DMA_GetChannelIndex(hUSART2.DMA_TX.Channel);
-	hUSART2.DMA_TX.Request  = DMA_REQUEST_2;
 	hUSART2.DMA_TX.State    = DMA_STATE_RESET;
 
 	// DMA RX channel
 	hUSART2.DMA_RX.Channel  = DMA1_Channel6;
+	hUSART2.DMA_RX.Request  = DMA_REQUEST_2;
 	hUSART2.DMA_RX.Instance = DMA_GetChannelPeripheral(hUSART2.DMA_RX.Channel);
 	hUSART2.DMA_RX.ChIndex  = DMA_GetChannelIndex(hUSART2.DMA_RX.Channel);
-	hUSART2.DMA_RX.Request  = DMA_REQUEST_2;
 	hUSART2.DMA_RX.State    = DMA_STATE_RESET;
 #endif // USART_USE_DMA
 }
@@ -115,16 +123,16 @@ void USART3_HandleInit(void) {
 #if (USART_USE_DMA)
 	// DMA TX channel
 	hUSART3.DMA_TX.Channel  = DMA1_Channel2;
+	hUSART3.DMA_TX.Request  = DMA_REQUEST_2;
 	hUSART3.DMA_TX.Instance = DMA_GetChannelPeripheral(hUSART3.DMA_TX.Channel);
 	hUSART3.DMA_TX.ChIndex  = DMA_GetChannelIndex(hUSART3.DMA_TX.Channel);
-	hUSART3.DMA_TX.Request  = DMA_REQUEST_2;
 	hUSART3.DMA_TX.State    = DMA_STATE_RESET;
 
 	// DMA RX channel
 	hUSART3.DMA_RX.Channel  = DMA1_Channel3;
+	hUSART3.DMA_RX.Request  = DMA_REQUEST_2;
 	hUSART3.DMA_RX.Instance = DMA_GetChannelPeripheral(hUSART3.DMA_RX.Channel);
 	hUSART3.DMA_RX.ChIndex  = DMA_GetChannelIndex(hUSART3.DMA_RX.Channel);
-	hUSART3.DMA_RX.Request  = DMA_REQUEST_2;
 	hUSART3.DMA_RX.State    = DMA_STATE_RESET;
 #endif // USART_USE_DMA
 }
@@ -151,16 +159,16 @@ void UART4_HandleInit(void) {
 #if (USART_USE_DMA)
 	// DMA TX channel
 	hUART4.DMA_TX.Channel  = DMA2_Channel3;
+	hUART4.DMA_TX.Request  = DMA_REQUEST_2;
 	hUART4.DMA_TX.Instance = DMA_GetChannelPeripheral(hUART4.DMA_TX.Channel);
 	hUART4.DMA_TX.ChIndex  = DMA_GetChannelIndex(hUART4.DMA_TX.Channel);
-	hUART4.DMA_TX.Request  = DMA_REQUEST_2;
 	hUART4.DMA_TX.State    = DMA_STATE_RESET;
 
 	// DMA RX channel
 	hUART4.DMA_RX.Channel  = DMA2_Channel5;
+	hUART4.DMA_RX.Request  = DMA_REQUEST_2;
 	hUART4.DMA_RX.Instance = DMA_GetChannelPeripheral(hUART4.DMA_RX.Channel);
 	hUART4.DMA_RX.ChIndex  = DMA_GetChannelIndex(hUART4.DMA_RX.Channel);
-	hUART4.DMA_RX.Request  = DMA_REQUEST_2;
 	hUART4.DMA_RX.State    = DMA_STATE_RESET;
 #endif // USART_USE_DMA
 }
@@ -187,16 +195,16 @@ void UART5_HandleInit(void) {
 #if (USART_USE_DMA)
 	// DMA TX channel
 	hUART5.DMA_TX.Channel  = DMA2_Channel1;
+	hUART5.DMA_TX.Request  = DMA_REQUEST_2;
 	hUART5.DMA_TX.Instance = DMA_GetChannelPeripheral(hUART5.DMA_TX.Channel);
 	hUART5.DMA_TX.ChIndex  = DMA_GetChannelIndex(hUART5.DMA_TX.Channel);
-	hUART5.DMA_TX.Request  = DMA_REQUEST_2;
 	hUART5.DMA_TX.State    = DMA_STATE_RESET;
 
 	// DMA RX channel
 	hUART5.DMA_RX.Channel  = DMA2_Channel2;
+	hUART5.DMA_RX.Request  = DMA_REQUEST_2;
 	hUART5.DMA_RX.Instance = DMA_GetChannelPeripheral(hUART5.DMA_RX.Channel);
 	hUART5.DMA_RX.ChIndex  = DMA_GetChannelIndex(hUART5.DMA_RX.Channel);
-	hUART5.DMA_RX.Request  = DMA_REQUEST_2;
 	hUART5.DMA_RX.State    = DMA_STATE_RESET;
 #endif
 }
@@ -258,18 +266,18 @@ void USART_Init(const USART_HandleTypeDef *USARTx, uint32_t mode) {
 	if (mode & USART_MODE_TX) {
 		// Configure TX pin as: AF, low speed, push-pull, pull-up
 		RCC->AHB2ENR |= USARTx->PIN_TX.GPIO_AHB;
-		GPIO_set_mode(USARTx->PIN_TX.GPIO,GPIO_Mode_AF,GPIO_PUPD_PU,USARTx->PIN_TX.GPIO_PIN);
-		GPIO_out_cfg(USARTx->PIN_TX.GPIO,GPIO_OT_PP,GPIO_SPD_LOW,USARTx->PIN_TX.GPIO_PIN);
-		GPIO_af_cfg(USARTx->PIN_TX.GPIO,USARTx->PIN_TX.GPIO_SRC,USARTx->AF);
+		GPIO_set_mode(USARTx->PIN_TX.GPIO, GPIO_Mode_AF, GPIO_PUPD_PU, USARTx->PIN_TX.GPIO_PIN);
+		GPIO_out_cfg(USARTx->PIN_TX.GPIO, GPIO_OT_PP, GPIO_SPD_LOW, USARTx->PIN_TX.GPIO_PIN);
+		GPIO_af_cfg(USARTx->PIN_TX.GPIO, USARTx->PIN_TX.GPIO_SRC, USARTx->AF);
 	}
 
 	// RX pin
 	if (mode & USART_MODE_RX) {
 		// Configure RX pin as: AF, low speed, push-pull, pull-up
 		RCC->AHB2ENR |= USARTx->PIN_RX.GPIO_AHB;
-		GPIO_set_mode(USARTx->PIN_RX.GPIO,GPIO_Mode_AF,GPIO_PUPD_PU,USARTx->PIN_RX.GPIO_PIN);
-		GPIO_out_cfg(USARTx->PIN_RX.GPIO,GPIO_OT_PP,GPIO_SPD_LOW,USARTx->PIN_RX.GPIO_PIN);
-		GPIO_af_cfg(USARTx->PIN_RX.GPIO,USARTx->PIN_RX.GPIO_SRC,USARTx->AF);
+		GPIO_set_mode(USARTx->PIN_RX.GPIO, GPIO_Mode_AF, GPIO_PUPD_PU, USARTx->PIN_RX.GPIO_PIN);
+		GPIO_out_cfg(USARTx->PIN_RX.GPIO, GPIO_OT_PP, GPIO_SPD_LOW, USARTx->PIN_RX.GPIO_PIN);
+		GPIO_af_cfg(USARTx->PIN_RX.GPIO, USARTx->PIN_RX.GPIO_SRC, USARTx->AF);
 	}
 
 	// Configure communication direction
@@ -284,8 +292,13 @@ void USART_Init(const USART_HandleTypeDef *USARTx, uint32_t mode) {
 // note: after changing oversampling mode the baudrate must be re-configured
 // note: this setting can be changed only when USART is disabled
 void USART_SetOversampling(const USART_HandleTypeDef *USARTx, uint32_t ovs_mode) {
-	USARTx->Instance->CR1 &= ~USART_CR1_OVER8;
-	USARTx->Instance->CR1 |= ovs_mode & USART_CR1_OVER8;
+	if (ovs_mode) {
+		// Oversampling by 8
+		USARTx->Instance->CR1 |= USART_CR1_OVER8;
+	} else {
+		// Oversampling by 16
+		USARTx->Instance->CR1 &= ~USART_CR1_OVER8;
+	}
 }
 
 // Configure the USART/UART peripheral for achieve specified baud rate
@@ -408,7 +421,7 @@ void USART_SetHWFlow(const USART_HandleTypeDef *USARTx, uint32_t hwflow_mode) {
 // Enable USART interrupt
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-//   irq - IRQ to enable, one of USART_IRQ_xx values (where xx can be TXE,RXNE,TC,IDLE,PE,ERR)
+//   irq - IRQ to enable, one of USART_IRQ_xx values (where xx can be TXE, RXNE, TC, IDLE, PE, ERR)
 void USART_EnableIRQ(USART_HandleTypeDef *USARTx, uint16_t irq) {
 	if (((uint8_t)irq >> 5) == 1) {
 		// USART_CR1
@@ -425,7 +438,7 @@ void USART_EnableIRQ(USART_HandleTypeDef *USARTx, uint16_t irq) {
 // Disable USART interrupt
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-//   irq - IRQ to enable, one of USART_IRQ_xx values (where xx can be TXE,RXNE,TC,IDLE,PE,ERR)
+//   irq - IRQ to enable, one of the USART_IRQ_xx values (where xx can be TXE, RXNE, TC, IDLE, PE, ERR)
 void USART_DisableIRQ(USART_HandleTypeDef *USARTx, uint16_t irq) {
 	if (((uint8_t)irq >> 5) == 1) {
 		// USART_CR1
@@ -440,6 +453,7 @@ void USART_DisableIRQ(USART_HandleTypeDef *USARTx, uint16_t irq) {
 }
 
 #if (USART_USE_DMA)
+
 // Configure the UART TX/RX DMA channels
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
@@ -459,15 +473,20 @@ void USART_ConfigureDMA(const USART_HandleTypeDef *USARTx, uint32_t DMA_DIR, uin
 		//   peripheral increment: disabled
 		//   circular mode: according to DMA_MODE
 		//   direction: read from peripheral
-		//   IRQ: disabled
-		//   channel: disabled
-		USARTx->DMA_RX.Channel->CCR  = DMA_DIR_P2M | DMA_CCR_MINC | DMA_PRIORITY_MEDIUM | DMA_MODE;
-		USARTx->DMA_RX.Channel->CPAR = (uint32_t)(&(USARTx->Instance->RDR)); // Address of the USART receive data register
-		USARTx->DMA_RX.Channel->CMAR = (uint32_t)pBuf; // Memory address
-		DMA_SetDataLength(USARTx->DMA_RX.Channel,length); // Number of DMA transactions
+		DMA_ConfigChannel(
+				USARTx->DMA_RX.Channel,
+				DMA_MODE |
+				DMA_DIR_P2M |
+				DMA_MSIZE_8BIT | DMA_PSIZE_8BIT |
+				DMA_MINC_ENABLE | DMA_PINC_DISABLE |
+				DMA_PRIORITY_MEDIUM
+			);
+		DMA_SetAddrM(USARTx->DMA_RX.Channel, (uint32_t)pBuf);
+		DMA_SetAddrP(USARTx->DMA_RX.Channel, (uint32_t)(&(USARTx->Instance->RDR)));
+		DMA_SetDataLength(USARTx->DMA_RX.Channel, length);
 
 		// Map DMA request to DMA channel
-		DMA_SetRequest(USARTx->DMA_RX.Instance,USARTx->DMA_RX.Request,USARTx->DMA_RX.ChIndex);
+		DMA_SetRequest(USARTx->DMA_RX.Instance, USARTx->DMA_RX.Request, USARTx->DMA_RX.ChIndex);
 	}
 	if (DMA_DIR & USART_DMA_TX) {
 		// USART TX DMA channel configuration:
@@ -479,15 +498,20 @@ void USART_ConfigureDMA(const USART_HandleTypeDef *USARTx, uint32_t DMA_DIR, uin
 		//   peripheral increment: disabled
 		//   circular mode: disabled
 		//   direction: read from memory
-		//   IRQ: disabled
-		//   channel: disabled
-		USARTx->DMA_TX.Channel->CCR  = DMA_DIR_M2P | DMA_CCR_MINC | DMA_PRIORITY_MEDIUM | DMA_MODE;
-		USARTx->DMA_TX.Channel->CPAR = (uint32_t)(&(USARTx->Instance->TDR)); // Address of the USART transmit data register
-		USARTx->DMA_TX.Channel->CMAR = (uint32_t)pBuf; // Memory address
-		DMA_SetDataLength(USARTx->DMA_TX.Channel,length); // Number of DMA transactions
+		DMA_ConfigChannel(
+				USARTx->DMA_TX.Channel,
+				DMA_MODE |
+				DMA_DIR_M2P |
+				DMA_MSIZE_8BIT | DMA_PSIZE_8BIT |
+				DMA_MINC_ENABLE | DMA_PINC_DISABLE |
+				DMA_PRIORITY_MEDIUM
+			);
+		DMA_SetAddrM(USARTx->DMA_TX.Channel, (uint32_t)pBuf);
+		DMA_SetAddrP(USARTx->DMA_TX.Channel, (uint32_t)(&(USARTx->Instance->TDR)));
+		DMA_SetDataLength(USARTx->DMA_TX.Channel, length);
 
 		// Map DMA request to DMA channel
-		DMA_SetRequest(USARTx->DMA_TX.Instance,USARTx->DMA_TX.Request,USARTx->DMA_TX.ChIndex);
+		DMA_SetRequest(USARTx->DMA_TX.Instance, USARTx->DMA_TX.Request, USARTx->DMA_TX.ChIndex);
 	}
 }
 
@@ -500,11 +524,11 @@ void USART_SetDMA(const USART_HandleTypeDef *USARTx, uint32_t DMA_DIR, Functiona
 	if (NewState == ENABLE) {
 		// Clear the DMA interrupt flags and enable RX/TX DMA channels
 		if (DMA_DIR & USART_DMA_TX) {
-			DMA_ClearFlags(USARTx->DMA_TX.Instance,USARTx->DMA_TX.ChIndex,DMA_CF_ALL);
+			DMA_ClearFlags(USARTx->DMA_TX.Instance, USARTx->DMA_TX.ChIndex, DMA_CF_ALL);
 			DMA_EnableChannel(USARTx->DMA_TX.Channel);
 		}
 		if (DMA_DIR & USART_DMA_RX) {
-			DMA_ClearFlags(USARTx->DMA_RX.Instance,USARTx->DMA_RX.ChIndex,DMA_CF_ALL);
+			DMA_ClearFlags(USARTx->DMA_RX.Instance, USARTx->DMA_RX.ChIndex, DMA_CF_ALL);
 			DMA_EnableChannel(USARTx->DMA_RX.Channel);
 		}
 
@@ -512,17 +536,14 @@ void USART_SetDMA(const USART_HandleTypeDef *USARTx, uint32_t DMA_DIR, Functiona
 		USARTx->Instance->CR3 |= DMA_DIR;
 	} else {
 		// Disable the RX/TX DMA channels
-		if (DMA_DIR & USART_DMA_TX) {
-			DMA_DisableChannel(USARTx->DMA_TX.Channel);
-		}
-		if (DMA_DIR & USART_DMA_RX) {
-			DMA_DisableChannel(USARTx->DMA_RX.Channel);
-		}
+		if (DMA_DIR & USART_DMA_TX) { DMA_DisableChannel(USARTx->DMA_TX.Channel); }
+		if (DMA_DIR & USART_DMA_RX) { DMA_DisableChannel(USARTx->DMA_RX.Channel); }
 
 		// Disable the USART TX/RX DMA
 		USARTx->Instance->CR3 &= ~DMA_DIR;
 	}
 }
+
 #endif // USART_USE_DMA
 
 // Check the USART idle state
@@ -573,11 +594,11 @@ void USART_SendInt(USART_TypeDef *USARTx, int32_t num) {
 	int i = 0;
 
 	if (num < 0) {
-		USART_SendChar(USARTx,'-');
+		USART_SendChar(USARTx, '-');
 		num *= -1;
 	}
-	do str[i++] = (num % 10) + '0'; while ((num /= 10) > 0);
-	while (i) USART_SendChar(USARTx,str[--i]);
+	do { str[i++] = (num % 10) + '0'; } while ((num /= 10) > 0);
+	while (i) { USART_SendChar(USARTx, str[--i]); }
 }
 
 // Transmit signed integer value with leading zero as text via UART
@@ -589,12 +610,12 @@ void USART_SendIntLZ(USART_TypeDef *USARTx, int32_t num) {
 	int i = 0;
 
 	if (num < 0) {
-		USART_SendChar(USARTx,'-');
+		USART_SendChar(USARTx, '-');
 		num *= -1;
 	}
-	if ((num < 10) && (num >= 0)) USART_SendChar(USARTx,'0');
-	do str[i++] = (num % 10) + '0'; while ((num /= 10) > 0);
-	while (i) USART_SendChar(USARTx,str[--i]);
+	if ((num < 10) && (num >= 0)) { USART_SendChar(USARTx, '0'); }
+	do { str[i++] = (num % 10) + '0'; } while ((num /= 10) > 0);
+	while (i) { USART_SendChar(USARTx, str[--i]); }
 }
 
 // Transmit unsigned integer value as text via UART
@@ -605,8 +626,8 @@ void USART_SendIntU(USART_TypeDef *USARTx, uint32_t num) {
 	char str[10]; // 10 chars max for UINT32_MAX
 	int i = 0;
 
-	do str[i++] = (num % 10) + '0'; while ((num /= 10) > 0);
-	while (i) USART_SendChar(USARTx,str[--i]);
+	do { str[i++] = (num % 10) + '0'; } while ((num /= 10) > 0);
+	while (i) { USART_SendChar(USARTx, str[--i]); }
 }
 
 // Transmit binary value in HEX format
@@ -619,8 +640,7 @@ void USART_SendHex(USART_TypeDef *USARTx, uint32_t num) {
 
 	*ptr++ = '\0';
 	do { *ptr++ = HEX_CHARS[num & 0x0F]; } while (num /= 0x10);
-
-	while (*--ptr) USART_SendChar(USARTx,*ptr);
+	while (*--ptr) { USART_SendChar(USARTx, *ptr); }
 }
 
 // Transmit binary value in HEX format with leading zeroes
@@ -638,9 +658,12 @@ void USART_SendHexLZ(USART_TypeDef *USARTx, uint32_t num, uint8_t digits) {
 		*ptr++ = HEX_CHARS[num & 0x0F];
 		len++;
 	} while (num /= 0x10);
-	if (len < digits) while (len++ < digits) USART_SendChar(USARTx,'0');
 
-	while (*--ptr) USART_SendChar(USARTx,*ptr);
+	if (len < digits) {
+		while (len++ < digits) { USART_SendChar(USARTx, '0'); }
+	}
+
+	while (*--ptr) { USART_SendChar(USARTx, *ptr); }
 }
 
 // Transmit data buffer
@@ -689,6 +712,7 @@ void USART_SendBufHex(USART_TypeDef *USARTx, const char *pBuf, uint32_t length) 
 }
 
 #if (USART_USE_PRINTF)
+
 #include <stdarg.h>
 // Transmit formatted string via USART
 // input:
@@ -699,41 +723,41 @@ void USART_SendBufHex(USART_TypeDef *USARTx, const char *pBuf, uint32_t length) 
 // note:
 //   supported sub-set of standard format:
 //     type:
-//       i,d - signed integer
-//       u   - unsinged integer
-//       b   - binary
-//       o   - octal
-//       x   - hexadecimal in lowercase
-//       X   - hexadecimal in uppercase
-//       c   - character
-//       s   - string
+//       i, d - signed integer
+//       u    - unsinged integer
+//       b    - binary
+//       o    - octal
+//       x    - hexadecimal in lowercase
+//       X    - hexadecimal in uppercase
+//       c    - character
+//       s    - string
 //     flag:
-//       0   - add zero padding
-//       -   - left justify field
-//       .X  - add a decimal point (on 'X' place must be a single digit
-//             determining number of digits after the decimal point)
+//       0    - add zero padding
+//       -    - left justify field
+//       .X   - add a decimal point (on 'X' place must be a single digit
+//              determining number of digits after the decimal point)
 // examples:
-//   ("%d",1234)     --> "1234"
-//   ("%-5d",123)    --> "123  "
-//   ("%5d",123)     --> "  123"
-//   ("%05d",123)    --> "00123"
-//   ("%2s","USART") --> "US"
-//   ("%.3u",123456) --> "123.456"
-//   ("%-8.2u",1234) --> "12.34   "
+//   ("%d", 1234)     --> "1234"
+//   ("%-5d", 123)    --> "123  "
+//   ("%5d", 123)     --> "  123"
+//   ("%05d", 123)    --> "00123"
+//   ("%2s", "USART") --> "US"
+//   ("%.3u", 123456) --> "123.456"
+//   ("%-8.2u", 1234) --> "12.34   "
 int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
-	va_list ap;       // arguments pointer
-	uint8_t flag;     // field flag
-	uint8_t width;    // specified field width
-	uint8_t prec;     // specified precision
-	uint8_t len = 0;  // actual field length
-	uint8_t radix;    // value conversion radix
-	uint32_t num;     // value to convert
-	char str[33];     // maximal width of 32-bit binary + string terminating symbol
-	char *pstr,*tstr; // pointers for various string manipulations
-	char chr;         // to hold a single character from format string
+	va_list ap;        // arguments pointer
+	uint8_t flag;      // field flag
+	uint8_t width;     // specified field width
+	uint8_t prec;      // specified precision
+	uint8_t len = 0;   // actual field length
+	uint8_t radix;     // value conversion radix
+	uint32_t num;      // value to convert
+	char str[33];      // maximal width of 32-bit binary + string terminating symbol
+	char *pstr, *tstr; // pointers for various string manipulations
+	char chr;          // to hold a single character from format string
 
 	// Initialize an arguments pointer
-	va_start(ap,fmt);
+	va_start(ap, fmt);
 
 	// Process format string
 	while (1) {
@@ -741,11 +765,11 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 		chr = *fmt++;
 
 		// String termination?
-		if (!chr) break;
+		if (!chr) { break; }
 
 		// Non escape character
 		if (chr != '%') {
-			USART_SendChar(USARTx,chr);
+			USART_SendChar(USARTx, chr);
 			continue;
 		}
 
@@ -779,13 +803,13 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 			if ((chr > '0' - 1) && (chr < '9' + 1)) {
 				// Flag '.' --> number with decimal point
 				prec = chr - '0';
-				if (prec) flag |= 0x08;
+				if (prec) { flag |= 0x08; }
 				chr = *fmt++;
 			}
 		}
 
 		// Ensure a string is not terminated yet
-		if (!chr) break;
+		if (!chr) { break; }
 
 		// A type is...
 		// (chr | 0x20) --> convert character to lower case
@@ -795,42 +819,50 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 
 				// Calculate string length
 				len = 0;
-				tstr = pstr = va_arg(ap,char*);
-				while (*pstr++) len++;
+				tstr = pstr = va_arg(ap, char*);
+				while (*pstr++) { len++; }
 
 				// Transmit leading spaces if string length is less than field width
-				if (!(flag & 0x02) && (len < width)) while (len++ < width) USART_SendChar(USARTx,' ');
+				if (!(flag & 0x02) && (len < width)) {
+					while (len++ < width) {
+						USART_SendChar(USARTx, ' ');
+					}
+				}
 
 				// Transmit string
 				pstr = tstr;
 				if (width) len = width;
 				while (*pstr) {
-					USART_SendChar(USARTx,*pstr++);
-					if (!(--len)) break;
+					USART_SendChar(USARTx, *pstr++);
+					if (!(--len)) { break; }
 				}
 
 				// Transmit trailing spaces in case of left justified field
-				if (flag & 0x02) while (len--) USART_SendChar(USARTx,' ');
+				if (flag & 0x02) {
+					while (len--) {
+						USART_SendChar(USARTx, ' ');
+					}
+				}
 
 				continue;
 			case 'c':
 				// Character
-				USART_SendChar(USARTx,(char)va_arg(ap,int));
+				USART_SendChar(USARTx, (char)va_arg(ap, int));
 				continue;
 			case 'b':
 				// Binary
-				num = (uint32_t)va_arg(ap,uint32_t);
+				num = (uint32_t)va_arg(ap, uint32_t);
 				radix = 2;
 				break;
 			case 'o':
 				// Octal
-				num = (uint32_t)va_arg(ap,uint32_t);
+				num = (uint32_t)va_arg(ap, uint32_t);
 				radix = 8;
 				break;
 			case 'i':
 			case 'd':
 				// Signed decimal
-				num = (int32_t)va_arg(ap,int32_t);
+				num = (int32_t)va_arg(ap, int32_t);
 				if (num & 0x80000000) {
 					num = 0 - num;
 					flag |= 0x04;
@@ -839,17 +871,17 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 				break;
 			case 'u':
 				// Unsigned decimal
-				num = (uint32_t)va_arg(ap,uint32_t);
+				num = (uint32_t)va_arg(ap, uint32_t);
 				radix = 10;
 				break;
 			case 'x':
 				// Hexadecimal
-				num = (uint32_t)va_arg(ap,uint32_t);
+				num = (uint32_t)va_arg(ap, uint32_t);
 				radix = 16;
 				break;
 			default:
 				// Unknown: just pass
-				USART_SendChar(USARTx,chr);
+				USART_SendChar(USARTx, chr);
 				continue;
 		}
 
@@ -861,7 +893,9 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 			// Value is not a zero
 			do {
 				*pstr = (num % radix);
-				if (*pstr > 9) *pstr += (chr == 'x') ? 0x27 : 0x07;
+				if (*pstr > 9) {
+					*pstr += (chr == 'x') ? 0x27 : 0x07;
+				}
 				*pstr++ += '0';
 				len++;
 				if (flag & 0x08) {
@@ -897,7 +931,7 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 		} else {
 			// Little optimization for a zero value
 			if (flag & 0x08) {
-				while (len++ < prec) *pstr++ = '0';
+				while (len++ < prec) { *pstr++ = '0'; }
 				*pstr++ = '.';
 				len++;
 			} else len++;
@@ -906,13 +940,23 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 
 		// Add leading zeroes or spaces
 		prec += (flag & 0x08) ? (width - prec) : width;
-		if (!(flag & 0x02) && (len < prec)) while (len++ < prec) *pstr++ = (flag & 0x01) ? '0' : ' ';
+		if (!(flag & 0x02) && (len < prec)) {
+			while (len++ < prec) {
+				*pstr++ = (flag & 0x01) ? '0' : ' ';
+			}
+		}
 
 		// Transmit value as text
-		while (*--pstr) USART_SendChar(USARTx,*pstr);
+		while (*--pstr) {
+			USART_SendChar(USARTx, *pstr);
+		}
 
 		// Transmit trailing spaces
-		if (flag & 0x02) while (len++ < width) USART_SendChar(USARTx,' ');
+		if (flag & 0x02) {
+			while (len++ < width) {
+				USART_SendChar(USARTx, ' ');
+			}
+		}
 	}
 
 	// Cleanup for an arguments pointer
@@ -921,4 +965,5 @@ int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...) {
 	// TODO: USART: return an actual length of the transmitted data
 	return 0;
 }
+
 #endif // USART_USE_PRINTF

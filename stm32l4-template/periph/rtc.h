@@ -16,7 +16,7 @@
 // Code related to RTC wake-up:
 //   0 - RTC wake-up is not used
 //   1 - RTC wake-up code enabled
-#define RTC_USE_WAKEUP             0
+#define RTC_USE_WAKEUP             1
 
 // Code related to RTC alarms:
 //   0 - RTC alarms is not used
@@ -25,8 +25,18 @@
 
 // Code related to epoch calculations
 //   0 - no epoch related functions
-//   1 - epoch related functions present
-#define RTC_USE_EPOCH              0
+//   1 - epoch related functions enabled
+#define RTC_USE_EPOCH              1
+
+// Code related to set date and time
+//   0 - Variant #1: enter INIT mode,
+//       compose new values for date and time registers,
+//       then write them
+//   1 - Variant #2: initialize entry to the INIT mode, compose new values for the date/time
+//       registers and then wait for the INIT mode, then write new values to the RTC registers
+//       Looks less pretty than the variant #1, but gives a performance gain in those cases
+//       when the frequency of the MCU is rather low
+#define RTC_USE_SETDATETIME        0
 
 
 // Reserved bits in the RTC_TR register
@@ -62,28 +72,27 @@
 #define RTC_WUCLCK_CKSPRE_WUT      (RTC_CR_WUCKSEL_2 | RTC_CR_WUCKSEL_1) // ck_spre and 2^16 is added to the WUT counter
 
 // Days of week
-#define RTC_DOW_MONDAY             ((uint8_t)0x01)
-#define RTC_DOW_TUESDAY            ((uint8_t)0x02)
-#define RTC_DOW_WEDNESDAY          ((uint8_t)0x03)
-#define RTC_DOW_THURSDAY           ((uint8_t)0x04)
-#define RTC_DOW_FRIDAY             ((uint8_t)0x05)
-#define RTC_DOW_SATURDAY           ((uint8_t)0x06)
-#define RTC_DOW_SUNDAY             ((uint8_t)0x07)
+#define RTC_DOW_MONDAY             ((uint8_t)0x01U)
+#define RTC_DOW_TUESDAY            ((uint8_t)0x02U)
+#define RTC_DOW_WEDNESDAY          ((uint8_t)0x03U)
+#define RTC_DOW_THURSDAY           ((uint8_t)0x04U)
+#define RTC_DOW_FRIDAY             ((uint8_t)0x05U)
+#define RTC_DOW_SATURDAY           ((uint8_t)0x06U)
+#define RTC_DOW_SUNDAY             ((uint8_t)0x07U)
 
 // Months
-#define RTC_MONTH_JANUARY          ((uint8_t)0x01)
-#define RTC_MONTH_FEBRUARY         ((uint8_t)0x02)
-#define RTC_MONTH_MARCH            ((uint8_t)0x03)
-#define RTC_MONTH_APRIL            ((uint8_t)0x04)
-#define RTC_MONTH_MAY              ((uint8_t)0x05)
-#define RTC_MONTH_JUNE             ((uint8_t)0x06)
-#define RTC_MONTH_JULY             ((uint8_t)0x07)
-#define RTC_MONTH_AUGUST           ((uint8_t)0x08)
-#define RTC_MONTH_SEPTEMBER        ((uint8_t)0x09)
-#define RTC_MONTH_OCTOBER          ((uint8_t)0x10)
-#define RTC_MONTH_NOVEMBER         ((uint8_t)0x11)
-#define RTC_MONTH_DECEMBER         ((uint8_t)0x12)
-
+#define RTC_MONTH_JANUARY          ((uint8_t)0x01U)
+#define RTC_MONTH_FEBRUARY         ((uint8_t)0x02U)
+#define RTC_MONTH_MARCH            ((uint8_t)0x03U)
+#define RTC_MONTH_APRIL            ((uint8_t)0x04U)
+#define RTC_MONTH_MAY              ((uint8_t)0x05U)
+#define RTC_MONTH_JUNE             ((uint8_t)0x06U)
+#define RTC_MONTH_JULY             ((uint8_t)0x07U)
+#define RTC_MONTH_AUGUST           ((uint8_t)0x08U)
+#define RTC_MONTH_SEPTEMBER        ((uint8_t)0x09U)
+#define RTC_MONTH_OCTOBER          ((uint8_t)0x10U)
+#define RTC_MONTH_NOVEMBER         ((uint8_t)0x11U)
+#define RTC_MONTH_DECEMBER         ((uint8_t)0x12U)
 
 // Definition of the Julian day number
 // Epoch will start at 31 Dec 1999 12:00:00 (since the STM32 RTC start counting from 01 Jan 2000 00:00:00)
@@ -126,13 +135,13 @@ typedef struct {
 
 // Enable the write protection for RTC registers
 __STATIC_INLINE void RTC_WriteProtectionEnable(void) {
-	RTC->WPR = 0xFF;
+	RTC->WPR = (uint8_t)0xFFU;
 }
 
 // Disable the write protection for RTC registers
 __STATIC_INLINE void RTC_WriteProtectionDisable(void) {
-	RTC->WPR = 0xCA;
-	RTC->WPR = 0x53;
+	RTC->WPR = (uint8_t)0xCAU;
+	RTC->WPR = (uint8_t)0x53U;
 }
 
 // Disable the RTC initialization mode
@@ -176,6 +185,7 @@ ErrorStatus RTC_AlarmSet(uint32_t Alarm, FunctionalState NewState);
 #endif // RTC_USE_ALARMS
 
 void RTC_ITConfig(uint32_t IT, FunctionalState NewState);
+void RTC_BypassShadowConfig(FunctionalState NewState);
 
 ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);

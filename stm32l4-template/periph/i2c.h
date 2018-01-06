@@ -66,22 +66,22 @@ typedef enum {
 // Enable I2C peripheral
 // input:
 //   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
-__STATIC_INLINE void I2C_Enable(I2C_TypeDef* I2Cx) {
+__STATIC_FORCEINLINE void I2C_Enable(I2C_TypeDef* I2Cx) {
 	I2Cx->CR1 |= I2C_CR1_PE;
 }
 
 // Disable I2C peripheral
 // input:
 //   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
-__STATIC_INLINE void I2C_Disable(I2C_TypeDef* I2Cx) {
+__STATIC_FORCEINLINE void I2C_Disable(I2C_TypeDef* I2Cx) {
 	I2Cx->CR1 &= ~I2C_CR1_PE;
 }
 
 // Clear ADDR flag
 // input:
 //   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
-__STATIC_INLINE void I2C_ClearFlag_ADDR(I2C_TypeDef* I2Cx) {
-	I2Cx->ICR |= I2C_ICR_ADDRCF;
+__STATIC_FORCEINLINE void I2C_ClearFlag_ADDR(I2C_TypeDef* I2Cx) {
+	I2Cx->ICR = I2C_ICR_ADDRCF;
 }
 
 // Configure I2C noise filters
@@ -102,7 +102,7 @@ __STATIC_INLINE void I2C_ConfigFilters(I2C_TypeDef* I2Cx, uint32_t af, uint32_t 
 //   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
 //   timing - the value for I2C_TIMINGR register
 // note: must be called only when I2C is disabled (PE bit in I2C_CR1 register is reset)
-__STATIC_INLINE void I2C_ConfigTiming(I2C_TypeDef* I2Cx, uint32_t timing) {
+__STATIC_FORCEINLINE void I2C_ConfigTiming(I2C_TypeDef* I2Cx, uint32_t timing) {
 	I2Cx->TIMINGR = timing;
 }
 
@@ -111,14 +111,14 @@ __STATIC_INLINE void I2C_ConfigTiming(I2C_TypeDef* I2Cx, uint32_t timing) {
 //   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
 //   addr - I2C device address
 // note: 7-bit addressing mode
-__STATIC_INLINE void I2C_GenStart(I2C_TypeDef* I2Cx, uint32_t addr) {
+__STATIC_FORCEINLINE void I2C_GenStart(I2C_TypeDef* I2Cx, uint32_t addr) {
 	I2Cx->CR2 = (addr & I2C_CR2_SADD) | I2C_CR2_START | I2C_CR2_AUTOEND;
 }
 
 // Generate STOP condition
 // input:
 //   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
-__STATIC_INLINE void I2C_GenStop(I2C_TypeDef* I2Cx) {
+__STATIC_FORCEINLINE void I2C_GenStop(I2C_TypeDef* I2Cx) {
 	I2Cx->CR2 |= I2C_CR2_STOP;
 }
 

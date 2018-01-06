@@ -75,9 +75,8 @@ ErrorStatus RTC_Init(uint32_t asynch, uint32_t synch) {
 		// Configure synchronous and asynchronous prescalers
 		RTC->PRER = ((asynch << 16) & RTC_PRER_PREDIV_A) | (synch & RTC_PRER_PREDIV_S);
 
-		// Exit RTC initialization mode and enable write protection
+		// Exit RTC initialization mode
 		RTC_ExitInitMode();
-
 		if (!(RTC->CR & RTC_CR_BYPSHAD)) {
 			// Need to wait for synchronization of RTC registers
 			// when shadow registers are enabled
@@ -115,7 +114,6 @@ ErrorStatus RTC_SetWakeupClock(uint32_t clk_cfg) {
 		if (!(RTC->ISR & RTC_ISR_WUTWF)) {
 			// Enable the write protection for RTC registers
 			RTC_WriteProtectionEnable();
-
 			return ERROR;
 		}
 	}
@@ -153,17 +151,16 @@ ErrorStatus RTC_SetWakeup(uint32_t interval) {
 	if (!(RTC->ISR & RTC_ISR_WUTWF)) {
 		// Enable the write protection for RTC registers
 		RTC_WriteProtectionEnable();
-
 		return ERROR;
 	}
 
 	if (interval) {
 		// Configure wakeup auto-reload to specified interval and enable the counter
-		RTC->WUTR = interval - 1;
+		RTC->WUTR = interval - 1U;
 		RTC->CR |= RTC_CR_WUTE;
 	} else {
 		// Set wakeup counter to zero and left the wakeup counter disabled
-		RTC->WUTR = 0;
+		RTC->WUTR = 0U;
 	}
 
 	// Enable the write protection for RTC registers
@@ -181,14 +178,18 @@ ErrorStatus RTC_SetWakeup(uint32_t interval) {
 //   alarm_mask - mask for the alarm (combination of RTC_ALARM_MASK_XXX values)
 //   alarm_dateday - alarm date (value must be in range [1..31], this value ignored if RTC_ALARM_MASK_DAY bit set in mask value)
 void RTC_AlarmInit(uint32_t alarm, RTC_TimeTypeDef *alarm_time, uint32_t alarm_mask, uint8_t alarm_dateday) {
-	uint32_t ALRM;
+	register uint32_t ALRM;
 
 	// Prepare value for the ALRMAR register
-	ALRM =	((alarm_time->RTC_Hours   / 10) << 20) + ((alarm_time->RTC_Hours   % 10) << 16) +
-			((alarm_time->RTC_Minutes / 10) << 12) + ((alarm_time->RTC_Minutes % 10) <<  8) +
-			((alarm_time->RTC_Seconds / 10) <<  4) +  (alarm_time->RTC_Seconds % 10) +
-			((alarm_dateday / 10) << 28) + ((alarm_dateday % 10) << 24) +
-			(alarm_time->RTC_H12 << 16) +
+	ALRM = ((alarm_time->RTC_Hours / 10U) << RTC_ALRMAR_HT_Pos)     | \
+			((alarm_time->RTC_Hours % 10U) << RTC_ALRMAR_HU_Pos)    | \
+			((alarm_time->RTC_Minutes / 10U) << RTC_ALRMAR_MNT_Pos) | \
+			((alarm_time->RTC_Minutes % 10U) << RTC_ALRMAR_MNU_Pos) | \
+			((alarm_time->RTC_Seconds / 10U) << RTC_ALRMAR_ST_Pos)  | \
+			((alarm_time->RTC_Seconds % 10U) << RTC_ALRMAR_SU_Pos)  | \
+			((alarm_dateday / 10U) << RTC_ALRMAR_DT_Pos)            | \
+			((alarm_dateday % 10U) << RTC_ALRMAR_DU_Pos)            | \
+			(alarm_time->RTC_H12 << RTC_ALRMAR_PM_Pos)              | \
 			alarm_mask;
 
 	// Disable the write protection for RTC registers
@@ -255,33 +256,65 @@ void RTC_ITConfig(uint32_t IT, FunctionalState NewState) {
 	RTC_WriteProtectionEnable();
 }
 
+// Enable or disable bypass the RTC shadow registers
+// input:
+//   NewState - new state of the bypass (ENABLED or DISABLED)
+void RTC_BypassShadowConfig(FunctionalState NewState) {
+	// Disable the write protection for RTC registers
+	RTC_WriteProtectionDisable();
+
+	// Configure new state of bypass the shadow registers
+	if (NewState == ENABLE) {
+		RTC->CR |=  RTC_CR_BYPSHAD;
+	} else {
+		RTC->CR &= ~RTC_CR_BYPSHAD;
+	}
+
+	// Enable the write protection for RTC registers
+	RTC_WriteProtectionEnable();
+}
+
 // Set date and time from RTC_Date and RTC_Time structures
 // input:
 //   Time - pointer to RTC time structure
 //   Date - pointer to RTC date structure
 // return: SUCCESS if date and time set, ERROR otherwise
 ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	uint32_t TR;
-	uint32_t DR;
+	register uint32_t TR;
+	register uint32_t DR;
 
 	// Disable write protection for RTC registers and enter initialization mode
 	RTC_WriteProtectionDisable();
-	if (RTC_EnterInitMode() == SUCCESS) {
-		// Calculate value of time register
-		TR =   (((time->RTC_Hours   / 10) << 20) + ((time->RTC_Hours   % 10) << 16) +
-				((time->RTC_Minutes / 10) << 12) + ((time->RTC_Minutes % 10) <<  8) +
-				((time->RTC_Seconds / 10) <<  4) +  (time->RTC_Seconds % 10) +
-				(time->RTC_H12 << 12)) & RTC_TR_RESERVED_MASK;
 
-		// Calculate value of date register
-		if (date->RTC_WeekDay == 0) {
+#if (RTC_USE_SETDATETIME == 0)
+	// Variant #1: enter INIT mode, compose new values for date and time registers, then write them
+
+	// Enter initialization mode
+	RTC_WriteProtectionDisable();
+	if (RTC_EnterInitMode() == SUCCESS) {
+		// Compose new value for time register
+		TR = (((time->RTC_Hours / 10U) << RTC_TR_HT_Pos)      | \
+				((time->RTC_Hours % 10U) << RTC_TR_HU_Pos)    | \
+				((time->RTC_Minutes / 10U) << RTC_TR_MNT_Pos) | \
+				((time->RTC_Minutes % 10U) << RTC_TR_MNU_Pos) | \
+				((time->RTC_Seconds / 10U) << RTC_TR_ST_Pos)  | \
+				((time->RTC_Seconds % 10U) << RTC_TR_SU_Pos)  | \
+				(time->RTC_H12 << RTC_TR_PM_Pos))            & \
+						RTC_TR_RESERVED_MASK;
+
+		// Compose new value for date register
+		if (date->RTC_WeekDay == 0U) {
 			// Value '000' is forbidden for WDU bits in RTC_DR register
-			date->RTC_WeekDay = 7;
+			date->RTC_WeekDay = 7U;
 		}
-		DR =   (((date->RTC_Year  / 10) << 20) + ((date->RTC_Year  % 10) << 16) +
-				((date->RTC_Month / 10) << 12) + ((date->RTC_Month % 10) <<  8) +
-				((date->RTC_Date  / 10) <<  4) +  (date->RTC_Date  % 10) +
-				(date->RTC_WeekDay << 13)) & RTC_DR_RESERVED_MASK;
+		DR = (((date->RTC_Year / 10U) << RTC_DR_YT_Pos)    | \
+				((date->RTC_Year % 10U) << RTC_DR_YU_Pos)  | \
+				((date->RTC_Month / 10U) << RTC_DR_MT_Pos) | \
+				((date->RTC_Month % 10U) << RTC_DR_MU_Pos) | \
+				((date->RTC_Date / 10U) << RTC_DR_DT_Pos)  | \
+				((date->RTC_Date % 10U) << RTC_DR_DU_Pos)  | \
+				(date->RTC_WeekDay << RTC_DR_WDU_Pos))     & \
+						RTC_DR_RESERVED_MASK;
 
 		// Write date and time to the RTC registers and exit initialization mode
 		RTC->TR = TR;
@@ -298,6 +331,66 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 		// Timeout while entering initialization mode
 		TR = ERROR;
 	}
+#else
+	// Variant #2: initialize entry to the INIT mode, compose new values for the date/time
+	// registers and then wait for the INIT mode, then write new values to the RTC registers
+	// Looks less pretty than the variant #1, but gives a performance gain in those cases
+	// when the frequency of the MCU is rather low
+
+	// Activate the initialization mode if it is not already on
+	if (!(RTC->ISR & RTC_ISR_INITF)) {
+		RTC->ISR = RTC_ISR_INIT;
+	}
+
+	// Compose new value for time register
+	TR = (((time->RTC_Hours / 10U) << RTC_TR_HT_Pos)      | \
+			((time->RTC_Hours % 10U) << RTC_TR_HU_Pos)    | \
+			((time->RTC_Minutes / 10U) << RTC_TR_MNT_Pos) | \
+			((time->RTC_Minutes % 10U) << RTC_TR_MNU_Pos) | \
+			((time->RTC_Seconds / 10U) << RTC_TR_ST_Pos)  | \
+			((time->RTC_Seconds % 10U) << RTC_TR_SU_Pos)  | \
+			(time->RTC_H12 << RTC_TR_PM_Pos))            & \
+					RTC_TR_RESERVED_MASK;
+
+	// Compose new value for date register
+	if (date->RTC_WeekDay == 0) {
+		// Value '000' is forbidden for WDU bits in RTC_DR register
+		date->RTC_WeekDay = 7U;
+	}
+	DR = (((date->RTC_Year / 10U) << RTC_DR_YT_Pos)    | \
+			((date->RTC_Year % 10U) << RTC_DR_YU_Pos)  | \
+			((date->RTC_Month / 10U) << RTC_DR_MT_Pos) | \
+			((date->RTC_Month % 10U) << RTC_DR_MU_Pos) | \
+			((date->RTC_Date / 10U) << RTC_DR_DT_Pos)  | \
+			((date->RTC_Date % 10U) << RTC_DR_DU_Pos)  | \
+			(date->RTC_WeekDay << RTC_DR_WDU_Pos))     & \
+					RTC_DR_RESERVED_MASK;
+
+	// Poll the flag to ensure that RTC is in INIT state
+	if (!(RTC->ISR & RTC_ISR_INITF)) {
+		volatile uint32_t wait = RTC_CalcDelay(RTC_TIMEOUT_INIT);
+		while (!(RTC->ISR & RTC_ISR_INITF) && --wait);
+		if (wait == 0U) {
+			// Enable the write protection for RTC registers
+			RTC_WriteProtectionEnable();
+
+			return ERROR;
+		}
+	}
+
+	// Write date and time to the RTC registers and exit initialization mode
+	RTC->TR = TR;
+	RTC->DR = DR;
+	RTC_ExitInitMode();
+
+	if (!(RTC->CR & RTC_CR_BYPSHAD)) {
+		// Need to wait for synchronization of RTC registers
+		TR = RTC_WaitForSynchro();
+	} else {
+		TR = SUCCESS;
+	}
+
+#endif // RTC_USE_SETDATETIME
 
 	// Enable the write protection for RTC registers
 	RTC_WriteProtectionEnable();
@@ -311,22 +404,23 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 //   Date - pointer to RTC date structure
 // return: date and time in Time and Date structures
 void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
-	uint32_t TR;
-	uint32_t DR;
+	register uint32_t TR;
+	register uint32_t DR;
 
-	// Get date and time (clear reserved bits just for any case)
+	// Read a values of date and time registers, clear reserved bits just for any case
 	TR = RTC->TR & RTC_TR_RESERVED_MASK;
 	DR = RTC->DR & RTC_DR_RESERVED_MASK;
 
 	// Convert BCD to human readable format
-	time->RTC_Hours   = (((TR >> 20) & 0x03) * 10) + ((TR >> 16) & 0x0f);
-	time->RTC_Minutes = (((TR >> 12) & 0x07) * 10) + ((TR >>  8) & 0x0f);
-	time->RTC_Seconds = (((TR >>  4) & 0x07) * 10) +  (TR & 0x0f);
-	time->RTC_H12     =   (TR & RTC_TR_PM) >> 16;
-	date->RTC_Year    = (((DR >> 20) & 0x07) * 10) + ((DR >> 16) & 0x0f);
-	date->RTC_Month   = (((DR >> 12) & 0x01) * 10) + ((DR >>  8) & 0x0f);
-	date->RTC_Date    = (((DR >>  4) & 0x03) * 10) +  (DR & 0x0f);
-	date->RTC_WeekDay = (DR & RTC_DR_WDU) >> 13;
+	time->RTC_Hours   = (((TR & RTC_TR_HT)  >> RTC_TR_HT_Pos)  * 10U) + ((TR & RTC_TR_HU)  >> RTC_TR_HU_Pos);
+	time->RTC_Minutes = (((TR & RTC_TR_MNT) >> RTC_TR_MNT_Pos) * 10U) + ((TR & RTC_TR_MNU) >> RTC_TR_MNU_Pos);
+	time->RTC_Seconds = (((TR & RTC_TR_ST)  >> RTC_TR_ST_Pos)  * 10U) + ((TR & RTC_TR_SU)  >> RTC_TR_SU_Pos);
+	time->RTC_H12     = (TR & RTC_TR_PM) >> RTC_TR_PM_Pos;
+
+	date->RTC_Year    = (((DR & RTC_DR_YT) >> RTC_DR_YT_Pos) * 10U) + ((DR & RTC_DR_YU) >> RTC_DR_YU_Pos);
+	date->RTC_Month   = (((DR & RTC_DR_MT) >> RTC_DR_MT_Pos) * 10U) + ((DR & RTC_DR_MU) >> RTC_DR_MU_Pos);
+	date->RTC_Date    = (((DR & RTC_DR_DT) >> RTC_DR_DT_Pos) * 10U) + ((DR & RTC_DR_DU) >> RTC_DR_DU_Pos);
+	date->RTC_WeekDay = (DR & RTC_DR_WDU) >> RTC_DR_WDU_Pos;
 }
 
 #if (RTC_USE_EPOCH)
@@ -342,28 +436,28 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	uint32_t JDN;
 
 	// Calculate some coefficients
-	a = (14 - date->RTC_Month) / 12;
-	y = date->RTC_Year + 6800 - a; // years since 1 March, 4801 BC
-	m = date->RTC_Month + (12 * a) - 3;
+	a = (14U - date->RTC_Month) / 12U;
+	y = date->RTC_Year + 6800U - a; // years since 1 March, 4801 BC
+	m = date->RTC_Month + (12U * a) - 3U;
 
 	// Compute Julian day number (from Gregorian calendar date)
 	JDN  = date->RTC_Date;
-	JDN += ((153 * m) + 2) / 5; // Number of days since 1 march
-	JDN += 365 * y;
-	JDN += y / 4;
-	JDN -= y / 100;
-	JDN += y / 400;
-	JDN -= 32045;
+	JDN += ((153U * m) + 2U) / 5U; // Number of days since 1 march
+	JDN += 365U * y;
+	JDN += y / 4U;
+	JDN -= y / 100U;
+	JDN += y / 400U;
+	JDN -= 32045U;
 
 	// Subtract number of days passed before base date from Julian day number
 	JDN -= RTC_JDN;
 
 	// Convert days to seconds
-	JDN *= 86400;
+	JDN *= 86400U;
 
 	// Increase epoch time by specified time (in seconds)
-	JDN += time->RTC_Hours * 3600;
-	JDN += time->RTC_Minutes * 60;
+	JDN += time->RTC_Hours * 3600U;
+	JDN += time->RTC_Minutes * 60U;
 	JDN += time->RTC_Seconds;
 
 	// Number of seconds passed since the base date
@@ -382,28 +476,28 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	uint32_t d;
 
 	// Calculate JDN (Julian day number) from a specified epoch value
-	a = (epoch / 86400) + RTC_JDN;
+	a = (epoch / 86400U) + RTC_JDN;
 
 	// Day of week
-	date->RTC_WeekDay = (a % 7) + 1;
+	date->RTC_WeekDay = (a % 7U) + 1U;
 
 	// Calculate intermediate values
-	a += 32044;
-	b  = ((4 * a) + 3) / 146097;
-	a -= (146097 * b) / 4;
-	c  = ((4 * a) + 3) / 1461;
-	a -= (1461 * c) / 4;
-	d  = ((5 * a) + 2) / 153;
+	a += 32044U;
+	b  = ((4U * a) + 3U) / 146097U;
+	a -= (146097U * b) / 4U;
+	c  = ((4U * a) + 3U) / 1461U;
+	a -= (1461U * c) / 4U;
+	d  = ((5U * a) + 2U) / 153U;
 
 	// Date
-	date->RTC_Date  = a - (((153 * d) + 2) / 5) + 1;
-	date->RTC_Month = d + 3 - (12 * (d / 10));
-	date->RTC_Year  = (100 * b) + c - 6800 + (d / 10);
+	date->RTC_Date  = a - (((153U * d) + 2U) / 5U) + 1U;
+	date->RTC_Month = d + 3U - (12U * (d / 10U));
+	date->RTC_Year  = (100U * b) + c - 6800U + (d / 10U);
 
 	// Time
-	time->RTC_Hours   = (epoch / 3600) % 24;
-	time->RTC_Minutes = (epoch / 60) % 60;
-	time->RTC_Seconds =  epoch % 60;
+	time->RTC_Hours   = (epoch / 3600U) % 24U;
+	time->RTC_Minutes = (epoch / 60U) % 60U;
+	time->RTC_Seconds =  epoch % 60U;
 }
 
 // Adjust time and date by time zone offset
@@ -415,7 +509,7 @@ void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t off
 	uint32_t epoch;
 
 	// Convert date/time to epoch
-	epoch  = RTC_ToEpoch(time, date);
+	epoch = RTC_ToEpoch(time, date);
 	// Add or subtract offset in seconds
 	epoch += offset * 3600;
 	// Convert updated epoch back to date/time
@@ -432,6 +526,7 @@ void RTC_CalcDOW(RTC_DateTypeDef *date) {
 	int16_t adjustment;
 	int16_t month;
 	int16_t year;
+	register uint8_t wd;
 
 	// Calculate intermediate values
 	adjustment = (14 - date->RTC_Month) / 12;
@@ -439,12 +534,16 @@ void RTC_CalcDOW(RTC_DateTypeDef *date) {
 	year = date->RTC_Year - adjustment;
 
 	// Calculate day of week (0 = Sunday ... 6 = Saturday)
-	date->RTC_WeekDay = (date->RTC_Date + ((13 * month - 1) / 5) + year + (year / 4) - (year / 100) + (year / 400)) % 7;
+	wd  = date->RTC_Date;
+	wd += (uint8_t)((((13 * month) - 1) / 5) + year + (year / 4) - (year / 100) + (year / 400));
+	wd %= 7;
 
-	// Sunday?
-	if (date->RTC_WeekDay == 0) {
-		date->RTC_WeekDay = 7;
+	// Is it Sunday?
+	if (wd == 0U) {
+		wd = 7U;
 	}
+
+	date->RTC_WeekDay = wd;
 }
 
 // Write a data in a specified RTC backup data register

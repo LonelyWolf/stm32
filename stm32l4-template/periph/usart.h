@@ -1,5 +1,5 @@
-#ifndef __UART_H
-#define __UART_H
+#ifndef __USART_H
+#define __USART_H
 
 
 #include <stm32l4xx.h>
@@ -32,21 +32,22 @@
 //   1 - USART_printf available
 #define USART_USE_PRINTF           1
 
-// Example of define an alias for printf to send output to USART1
-//#if (USART_USE_PRINTF)
-//#define printf(...) USART_printf(USART1,__VA_ARGS__)
-//#endif
-
+/*
+	// Example of definition of an alias for printf to send output to USART1
+	#if (USART_USE_PRINTF)
+	#define printf(...) USART_printf(USART1, __VA_ARGS__)
+	#endif
+*/
 
 // USART handle structure
 typedef struct {
-	USART_TypeDef                 *Instance;  // USART peripheral base address
-	uint8_t                        AF;        // USART alternate function mapping
-	GPIO_HandleTypeDef             PIN_RX;    // RX pin
-	GPIO_HandleTypeDef             PIN_TX;    // TX pin
+	USART_TypeDef                 *Instance; // USART peripheral base address
+	uint8_t                        AF;       // USART alternate function mapping
+	GPIO_HandleTypeDef             PIN_RX;   // RX pin
+	GPIO_HandleTypeDef             PIN_TX;   // TX pin
 #if (USART_USE_DMA)
-	DMA_HandleTypeDef              DMA_RX;    // DMA RX channel
-	DMA_HandleTypeDef              DMA_TX;    // DMA TX channel
+	DMA_HandleTypeDef              DMA_RX;   // DMA RX channel
+	DMA_HandleTypeDef              DMA_TX;   // DMA TX channel
 #endif
 } USART_HandleTypeDef;
 
@@ -97,16 +98,16 @@ typedef struct {
 //          2 - USART_CR2
 //          3 - USART_CR3
 //   ZZZZ - position of the interrupt flag in the USART_ISR register (4 bits)
-#define USART_IRQ_TXE              ((uint16_t)(( 7 << 8) | (1 << 5) |  7)) // Transmit data register empty
-#define USART_IRQ_TC               ((uint16_t)(( 6 << 8) | (1 << 5) |  6)) // Transmission complete
-#define USART_IRQ_RXNE             ((uint16_t)(( 5 << 8) | (1 << 5) |  5)) // Read data register not empty
-#define USART_IRQ_IDLE             ((uint16_t)(( 4 << 8) | (1 << 5) |  4)) // IDLE detected
-#define USART_IRQ_RTO              ((uint16_t)((11 << 8) | (1 << 5) | 26)) // Receiver timeout
-#define USART_IRQ_PE               ((uint16_t)(( 0 << 8) | (1 << 5) |  8)) // Parity error
-#define USART_IRQ_ERR              ((uint16_t)(( 0 << 8) | (3 << 5)))      // Error interrupt (parity, noise and frame errors)
-#define USART_IRQ_ORE              ((uint16_t)(( 3 << 8)))                 // Overrun error (only flag position)
-#define USART_IRQ_NE               ((uint16_t)(( 2 << 8)))                 // Noise detected (only flag position)
-#define USART_IRQ_FE               ((uint16_t)(( 1 << 8)))                 // Frame error (only flag position)
+#define USART_IRQ_TXE              ((uint16_t)(( 7U << 8) | (1U << 5) |  7U)) // Transmit data register empty
+#define USART_IRQ_TC               ((uint16_t)(( 6U << 8) | (1U << 5) |  6U)) // Transmission complete
+#define USART_IRQ_RXNE             ((uint16_t)(( 5U << 8) | (1U << 5) |  5U)) // Read data register not empty
+#define USART_IRQ_IDLE             ((uint16_t)(( 4U << 8) | (1U << 5) |  4U)) // IDLE detected
+#define USART_IRQ_RTO              ((uint16_t)((11U << 8) | (1U << 5) | 26U)) // Receiver timeout
+#define USART_IRQ_PE               ((uint16_t)(( 0U << 8) | (1U << 5) |  8U)) // Parity error
+#define USART_IRQ_ERR              ((uint16_t)(( 0U << 8) | (3U << 5)))       // Error interrupt (parity, noise and frame errors)
+#define USART_IRQ_ORE              ((uint16_t)(( 3U << 8)))                   // Overrun error (only flag position)
+#define USART_IRQ_NE               ((uint16_t)(( 2U << 8)))                   // Noise detected (only flag position)
+#define USART_IRQ_FE               ((uint16_t)(( 1U << 8)))                   // Frame error (only flag position)
 
 // Definitions of USART status flags
 #define USART_FLAG_BUSY            USART_ISR_BUSY // Busy flag
@@ -160,14 +161,14 @@ extern USART_HandleTypeDef hUART5;
 // Enable USART
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-__STATIC_INLINE void USART_Enable(USART_HandleTypeDef *USARTx) {
+__STATIC_FORCEINLINE void USART_Enable(USART_HandleTypeDef *USARTx) {
 	USARTx->Instance->CR1 |= USART_CR1_UE;
 }
 
 // Disable USART
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-__STATIC_INLINE void USART_Disable(USART_HandleTypeDef *USARTx) {
+__STATIC_FORCEINLINE void USART_Disable(USART_HandleTypeDef *USARTx) {
 	USARTx->Instance->CR1 &= ~USART_CR1_UE;
 }
 
@@ -176,7 +177,7 @@ __STATIC_INLINE void USART_Disable(USART_HandleTypeDef *USARTx) {
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 //   flag - flag to check, can be any of USART_FLAG_xx or USART_ISR_xx values
 // return: state of the flag, zero if it is reset
-__STATIC_INLINE uint32_t USART_GetFlags(USART_HandleTypeDef *USARTx, uint32_t flag) {
+__STATIC_FORCEINLINE uint32_t USART_GetFlags(USART_HandleTypeDef *USARTx, uint32_t flag) {
 	return (USARTx->Instance->ISR & flag);
 }
 
@@ -184,14 +185,14 @@ __STATIC_INLINE uint32_t USART_GetFlags(USART_HandleTypeDef *USARTx, uint32_t fl
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 //   flag - any combination of USART_ICR_xx values
-__STATIC_INLINE void USART_ClearFlags(USART_HandleTypeDef *USARTx, uint32_t flag) {
+__STATIC_FORCEINLINE void USART_ClearFlags(USART_HandleTypeDef *USARTx, uint32_t flag) {
 	USARTx->Instance->ICR = flag;
 }
 
 // Flush the received data
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-__STATIC_INLINE void USART_FlushRX(USART_HandleTypeDef *USARTx) {
+__STATIC_FORCEINLINE void USART_FlushRX(USART_HandleTypeDef *USARTx) {
 	USARTx->Instance->RQR |= USART_RQR_RXFRQ;
 }
 
@@ -199,21 +200,21 @@ __STATIC_INLINE void USART_FlushRX(USART_HandleTypeDef *USARTx) {
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 // return: received byte
-__STATIC_INLINE uint8_t USART_ReadChar(USART_HandleTypeDef *USARTx) {
+__STATIC_FORCEINLINE uint8_t USART_ReadChar(USART_HandleTypeDef *USARTx) {
 	return (uint8_t)(USARTx->Instance->RDR);
 }
 
 // Enable receiver timeout
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-__STATIC_INLINE void USART_EnableRxTimeout(USART_HandleTypeDef *USARTx) {
+__STATIC_FORCEINLINE void USART_EnableRxTimeout(USART_HandleTypeDef *USARTx) {
 	USARTx->Instance->CR2 |= USART_CR2_RTOEN;
 }
 
 // Disable receiver timeout
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-__STATIC_INLINE void USART_DisableRxTimeout(USART_HandleTypeDef *USARTx) {
+__STATIC_FORCEINLINE void USART_DisableRxTimeout(USART_HandleTypeDef *USARTx) {
 	USARTx->Instance->CR2 &= ~USART_CR2_RTOEN;
 }
 
@@ -221,9 +222,9 @@ __STATIC_INLINE void USART_DisableRxTimeout(USART_HandleTypeDef *USARTx) {
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 //   timeout - timeout value expressed in number of bits duration, can be a value from 0 to 0xFFFFFF
-__STATIC_INLINE void USART_SetRxTimeout(USART_HandleTypeDef *USARTx, uint32_t timeout) {
+__STATIC_FORCEINLINE void USART_SetRxTimeout(USART_HandleTypeDef *USARTx, uint32_t timeout) {
 	USARTx->Instance->RTOR &= ~USART_RTOR_RTO;
-	USARTx->Instance->RTOR |= (timeout & USART_RTOR_RTO);
+	USARTx->Instance->RTOR |= timeout & USART_RTOR_RTO;
 }
 
 
@@ -277,4 +278,4 @@ void USART_SendBufHex(USART_TypeDef *USARTx, const char *pBuf, uint32_t length);
 int USART_printf(USART_TypeDef *USARTx, const char *fmt, ...);
 #endif // USART_USE_PRINTF
 
-#endif // __UART_H
+#endif // __USART_H

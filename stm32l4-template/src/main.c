@@ -67,7 +67,6 @@ void Clock_Clk48Config(void) {
 	// Fpll_p = Fvco / PLLP = 96 / 7 = 13.714286MHz (unused)
 	// Fpll_q = Fvco / PLLQ = 96 / 2 = 48MHz (PLL48M2CLK, clock for USB, RNG and SDMMC)
 	// Fpll_r = Fvco / PLLR = 96 / 2 = 48MHz (unused)
-
 	pll.PLLN = 12;
 	pll.PLLR = RCC_PLLSAI1R_DIV2;
 	pll.PLLQ = RCC_PLLSAI1Q_DIV2;
@@ -93,9 +92,15 @@ void Clock_Clk48Disable(void) {
 
 int main(void) {
 	// Initialize the MCU clock system
-	SystemInit();
 	SetSysClock();
 	SystemCoreClockUpdate();
+
+
+	// Prefetch is useful if at least one wait state is needed to access the Flash memory
+	if (RCC_GetLatency() != FLASH_ACR_LATENCY_0WS) {
+		// Enable prefetch buffer (a.k.a ART)
+		RCC_PrefetchEnable();
+	}
 
 
 	// Initialize debug output port (USART2)
@@ -117,15 +122,33 @@ int main(void) {
 	USART_CheckIdleState(&hUSART2, 0xC5C10); // Timeout of about 100ms at 80MHz CPU
 
 
-	// Say "hello world"
+	// Say "hello world" into the USART port
 	RCC_ClocksTypeDef Clocks;
 	RCC_GetClocksFreq(&Clocks);
 	printf("\r\n---STM32L476RG---\r\n");
 	printf("STM32L476 Template (%s @ %s)\r\n", __DATE__, __TIME__);
 	printf("CPU: %.3uMHz\r\n", SystemCoreClock / 1000);
-	printf("SYSCLK=%.3uMHz, HCLK=%.3uMHz\r\n", Clocks.SYSCLK_Frequency / 1000, Clocks.HCLK_Frequency / 1000);
-	printf("APB1=%.3uMHz, APB2=%.3uMHz\r\n", Clocks.PCLK1_Frequency / 1000, Clocks.PCLK2_Frequency / 1000);
+	printf("SYSCLK: %.3uMHz, HCLK: %.3uMHz\r\n", Clocks.SYSCLK_Frequency / 1000, Clocks.HCLK_Frequency / 1000);
+	printf("APB1: %.3uMHz, APB2: %.3uMHz\r\n", Clocks.PCLK1_Frequency / 1000, Clocks.PCLK2_Frequency / 1000);
 	printf("System clock: %s\r\n", _sysclk_src_str[RCC_GetSysClockSource()]);
+#if 0
+	// DEV: 0x461 = STM32L496xx/4A6xx
+	//      0x415 = STM32L475xx/476xx/486xx devices
+	// REV: 0x1000: Rev 1 for STM32L475xx/476xx/486xx devices
+	//              Rev A for STM32L496xx/4A6xx devices
+	//      0x1001: Rev 2 for STM32L475xx/476xx/486xx devices
+	//              Rev B for STM32L496xx/4A6xx devices
+	//      0x1003: Rev 3 for STM32L475xx/476xx/486xx devices
+	//      0x1007: Rev 4 for STM32L475xx/476xx/486xx devices
+	printf("MCU: DEV=%03X REV=%04X FLASH=%uKB ID=%08X%08X%08X\r\n",
+			DBGMCU->IDCODE & 0xFFFU, // DEV_ID
+			DBGMCU->IDCODE >> 16, // REV_ID
+			(uint16_t)(*(volatile uint32_t*)(FLASHSIZE_BASE)), // Flash size in kilobytes
+			*(volatile uint32_t*)(UID_BASE), // Unique ID 96 bits
+			*(volatile uint32_t*)(UID_BASE + 4U),
+			*(volatile uint32_t*)(UID_BASE + 8U)
+		);
+#endif // MCU model
 
 
 	// Initialize delay functions

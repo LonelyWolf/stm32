@@ -110,45 +110,48 @@
 uint32_t SystemCoreClock = MSI_VALUE;
 
 // AHB prescalers
-const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
+const uint8_t AHBPrescTable[16] = {
+		0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+		1U, 2U, 3U, 4U, 6U, 7U, 8U, 9U
+};
 
 // APB prescalers
-const uint8_t APBPrescTable[8] = {0, 0, 0, 0, 1, 2, 3, 4};
+const uint8_t APBPrescTable[8] = {
+		0U, 0U, 0U, 0U, 1U, 2U, 3U, 4U
+};
 
 // Available MSI frequency ranges (Hz)
 const uint32_t MSIRangeTable[12] = {
-		  100000,   200000,   400000,   800000,
-		 1000000,  2000000,  4000000,  8000000,
-		16000000, 24000000, 32000000, 48000000
+		100000U,   200000U,   400000U,   800000U,
+		1000000U,  2000000U,  4000000U,  8000000U,
+		16000000U, 24000000U, 32000000U, 48000000U
 };
 
 
 // Setup the microcontroller system (reset the clocks to the default reset state)
 void SystemInit(void) {
-	// FPU settings
 #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-  SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  // set CP10 and CP11 Full Access
+	// FPU settings
+	SCB->CPACR |= (0xFU << 20); // Enable CP10, CP11
 #endif
-
-  // Reset the RCC clock configuration to the default reset state
 
 	// Set MSION bit
 	RCC->CR |= RCC_CR_MSION;
 
 	// Reset CFGR register
-	RCC->CFGR = 0x00000000;
+	RCC->CFGR = 0x00000000U;
 
 	// Reset HSEON, CSSON , HSION, and PLLON bits
-	RCC->CR &= (uint32_t)0xEAF6FFFF;
+	RCC->CR &= 0xEAF6FFFFU;
 
 	// Reset PLLCFGR register
-	RCC->PLLCFGR = 0x00001000;
+	RCC->PLLCFGR = 0x00001000U;
 
 	// Reset HSEBYP bit
-	RCC->CR &= (uint32_t)0xFFFBFFFF;
+	RCC->CR &= 0xFFFBFFFFU;
 
 	// Disable all interrupts
-	RCC->CIER = 0x00000000;
+	RCC->CIER = 0x00000000U;
 
 	// Configure the vector table relocation
 #ifdef VECT_TAB_SRAM
@@ -196,7 +199,7 @@ void SystemCoreClockUpdate(void) {
 		// PLL source
 		switch (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) {
 		case RCC_PLLCFGR_PLLSRC_HSI:
-        	// HSI used as PLL clock source
+			// HSI used as PLL clock source
 			SystemCoreClock = (HSI_VALUE / tmp);
 			break;
 		case RCC_PLLCFGR_PLLSRC_HSE:
