@@ -2,6 +2,10 @@
 #define __MAIN_H
 
 
+// Define to any non-zero value when a HSE is present
+#define DEVICE_HSE_PRESENT         0
+
+
 // Internal peripherals
 #include "rcc.h"
 #include "pwr.h"

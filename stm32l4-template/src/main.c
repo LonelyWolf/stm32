@@ -26,6 +26,9 @@ void SetSysClock(void) {
 	// Configure the PLLs input clock divider (common for all PLLs)
 	RCC_PLLMConfig(RCC_PLLM_DIV2);
 
+#if (DEVICE_HSE_PRESENT)
+	// Device with HSE
+
 	// Try to start HSE clock
 	if (RCC_HSEConfig(RCC_HSE_ON) == ERROR) {
 		// The HSE did not started, disable it
@@ -55,6 +58,22 @@ void SetSysClock(void) {
 			RCC_MSIConfig(RCC_MSI_OFF);
 		}
 	}
+#else // DEVICE_HSE_PRESENT
+	// Device without HSE (e.g. Nucleo)
+
+	// Configure MSI speed to 16MHz
+	if (RCC_MSIConfig(RCC_MSI_16M) == ERROR) {
+		// Something really bad had happened, the MSI did not start
+		PWR_EnterSHUTDOWNMode();
+	}
+
+	// Set MSI as clock source for PLLs
+	RCC_PLLSrcConfig(RCC_PLLSRC_MSI);
+
+	// Configure AHB/APB dividers, configure main PLL and
+	// try to switch main system clock source to PLL
+	RCC_SetClockPLL(RCC_PLLSRC_MSI, &pll, &clk);
+#endif // DEVICE_HSE_PRESENT
 }
 
 // Configure CLK48 clock
@@ -125,7 +144,7 @@ int main(void) {
 	// Say "hello world" into the USART port
 	RCC_ClocksTypeDef Clocks;
 	RCC_GetClocksFreq(&Clocks);
-	printf("\r\n---STM32L476RG---\r\n");
+	printf("---STM32L476RG---\r\n");
 	printf("STM32L476 Template (%s @ %s)\r\n", __DATE__, __TIME__);
 	printf("CPU: %.3uMHz\r\n", SystemCoreClock / 1000);
 	printf("SYSCLK: %.3uMHz, HCLK: %.3uMHz\r\n", Clocks.SYSCLK_Frequency / 1000, Clocks.HCLK_Frequency / 1000);

@@ -144,7 +144,7 @@ __STATIC_INLINE uint32_t DMA_GetFlags(DMA_TypeDef *DMAx, uint32_t channel_index,
 //   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
 //   flags - flags to be cleared, any combination of DMA_CF_xx values
 __STATIC_INLINE void DMA_ClearFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
-	DMAx->IFCR |= (flags & DMA_CF_ALL) << channel_index;
+	DMAx->IFCR = (flags & DMA_CF_ALL) << channel_index;
 }
 
 // Set number of transactions for specified DMA channel
