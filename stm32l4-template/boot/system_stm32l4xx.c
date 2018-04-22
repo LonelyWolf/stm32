@@ -172,10 +172,10 @@ void SystemCoreClockUpdate(void) {
 	// MSI frequency (Hz)
 	if (RCC->CR & RCC_CR_MSIRGSEL) {
 		// MSIRGSEL=1 --> MSIRANGE from RCC_CR applies
-		msirange = MSIRangeTable[(RCC->CR & RCC_CR_MSIRANGE) >> 4];
+		msirange = MSIRangeTable[(RCC->CR & RCC_CR_MSIRANGE) >> RCC_CR_MSIRANGE_Pos];
 	} else {
 		// MSIRGSEL=0 --> MSISRANGE from RCC_CSR applies
-		msirange = MSIRangeTable[(RCC->CSR & RCC_CSR_MSISRANGE) >> 8];
+		msirange = MSIRangeTable[(RCC->CSR & RCC_CSR_MSISRANGE) >> RCC_CSR_MSISRANGE_Pos];
 	}
 
 	// SYSCLK source
@@ -192,7 +192,7 @@ void SystemCoreClockUpdate(void) {
 		// PLL used as system clock source
 
 		// PLLM division factor
-		tmp = ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> 4) + 1;
+		tmp = ((RCC->PLLCFGR & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos) + 1;
 
 		// PLL source
 		switch (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) {
@@ -213,8 +213,8 @@ void SystemCoreClockUpdate(void) {
 
 		// PLL_VCO = (HSE_VALUE or HSI_VALUE or MSI_VALUE/PLLM) * PLLN
 		// SYSCLK = PLL_VCO / PLLR
-		SystemCoreClock *= (RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 8;
-		SystemCoreClock /= (((RCC->PLLCFGR & RCC_PLLCFGR_PLLR) >> 25) + 1) << 1;
+		SystemCoreClock *= (RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos;
+		SystemCoreClock /= (((RCC->PLLCFGR & RCC_PLLCFGR_PLLR) >> RCC_PLLCFGR_PLLR_Pos) + 1) << 1;
 
 		break;
 	case RCC_CFGR_SWS_MSI:
@@ -226,5 +226,5 @@ void SystemCoreClockUpdate(void) {
 	}
 
 	// HCLK clock frequency
-	SystemCoreClock >>= AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> 4)];
+	SystemCoreClock >>= AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> RCC_CFGR_HPRE_Pos)];
 }

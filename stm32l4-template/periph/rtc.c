@@ -73,7 +73,7 @@ ErrorStatus RTC_Init(uint32_t asynch, uint32_t synch) {
 		RTC->CR &= ~RTC_CR_FMT;
 
 		// Configure synchronous and asynchronous prescalers
-		RTC->PRER = ((asynch << 16) & RTC_PRER_PREDIV_A) | (synch & RTC_PRER_PREDIV_S);
+		RTC->PRER = ((asynch << RTC_PRER_PREDIV_A_Pos) & RTC_PRER_PREDIV_A) | (synch & RTC_PRER_PREDIV_S);
 
 		// Exit RTC initialization mode
 		RTC_ExitInitMode();
@@ -226,8 +226,8 @@ ErrorStatus RTC_AlarmSet(uint32_t alarm, FunctionalState NewState) {
 		RTC->CR &= ~alarm;
 
 		// Wait till ALRxWF flag set in RTC_ISR register or timeout
-		while (!(RTC->ISR & (alarm >> 8)) && --wait);
-		wait = (RTC->ISR & (alarm >> 8)) ? SUCCESS : ERROR;
+		while (!(RTC->ISR & (alarm >> RTC_ISR_ALRAF_Pos)) && --wait);
+		wait = (RTC->ISR & (alarm >> RTC_ISR_ALRAF_Pos)) ? SUCCESS : ERROR;
 	}
 
 	// Enable the write protection for RTC registers
@@ -299,7 +299,7 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 				((time->RTC_Minutes % 10U) << RTC_TR_MNU_Pos) | \
 				((time->RTC_Seconds / 10U) << RTC_TR_ST_Pos)  | \
 				((time->RTC_Seconds % 10U) << RTC_TR_SU_Pos)  | \
-				(time->RTC_H12 << RTC_TR_PM_Pos))            & \
+				(time->RTC_H12 << RTC_TR_PM_Pos))             & \
 						RTC_TR_RESERVED_MASK;
 
 		// Compose new value for date register
@@ -349,7 +349,7 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 			((time->RTC_Minutes % 10U) << RTC_TR_MNU_Pos) | \
 			((time->RTC_Seconds / 10U) << RTC_TR_ST_Pos)  | \
 			((time->RTC_Seconds % 10U) << RTC_TR_SU_Pos)  | \
-			(time->RTC_H12 << RTC_TR_PM_Pos))            & \
+			(time->RTC_H12 << RTC_TR_PM_Pos))             & \
 					RTC_TR_RESERVED_MASK;
 
 	// Compose new value for date register
