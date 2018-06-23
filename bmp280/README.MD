@@ -1,0 +1,1 @@
+Library for Bosch **BMP280** sensor (temperature and pressure)
