@@ -1,8 +1,8 @@
 # Project template for the **STM32L476RG** MCU.
 
 **Used:**
-- ARM CMSIS library for Cortex-M4 (v5.3.0)
-- STM32L4xx startup, headers and vector table (v1.4.2)
+- ARM CMSIS library for Cortex-M4 (v5.4.0)
+- STM32L4xx startup, headers and vector table (v1.4.3)
 
 **Only minimal system initialization.**
 
