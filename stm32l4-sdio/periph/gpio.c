@@ -24,11 +24,11 @@ void GPIO_set_mode(GPIO_TypeDef *GPIOx, GPIOMode_TypeDef Mode, GPIOPUPD_TypeDef 
 		if ((1 << pin) & Pins) {
 			// Pin mode
 			MODER &= ~GPIO_MODE_MSK(pin);
-			MODER |=  GPIO_MODE_SET(pin,Mode);
+			MODER |=  GPIO_MODE_SET(pin, Mode);
 
 			// Pull-up configuration
 			PUPDR &= ~GPIO_PUPD_MSK(pin);
-			PUPDR |=  GPIO_PUPD_SET(pin,PUPD);
+			PUPDR |=  GPIO_PUPD_SET(pin, PUPD);
 		}
 		pin++;
 	}
@@ -60,7 +60,7 @@ void GPIO_out_cfg(GPIO_TypeDef *GPIOx, GPIOOT_TypeDef OT, GPIOSPD_TypeDef Speed,
 		if ((1 << pin) & Pins) {
 			// Set output speed
 			OSPEEDR &= ~GPIO_SPD_MSK(pin);
-			OSPEEDR |=  GPIO_SPD_SET(pin,Speed);
+			OSPEEDR |=  GPIO_SPD_SET(pin, Speed);
 		}
 		pin++;
 	}
@@ -81,7 +81,7 @@ void GPIO_af_cfg(GPIO_TypeDef *GPIOx, uint16_t Pin, uint8_t AF) {
 
 	// Set the alternative function for a GPIO pin
 	AFR &= ~GPIO_AF_MSK(Pin & 0x07);
-	AFR |=  GPIO_AF_SET(Pin & 0x07,AF);
+	AFR |=  GPIO_AF_SET(Pin & 0x07, AF);
 
 	// Write new value of the alternate function register
 	GPIOx->AFR[Pin >> 3] = AFR;

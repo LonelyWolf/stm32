@@ -12,7 +12,7 @@ void Delay_Init(void) {
 	SysTick->LOAD = (uint32_t)((SystemCoreClock / 1000UL) - 1UL);
 
 	// Set priority for SysTick IRQ
-	NVIC_SetPriority(SysTick_IRQn,(1UL << __NVIC_PRIO_BITS) - 1UL);
+	NVIC_SetPriority(SysTick_IRQn, (1UL << __NVIC_PRIO_BITS) - 1UL);
 
 	// Set the SysTick counter value
 	SysTick->VAL = 0UL;

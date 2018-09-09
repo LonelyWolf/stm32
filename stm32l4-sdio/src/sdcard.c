@@ -14,70 +14,50 @@ void SD_GPIO_Init(void) {
 	// Configure SDIO GPIO pins
 
 	// SDIO_CMD
-	GPIO_set_mode(SDIO_GPIO_CMD_PORT,GPIO_Mode_AF,GPIO_PUPD_PU,SDIO_GPIO_CMD_PIN);
-	GPIO_out_cfg(SDIO_GPIO_CMD_PORT,GPIO_OT_PP,GPIO_SPD_HIGH,SDIO_GPIO_CMD_PIN);
-	GPIO_af_cfg(SDIO_GPIO_CMD_PORT,SDIO_GPIO_CMD_SRC,SDIO_GPIO_AF);
+	GPIO_set_mode(SDIO_GPIO_CMD_PORT, GPIO_Mode_AF, GPIO_PUPD_PU, SDIO_GPIO_CMD_PIN);
+	GPIO_af_cfg(SDIO_GPIO_CMD_PORT, SDIO_GPIO_CMD_SRC, SDIO_GPIO_AF);
+	GPIO_out_cfg(SDIO_GPIO_CMD_PORT, GPIO_OT_PP, GPIO_SPD_HIGH, SDIO_GPIO_CMD_PIN);
 
 	// SDIO_CK
-	GPIO_set_mode(SDIO_GPIO_CK_PORT,GPIO_Mode_AF,GPIO_PUPD_PU,SDIO_GPIO_CK_PIN);
-	GPIO_out_cfg(SDIO_GPIO_CK_PORT,GPIO_OT_PP,GPIO_SPD_HIGH,SDIO_GPIO_CK_PIN);
-	GPIO_af_cfg(SDIO_GPIO_CK_PORT,SDIO_GPIO_CK_SRC,SDIO_GPIO_AF);
+	GPIO_set_mode(SDIO_GPIO_CK_PORT, GPIO_Mode_AF, GPIO_PUPD_PU, SDIO_GPIO_CK_PIN);
+	GPIO_af_cfg(SDIO_GPIO_CK_PORT, SDIO_GPIO_CK_SRC, SDIO_GPIO_AF);
+	GPIO_out_cfg(SDIO_GPIO_CK_PORT, GPIO_OT_PP, GPIO_SPD_HIGH, SDIO_GPIO_CK_PIN);
 
 	// SDIO_D0
-	GPIO_set_mode(SDIO_GPIO_D0_PORT,GPIO_Mode_AF,GPIO_PUPD_PU,SDIO_GPIO_D0_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D0_PORT,GPIO_OT_PP,GPIO_SPD_HIGH,SDIO_GPIO_D0_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D0_PORT,SDIO_GPIO_D0_SRC,SDIO_GPIO_AF);
+	GPIO_set_mode(SDIO_GPIO_D0_PORT, GPIO_Mode_AF, GPIO_PUPD_PU, SDIO_GPIO_D0_PIN);
+	GPIO_af_cfg(SDIO_GPIO_D0_PORT, SDIO_GPIO_D0_SRC, SDIO_GPIO_AF);
+	GPIO_out_cfg(SDIO_GPIO_D0_PORT, GPIO_OT_PP, GPIO_SPD_HIGH, SDIO_GPIO_D0_PIN);
 
 #if (SDIO_USE_4BIT)
 	// SDIO_D1
-	GPIO_set_mode(SDIO_GPIO_D1_PORT,GPIO_Mode_AF,GPIO_PUPD_PU,SDIO_GPIO_D1_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D1_PORT,GPIO_OT_PP,GPIO_SPD_HIGH,SDIO_GPIO_D1_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D1_PORT,SDIO_GPIO_D1_SRC,SDIO_GPIO_AF);
+	GPIO_set_mode(SDIO_GPIO_D1_PORT, GPIO_Mode_AF, GPIO_PUPD_PU, SDIO_GPIO_D1_PIN);
+	GPIO_af_cfg(SDIO_GPIO_D1_PORT, SDIO_GPIO_D1_SRC, SDIO_GPIO_AF);
+	GPIO_out_cfg(SDIO_GPIO_D1_PORT, GPIO_OT_PP, GPIO_SPD_HIGH, SDIO_GPIO_D1_PIN);
 
 	// SDIO_D2
-	GPIO_set_mode(SDIO_GPIO_D2_PORT,GPIO_Mode_AF,GPIO_PUPD_PU,SDIO_GPIO_D2_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D2_PORT,GPIO_OT_PP,GPIO_SPD_HIGH,SDIO_GPIO_D2_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D2_PORT,SDIO_GPIO_D2_SRC,SDIO_GPIO_AF);
+	GPIO_set_mode(SDIO_GPIO_D2_PORT, GPIO_Mode_AF, GPIO_PUPD_PU, SDIO_GPIO_D2_PIN);
+	GPIO_af_cfg(SDIO_GPIO_D2_PORT, SDIO_GPIO_D2_SRC, SDIO_GPIO_AF);
+	GPIO_out_cfg(SDIO_GPIO_D2_PORT, GPIO_OT_PP, GPIO_SPD_HIGH, SDIO_GPIO_D2_PIN);
 
 	// SDIO_D3
-	GPIO_set_mode(SDIO_GPIO_D3_PORT,GPIO_Mode_AF,GPIO_PUPD_PU,SDIO_GPIO_D3_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D3_PORT,GPIO_OT_PP,GPIO_SPD_HIGH,SDIO_GPIO_D3_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D3_PORT,SDIO_GPIO_D3_SRC,SDIO_GPIO_AF);
+	GPIO_set_mode(SDIO_GPIO_D3_PORT, GPIO_Mode_AF, GPIO_PUPD_PU, SDIO_GPIO_D3_PIN);
+	GPIO_af_cfg(SDIO_GPIO_D3_PORT, SDIO_GPIO_D3_SRC, SDIO_GPIO_AF);
+	GPIO_out_cfg(SDIO_GPIO_D3_PORT, GPIO_OT_PP, GPIO_SPD_HIGH, SDIO_GPIO_D3_PIN);
 #endif // SDIO_USE_4BIT
 }
 
 // De-initialize the SDIO GPIO lines to its default state
 void SD_GPIO_DeInit(void) {
-	// SDIO_CMD
-	GPIO_set_mode(SDIO_GPIO_CMD_PORT,GPIO_Mode_AN,GPIO_PUPD_PU,SDIO_GPIO_CMD_PIN);
-	GPIO_out_cfg(SDIO_GPIO_CMD_PORT,GPIO_OT_PP,GPIO_SPD_LOW,SDIO_GPIO_CMD_PIN);
-	GPIO_af_cfg(SDIO_GPIO_CMD_PORT,SDIO_GPIO_CMD_SRC,GPIO_AF0);
-
-	// SDIO_CK
-	GPIO_set_mode(SDIO_GPIO_CK_PORT,GPIO_Mode_AN,GPIO_PUPD_PU,SDIO_GPIO_CK_PIN);
-	GPIO_out_cfg(SDIO_GPIO_CK_PORT,GPIO_OT_PP,GPIO_SPD_LOW,SDIO_GPIO_CK_PIN);
-	GPIO_af_cfg(SDIO_GPIO_CK_PORT,SDIO_GPIO_CK_SRC,GPIO_AF0);
-
-	// SDIO_D0
-	GPIO_set_mode(SDIO_GPIO_D0_PORT,GPIO_Mode_AN,GPIO_PUPD_PU,SDIO_GPIO_D0_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D0_PORT,GPIO_OT_PP,GPIO_SPD_LOW,SDIO_GPIO_D0_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D0_PORT,SDIO_GPIO_D0_SRC,GPIO_AF0);
+	// SDIO CMD, CK, D0
+	GPIO_set_mode(SDIO_GPIO_CMD_PORT, GPIO_Mode_AN, GPIO_PUPD_NONE, SDIO_GPIO_CMD_PIN);
+	GPIO_set_mode(SDIO_GPIO_CK_PORT, GPIO_Mode_AN, GPIO_PUPD_NONE, SDIO_GPIO_CK_PIN);
+	GPIO_set_mode(SDIO_GPIO_D0_PORT, GPIO_Mode_AN, GPIO_PUPD_NONE, SDIO_GPIO_D0_PIN);
 
 #if (SDIO_USE_4BIT)
-	// SDIO_D1
-	GPIO_set_mode(SDIO_GPIO_D1_PORT,GPIO_Mode_AN,GPIO_PUPD_PU,SDIO_GPIO_D1_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D1_PORT,GPIO_OT_PP,GPIO_SPD_LOW,SDIO_GPIO_D1_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D1_PORT,SDIO_GPIO_D1_SRC,GPIO_AF0);
-
-	// SDIO_D2
-	GPIO_set_mode(SDIO_GPIO_D2_PORT,GPIO_Mode_AN,GPIO_PUPD_PU,SDIO_GPIO_D2_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D2_PORT,GPIO_OT_PP,GPIO_SPD_LOW,SDIO_GPIO_D2_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D2_PORT,SDIO_GPIO_D2_SRC,GPIO_AF0);
-
-	// SDIO_D3
-	GPIO_set_mode(SDIO_GPIO_D3_PORT,GPIO_Mode_AN,GPIO_PUPD_PU,SDIO_GPIO_D3_PIN);
-	GPIO_out_cfg(SDIO_GPIO_D3_PORT,GPIO_OT_PP,GPIO_SPD_LOW,SDIO_GPIO_D3_PIN);
-	GPIO_af_cfg(SDIO_GPIO_D3_PORT,SDIO_GPIO_D3_SRC,GPIO_AF0);
+	// SDIO D1, D2, D3
+	GPIO_set_mode(SDIO_GPIO_D1_PORT, GPIO_Mode_AN, GPIO_PUPD_NONE, SDIO_GPIO_D1_PIN);
+	GPIO_set_mode(SDIO_GPIO_D2_PORT, GPIO_Mode_AN, GPIO_PUPD_NONE, SDIO_GPIO_D2_PIN);
+	GPIO_set_mode(SDIO_GPIO_D3_PORT, GPIO_Mode_AN, GPIO_PUPD_NONE, SDIO_GPIO_D3_PIN);
 #endif // SDIO_USE_4BIT
 }
 
@@ -99,12 +79,11 @@ void SD_SDIO_Init(void) {
 	//   - HW flow control: enabled
 	//   - clock: enabled
 	SDMMC1->CLKCR = SD_BUS_1BIT | SD_CLK_DIV_INIT | SDMMC_CLKCR_CLKEN | SDMMC_CLKCR_PWRSAV | SDMMC_CLKCR_HWFC_EN;
-//	SDMMC1->CLKCR = SD_BUS_1BIT | SD_CLK_DIV_INIT | SDMMC_CLKCR_CLKEN | SDMMC_CLKCR_PWRSAV;
 }
 
 // De-initialize the SDIO peripheral
 void SD_SDIO_DeInit(void) {
-	// Disable SDIO clock
+	// Disable SDIO clock and then peripheral
 	SDMMC1->POWER = SD_PWR_OFF;
 
 	// Disable the SDIO peripheral
@@ -160,26 +139,26 @@ static SDResult SD_GetR1Resp(uint8_t cmd) {
 
 	// Get a R1 response and analyze it for errors
 	respR1 = SDMMC1->RESP1;
-	if (!(respR1 & SD_OCR_ALL_ERRORS))      return SDR_Success;
-	if (respR1 & SD_OCR_OUT_OF_RANGE)       return SDR_AddrOutOfRange;
-	if (respR1 & SD_OCR_ADDRESS_ERROR)      return SDR_AddrMisaligned;
-	if (respR1 & SD_OCR_BLOCK_LEN_ERROR)    return SDR_BlockLenError;
-	if (respR1 & SD_OCR_ERASE_SEQ_ERROR)    return SDR_EraseSeqError;
-	if (respR1 & SD_OCR_ERASE_PARAM)        return SDR_EraseParam;
-	if (respR1 & SD_OCR_WP_VIOLATION)       return SDR_WPViolation;
-	if (respR1 & SD_OCR_LOCK_UNLOCK_FAILED) return SDR_LockUnlockFailed;
-	if (respR1 & SD_OCR_COM_CRC_ERROR)      return SDR_ComCRCError;
-	if (respR1 & SD_OCR_ILLEGAL_COMMAND)    return SDR_IllegalCommand;
-	if (respR1 & SD_OCR_CARD_ECC_FAILED)    return SDR_CardECCFailed;
-	if (respR1 & SD_OCR_CC_ERROR)           return SDR_CCError;
-	if (respR1 & SD_OCR_ERROR)              return SDR_GeneralError;
-	if (respR1 & SD_OCR_STREAM_R_UNDERRUN)  return SDR_StreamUnderrun;
-	if (respR1 & SD_OCR_STREAM_W_OVERRUN)   return SDR_StreamOverrun;
-	if (respR1 & SD_OCR_CSD_OVERWRITE)      return SDR_CSDOverwrite;
-	if (respR1 & SD_OCR_WP_ERASE_SKIP)      return SDR_WPEraseSkip;
-	if (respR1 & SD_OCR_CARD_ECC_DISABLED)  return SDR_ECCDisabled;
-	if (respR1 & SD_OCR_ERASE_RESET)        return SDR_EraseReset;
-	if (respR1 & SD_OCR_AKE_SEQ_ERROR)      return SDR_AKESeqError;
+	if (!(respR1 & SD_OCR_ALL_ERRORS))      { return SDR_Success;          }
+	if (respR1 & SD_OCR_OUT_OF_RANGE)       { return SDR_AddrOutOfRange;   }
+	if (respR1 & SD_OCR_ADDRESS_ERROR)      { return SDR_AddrMisaligned;   }
+	if (respR1 & SD_OCR_BLOCK_LEN_ERROR)    { return SDR_BlockLenError;    }
+	if (respR1 & SD_OCR_ERASE_SEQ_ERROR)    { return SDR_EraseSeqError;    }
+	if (respR1 & SD_OCR_ERASE_PARAM)        { return SDR_EraseParam;       }
+	if (respR1 & SD_OCR_WP_VIOLATION)       { return SDR_WPViolation;      }
+	if (respR1 & SD_OCR_LOCK_UNLOCK_FAILED) { return SDR_LockUnlockFailed; }
+	if (respR1 & SD_OCR_COM_CRC_ERROR)      { return SDR_ComCRCError;      }
+	if (respR1 & SD_OCR_ILLEGAL_COMMAND)    { return SDR_IllegalCommand;   }
+	if (respR1 & SD_OCR_CARD_ECC_FAILED)    { return SDR_CardECCFailed;    }
+	if (respR1 & SD_OCR_CC_ERROR)           { return SDR_CCError;          }
+	if (respR1 & SD_OCR_ERROR)              { return SDR_GeneralError;     }
+	if (respR1 & SD_OCR_STREAM_R_UNDERRUN)  { return SDR_StreamUnderrun;   }
+	if (respR1 & SD_OCR_STREAM_W_OVERRUN)   { return SDR_StreamOverrun;    }
+	if (respR1 & SD_OCR_CSD_OVERWRITE)      { return SDR_CSDOverwrite;     }
+	if (respR1 & SD_OCR_WP_ERASE_SKIP)      { return SDR_WPEraseSkip;      }
+	if (respR1 & SD_OCR_CARD_ECC_DISABLED)  { return SDR_ECCDisabled;      }
+	if (respR1 & SD_OCR_ERASE_RESET)        { return SDR_EraseReset;       }
+	if (respR1 & SD_OCR_AKE_SEQ_ERROR)      { return SDR_AKESeqError;      }
 
 	return SDR_Success;
 }
@@ -197,7 +176,6 @@ static SDResult SD_GetR2Resp(uint32_t *pBuf) {
 	// Timeout?
 	if ((SDMMC1->STA & SDMMC_STA_CTIMEOUT) && (wait == 0)) {
 		SDMMC1->ICR = SDMMC_ICR_CTIMEOUTC;
-
 		return SDR_Timeout;
 	}
 
@@ -246,7 +224,6 @@ static SDResult SD_GetR3Resp(void) {
 	// Timeout?
 	if ((SDMMC1->STA & SDMMC_STA_CTIMEOUT) && (wait == 0)) {
 		SDMMC1->ICR = SDMMC_ICR_CTIMEOUTC;
-
 		return SDR_Timeout;
 	}
 
@@ -268,7 +245,6 @@ static SDResult SD_GetR6Resp(uint8_t cmd, uint16_t *pRCA) {
 	// Timeout?
 	if ((SDMMC1->STA & SDMMC_STA_CTIMEOUT) && (wait == 0)) {
 		SDMMC1->ICR = SDMMC_ICR_CTIMEOUTC;
-
 		return SDR_Timeout;
 	}
 
@@ -292,9 +268,9 @@ static SDResult SD_GetR6Resp(uint8_t cmd, uint16_t *pRCA) {
 		*pRCA = (uint16_t)(respR6 >> 16);
 		return SDR_Success;
 	}
-	if (respR6 & SD_R6_GENERAL_UNKNOWN_ERROR) return SDR_UnknownError;
-	if (respR6 & SD_R6_ILLEGAL_CMD)           return SDR_IllegalCommand;
-	if (respR6 & SD_R6_COM_CRC_FAILED)        return SDR_ComCRCError;
+	if (respR6 & SD_R6_GENERAL_UNKNOWN_ERROR) { return SDR_UnknownError;   }
+	if (respR6 & SD_R6_ILLEGAL_CMD)           { return SDR_IllegalCommand; }
+	if (respR6 & SD_R6_COM_CRC_FAILED)        { return SDR_ComCRCError;    }
 
 	return SDR_Success;
 }
@@ -310,14 +286,12 @@ static SDResult SD_GetR7Resp(void) {
 	// Timeout?
 	if ((SDMMC1->STA & SDMMC_STA_CTIMEOUT) || (wait == 0)) {
 		SDMMC1->ICR = SDMMC_ICR_CTIMEOUTC;
-
 		return SDR_Timeout;
 	}
 
 	// Clear command response received flag
 	if (SDMMC1->STA & SDMMC_STA_CMDREND) {
 		SDMMC1->ICR = SDMMC_ICR_CMDRENDC;
-
 		return SDR_Success;
 	}
 
@@ -374,10 +348,10 @@ static SDResult SD_GetSCR(uint32_t *pSCR) {
 
 	// Check for errors
 	if (SDMMC1->STA & (SDMMC_STA_DTIMEOUT | SDMMC_STA_DCRCFAIL | SDMMC_STA_RXOVERR | SDMMC_STA_STBITERR)) {
-		if (SDMMC1->STA & SDMMC_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
-		if (SDMMC1->STA & SDMMC_STA_DCRCFAIL) cmd_res = SDR_DataCRCFail;
-		if (SDMMC1->STA & SDMMC_STA_RXOVERR)  cmd_res = SDR_RXOverrun;
-		if (SDMMC1->STA & SDMMC_STA_STBITERR) cmd_res = SDR_StartBitError;
+		if (SDMMC1->STA & SDMMC_STA_DTIMEOUT) { cmd_res = SDR_DataTimeout;   }
+		if (SDMMC1->STA & SDMMC_STA_DCRCFAIL) { cmd_res = SDR_DataCRCFail;   }
+		if (SDMMC1->STA & SDMMC_STA_RXOVERR)  { cmd_res = SDR_RXOverrun;     }
+		if (SDMMC1->STA & SDMMC_STA_STBITERR) { cmd_res = SDR_StartBitError; }
 	}
 
 	// Clear the static SDIO flags
@@ -406,7 +380,7 @@ SDResult SD_Init(void) {
 	SDResult cmd_res;
 
 	// Populate SDCard structure with default values
-	SDCard = (SDCard_TypeDef){ 0 };
+	SDCard = (SDCard_TypeDef){0};
 	SDCard.Type = SDCT_UNKNOWN;
 
 	// Enable the SDIO clock
@@ -416,7 +390,9 @@ SDResult SD_Init(void) {
 	wait = SD_CMD_TIMEOUT;
 	SD_Cmd(SD_CMD_GO_IDLE_STATE, 0x00, SD_RESP_NONE);
 	while (!(SDMMC1->STA & (SDMMC_STA_CTIMEOUT | SDMMC_STA_CMDSENT)) && --wait);
-	if ((SDMMC1->STA & SDMMC_STA_CTIMEOUT) || !wait) return SDR_Timeout;
+	if ((SDMMC1->STA & SDMMC_STA_CTIMEOUT) || !wait) {
+		return SDR_Timeout;
+	}
 
 	// CMD8: SEND_IF_COND. Send this command to verify SD card interface operating condition
 	// Argument: - [31:12]: Reserved (shall be set to '0')
@@ -442,11 +418,12 @@ SDResult SD_Init(void) {
 			if (cmd_res != SDR_Success) {
 				return cmd_res;
 			}
+
 			// ACMD41 - initiate initialization process.
 			// Set 3.0-3.3V voltage window (bit 20)
 			// Set HCS bit (30) (Host Capacity Support) to inform card what host support high capacity
 			// Set XPC bit (28) (SDXC Power Control) to use maximum performance (SDXC only)
-			SD_Cmd(SD_CMD_SD_SEND_OP_COND,SD_OCR_VOLTAGE | sd_type,SD_RESP_SHORT);
+			SD_Cmd(SD_CMD_SD_SEND_OP_COND, SD_OCR_VOLTAGE | sd_type, SD_RESP_SHORT);
 			cmd_res = SD_GetR3Resp();
 			if (cmd_res != SDR_Success) {
 				return cmd_res;
@@ -522,7 +499,9 @@ SDResult SD_Init(void) {
 					break;
 				}
 			}
-			if (wait == 0) return SDR_UnknownCard;
+			if (wait == 0) {
+				return SDR_UnknownCard;
+			}
 			SDCard.Type = SDCT_MMC; // MMC
 		}
 	} else {
@@ -534,7 +513,7 @@ SDResult SD_Init(void) {
 
 	// Send ALL_SEND_CID command
 	SD_Cmd(SD_CMD_ALL_SEND_CID, 0, SD_RESP_LONG); // CMD2
-	cmd_res = SD_GetR2Resp((uint32_t *)SDCard.CID); // The response will be CID/CSD register value
+	cmd_res = SD_GetR2Resp((uint32_t *)SDCard.CID); // response is a value of the CID/CSD register
 	if (cmd_res != SDR_Success) {
 		return cmd_res;
 	}
@@ -602,7 +581,7 @@ SDResult SD_Init(void) {
 		SD_GetSCR((uint32_t *)SDCard.SCR);
 	}
 
-	// For SDv1,SDv2 and MMC card must set block size
+	// For SDv1, SDv2 and MMC card must set block size
 	// The SDHC/SDXC always have fixed block size (512 bytes)
 	if ((SDCard.Type == SDCT_SDSC_V1) || (SDCard.Type == SDCT_SDSC_V2) || (SDCard.Type == SDCT_MMC)) {
 		SD_Cmd(SD_CMD_SET_BLOCKLEN, 512, SD_RESP_SHORT); // CMD16
@@ -633,7 +612,8 @@ SDResult SD_SetBusWidth(uint32_t BW) {
 		}
 
 		// Send SET_BUS_WIDTH command
-		SD_Cmd(SD_CMD_SET_BUS_WIDTH, (BW == SD_BUS_1BIT) ? 0x00000000 : 0x00000002, SD_RESP_SHORT); // ACMD6
+		clk = (BW == SD_BUS_1BIT) ? 0x00000000 : 0x00000002;
+		SD_Cmd(SD_CMD_SET_BUS_WIDTH, clk, SD_RESP_SHORT); // ACMD6
 		cmd_res = SD_GetR1Resp(SD_CMD_SET_BUS_WIDTH);
 		if (cmd_res != SDR_Success) {
 			return cmd_res;
@@ -681,16 +661,17 @@ void SD_GetCardInfo(void) {
 			dev_size |= (SDCard.CSD[8] & 0xc0) >> 6;
 			dev_size_mul  = (SDCard.CSD[ 9] & 0x03) << 1; // Device size multiplier
 			dev_size_mul |= (SDCard.CSD[10] & 0x80) >> 7;
-			SDCard.BlockCount  = (dev_size + 1);
-			SDCard.BlockCount *= (1 << (dev_size_mul + 2));
-			SDCard.BlockSize   =  1 << (SDCard.CSD[5] & 0x0f); // Maximum read data block length
+			SDCard.BlockCount  = dev_size + 1;
+			SDCard.BlockCount *= 1 << (dev_size_mul + 2);
+			SDCard.BlockSize   = 1 << (SDCard.CSD[5] & 0x0f); // Maximum read data block length
 		} else {
 			// CSD v2.00 (SDHC, SDXC)
 			dev_size  = (SDCard.CSD[7] & 0x3f) << 16;
 			dev_size |=  SDCard.CSD[8] << 8;
-			dev_size |=  SDCard.CSD[9];
+			dev_size |=  SDCard.CSD[9]; // C_SIZE
 			SDCard.BlockSize = 512;
 			SDCard.BlockCount = dev_size + 1;
+			// BlockCount >= 65535 means that this is SDXC card
 		}
 		SDCard.Capacity = SDCard.BlockCount * SDCard.BlockSize;
 	} else {
@@ -734,22 +715,19 @@ void SD_GetCardInfo(void) {
 	}
 }
 
-SDResult SD_HighSpeed(void) {
-	SDResult cmd_res = SDR_Success;
-	uint8_t CCCR[64];
-	uint32_t *pCCCR = (uint32_t *)CCCR;
-	uint32_t response;
-	uint32_t i;
+// Issue SWITCH_FUNC command (CMD6)
+// input:
+//   argument - 32-bit argument for the command, refer to SD specification for description
+//   resp - pointer to the buffer for response (should be 64 bytes long)
+// return: SDResult
+// note: command response is a contents of the CCCR register (512bit or 64bytes)
+SDResult SD_CmdSwitch(uint32_t argument, uint8_t *resp) {
+	uint32_t *ptr = (uint32_t *)resp;
 	register uint32_t STA;
+	SDResult res = SDR_Success;
 
-USART_SendStr(USART1,">>>>> HS: Check HS");
-
-	// Set block size to 64 bytes
-	SD_Cmd(SD_CMD_SET_BLOCKLEN, 64, SD_RESP_SHORT); // CMD16
-	cmd_res = SD_GetR1Resp(SD_CMD_SET_BLOCKLEN);
-	if (cmd_res != SDR_Success) {
-		return cmd_res;
-	}
+	// SD specification says that response size is always 512bits,
+	// thus there is no need to set block size before issuing CMD6
 
 	// Clear the data flags
 	SDMMC1->ICR = SDIO_ICR_DATA;
@@ -757,68 +735,120 @@ USART_SendStr(USART1,">>>>> HS: Check HS");
 	// Data read timeout
 	SDMMC1->DTIMER = SD_DATA_R_TIMEOUT;
 	// Data length in bytes
-	SDMMC1->DLEN   = 64;
+	SDMMC1->DLEN = 64;
 	// Data transfer:
 	//   transfer mode: block
 	//   direction: to card
 	//   DMA: enabled
 	//   block size: 2^6 = 64 bytes
 	//   DPSM: enabled
-	SDMMC1->DCTRL  = SDMMC_DCTRL_DTDIR | (6 << 4) | SDMMC_DCTRL_DTEN;
+	SDMMC1->DCTRL = SDMMC_DCTRL_DTDIR | (6 << 4) | SDMMC_DCTRL_DTEN;
 
-	// Send SD_CMD_HS_SWITCH command
-//	SD_Cmd(SD_CMD_SET_BUS_WIDTH,0x00000001,SD_RESP_SHORT); // CMD6
-//	SD_Cmd(SD_CMD_SET_BUS_WIDTH,0x80000001,SD_RESP_SHORT); // CMD6
-	SD_Cmd(SD_CMD_SET_BUS_WIDTH,0x80FFFFF1,SD_RESP_SHORT); // CMD6
-	cmd_res = SD_GetR1Resp(SD_CMD_SET_BUS_WIDTH);
-	if (cmd_res != SDR_Success) {
-		return cmd_res;
+	// Send SWITCH_FUNCTION command
+	// Argument:
+	//   [31]: MODE: 1 for switch, 0 for check
+	//   [30:24]: reserved, all should be '0'
+	//   [23:20]: GRP6 - reserved
+	//   [19:16]: GRP5 - reserved
+	//   [15:12]: GRP4 - power limit
+	//   [11:08]: GRP3 - driver strength
+	//   [07:04]: GRP2 - command system
+	//   [03:00]: GRP1 - access mode (a.k.a. bus speed mode)
+	//   Values for groups 6..2:
+	//     0xF: no influence
+	//     0x0: default
+	SD_Cmd(SD_CMD_SWITCH_FUNC, argument, SD_RESP_SHORT); // CMD6
+	res = SD_GetR1Resp(SD_CMD_SWITCH_FUNC);
+	if (res != SDR_Success) {
+		return res;
 	}
 
 	// Read the CCCR register value
 	while (!(SDMMC1->STA & (SDMMC_STA_RXOVERR | SDMMC_STA_DCRCFAIL | SDMMC_STA_DTIMEOUT | SDMMC_STA_DBCKEND | SDMMC_STA_STBITERR))) {
-		// Read word when data available in receive FIFO
+		// The receive FIFO is half full, there are at least 8 words in it
 		if (SDMMC1->STA & SDMMC_STA_RXFIFOHF) {
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
-			*pCCCR++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
+			*ptr++ = SDMMC1->FIFO;
 		}
 	}
 
 	// Check for errors
 	if (STA & SDIO_XFER_ERROR_FLAGS) {
-		if (SDMMC1->STA & SDMMC_STA_DTIMEOUT) cmd_res = SDR_DataTimeout;
-		if (SDMMC1->STA & SDMMC_STA_DCRCFAIL) cmd_res = SDR_DataCRCFail;
-		if (SDMMC1->STA & SDMMC_STA_RXOVERR)  cmd_res = SDR_RXOverrun;
-		if (SDMMC1->STA & SDMMC_STA_STBITERR) cmd_res = SDR_StartBitError;
+		if (SDMMC1->STA & SDMMC_STA_DTIMEOUT) { res = SDR_DataTimeout;   }
+		if (SDMMC1->STA & SDMMC_STA_DCRCFAIL) { res = SDR_DataCRCFail;   }
+		if (SDMMC1->STA & SDMMC_STA_RXOVERR)  { res = SDR_RXOverrun;     }
+		if (SDMMC1->STA & SDMMC_STA_STBITERR) { res = SDR_StartBitError; }
 	}
 
-	// Read the data remnant from the SDIO FIFO (if any present)
+	// Read the data remnant from the SDIO FIFO (should not be, but just in case)
 	while (SDMMC1->STA & SDMMC_STA_RXDAVL) {
-		*pCCCR++ = SDMMC1->FIFO;
+		*ptr++ = SDMMC1->FIFO;
 	}
 
 	// Clear the static SDIO flags
 	SDMMC1->ICR = SDIO_ICR_STATIC;
 
-	if (cmd_res == SDR_Success) {
-		for (i = 0; i < 64; i++) {
-			if ((i % 8) == 0) USART_printf(USART1,"\r\n");
-			USART_printf(USART1,"%02u=%02X ",i,CCCR[i]);
-		}
-		USART_printf(USART1,"\r\n");
-		USART_printf(USART1,"SHS: %s\r\n",(CCCR[63 - (400 / 8)] & 0x01) ? "YES" : "NO");
-		USART_printf(USART1,"BSS: %03b\r\n",(CCCR[63 - (400 / 8)] & 0x0E) >> 1);
-	} else {
-		USART_printf(USART1,"GetCCCR error: %02X\r\n",cmd_res);
+	return res;
+}
+
+// Switch card to HS (high speed) mode
+// return: SDResult
+SDResult SD_HighSpeed(void) {
+	uint8_t CCCR[64];
+	SDResult cmd_res = SDR_Success;
+
+	// Check if the card supports HS mode
+	cmd_res = SD_CmdSwitch(
+				(0x0U << 31) | // MODE: check
+				(0xFU << 20) | // GRP6: no influence
+				(0xFU << 16) | // GRP5: no influence
+				(0xFU << 12) | // GRP4: no influence
+				(0xFU <<  8) | // GRP3: no influence
+				(0xFU <<  4) | // GRP2: default
+				(0x1U <<  0),  // GRP1: high speed
+				CCCR
+			);
+	if (cmd_res != SDR_Success) {
+		return SDR_UnknownError;
 	}
 
-USART_SendStr(USART1,"<<<< HS: End of check\r\n");
+	// Check SHS bit from CCCR
+	if (CCCR[63 - (400 / 8)] & 0x01 != 0x01) {
+		return SDR_Unsupported;
+	}
+
+#if 0
+	// Check EHS bit (BSS0) from CCCR
+	if (CCCR[63 - (400 / 8)] & 0x02 != 0x02) {
+		return SDR_Unsupported;
+	}
+#endif
+
+	// Ask the card to switch to HS mode
+	cmd_res = SD_CmdSwitch(
+				(0x1U << 31) | // MODE: switch
+				(0xFU << 20) | // GRP6: no influence
+				(0xFU << 16) | // GRP5: no influence
+				(0xFU << 12) | // GRP4: no influence
+				(0xFU <<  8) | // GRP3: no influence
+				(0xFU <<  4) | // GRP2: default
+				(0x1U <<  0),  // GRP1: high speed
+				CCCR
+			);
+	if (cmd_res != SDR_Success) {
+		return SDR_UnknownError;
+	}
+
+	// Note: the SD specification says "card shall switch speed mode within 8 clocks
+	// after the end bit of the corresponding response"
+	// Apparently, this is the reason why some SD cards demand a delay between
+	// the request for mode switching and the possibility to continue communication
 
 	return SDR_Success;
 }
@@ -872,7 +902,9 @@ SDResult SD_ReadBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
 	// For SDHC card addr must be converted to block unit address
-	if (SDCard.Type == SDCT_SDHC) addr >>= 9;
+	if (SDCard.Type == SDCT_SDHC) {
+		addr >>= 9;
+	}
 
 	// Clear the static SDIO flags
 	SDMMC1->ICR = SDIO_ICR_STATIC;
@@ -911,8 +943,7 @@ SDResult SD_ReadBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	do {
 		STA = SDMMC1->STA;
 		if (STA & SDMMC_STA_RXFIFOHF) {
-			// Receive FIFO half full, there are at least 8 words in it
-			// This code is 80 bytes more than the 'for' loop, but faster
+			// The receive FIFO is half full, there are at least 8 words in it
 			*pBuf++ = SDMMC1->FIFO;
 			*pBuf++ = SDMMC1->FIFO;
 			*pBuf++ = SDMMC1->FIFO;
@@ -969,7 +1000,9 @@ SDResult SD_WriteBlock(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
 	// For SDHC card addr must be converted to block unit address
-	if (SDCard.Type == SDCT_SDHC) addr >>= 9;
+	if (SDCard.Type == SDCT_SDHC) {
+		addr >>= 9;
+	}
 
 	if (blk_count > 1) {
 		// Prepare bit checking variable for multiple block transfer
@@ -1105,18 +1138,25 @@ void SD_Configure_DMA(uint32_t *pBuf, uint32_t length, uint8_t direction) {
 	//   memory size: 32-bit
 	//   peripheral size: 32-bit
 	//   channel: disabled
-	SDIO_DMA_CH.Channel->CCR  = DMA_CCR_MINC | DMA_PRIORITY_MEDIUM | DMA_MALIGN_32BIT | DMA_PALIGN_32BIT | direction;
-	SDIO_DMA_CH.Channel->CPAR = (uint32_t)(&(SDMMC1->FIFO)); // Address of the SDIO FIFO
-	SDIO_DMA_CH.Channel->CMAR = (uint32_t)pBuf; // Memory address
+	DMA_ConfigChannel(
+			SDIO_DMA_CH.Channel,
+			direction |
+			DMA_MODE_NORMAL |
+			DMA_MINC_ENABLE | DMA_PINC_DISABLE |
+			DMA_PSIZE_32BIT | DMA_MSIZE_32BIT |
+			DMA_PRIORITY_MEDIUM
+		);
+	DMA_SetAddrM(SDIO_DMA_CH.Channel, (uint32_t)pBuf);
+	DMA_SetAddrP(SDIO_DMA_CH.Channel, (uint32_t)(&(SDMMC1->FIFO)));
 
 	// Number of DMA transactions
-	DMA_SetDataLength(SDIO_DMA_CH.Channel,length >> 2);
+	DMA_SetDataLength(SDIO_DMA_CH.Channel, length >> 2);
 
 	// Map DMA request to DMA channel
-	DMA_SetRequest(SDIO_DMA_CH.Instance,SDIO_DMA_CH.Request,SDIO_DMA_CH.ChIndex);
+	DMA_SetRequest(SDIO_DMA_CH.Instance, SDIO_DMA_CH.Request, SDIO_DMA_CH.ChIndex);
 
 	// Clear SDIO DMA channel interrupt flags
-	DMA_ClearFlags(SDIO_DMA_CH.Instance,SDIO_DMA_CH.ChIndex,DMA_CF_ALL);
+	DMA_ClearFlags(SDIO_DMA_CH.Instance, SDIO_DMA_CH.ChIndex, DMA_CF_ALL);
 }
 
 // Start reading of data block from the SD card with DMA transfer
@@ -1129,10 +1169,8 @@ SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length >> 9;
 
-	// Initialize the data control register
+	// Initialize data control register and clear static SDIO flags
 	SDMMC1->DCTRL = 0;
-
-	// Clear the static SDIO flags
 	SDMMC1->ICR = SDIO_ICR_STATIC;
 
 	// Configure number of transactions and enable the SDIO DMA channel
@@ -1142,7 +1180,9 @@ SDResult SD_ReadBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
 	// For SDHC card addr must be converted to block unit address
-	if (SDCard.Type == SDCT_SDHC) addr >>= 9;
+	if (SDCard.Type == SDCT_SDHC) {
+		addr >>= 9;
+	}
 
 	if (blk_count > 1) {
 		// Send READ_MULT_BLOCK command
@@ -1180,28 +1220,28 @@ SDResult SD_WriteBlock_DMA(uint32_t addr, uint32_t *pBuf, uint32_t length) {
 	SDResult cmd_res = SDR_Success;
 	uint32_t blk_count = length >> 9;
 
-	// Initialize the data control register
+	// Initialize data control register and clear static SDIO flags
 	SDMMC1->DCTRL = 0;
-
-	// Clear the static SDIO flags
 	SDMMC1->ICR = SDIO_ICR_STATIC;
 
 	// Configure number of transactions and enable the SDIO DMA channel
-	DMA_SetDataLength(SDIO_DMA_CH.Channel,length >> 2);
+	DMA_SetDataLength(SDIO_DMA_CH.Channel, length >> 2);
 	DMA_EnableChannel(SDIO_DMA_CH.Channel);
 
 	// SDSC card uses byte unit address and
 	// SDHC/SDXC cards use block unit address (1 unit = 512 bytes)
 	// For SDHC card addr must be converted to block unit address
-	if (SDCard.Type == SDCT_SDHC) addr >>= 9;
+	if (SDCard.Type == SDCT_SDHC) {
+		addr >>= 9;
+	}
 
 	if (blk_count > 1) {
 		// Send WRITE_MULTIPLE_BLOCK command
-		SD_Cmd(SD_CMD_WRITE_MULTIPLE_BLOCK,addr,SD_RESP_SHORT); // CMD25
+		SD_Cmd(SD_CMD_WRITE_MULTIPLE_BLOCK, addr, SD_RESP_SHORT); // CMD25
 		cmd_res = SD_GetR1Resp(SD_CMD_WRITE_MULTIPLE_BLOCK);
 	} else {
 		// Send WRITE_BLOCK command
-		SD_Cmd(SD_CMD_WRITE_BLOCK,addr,SD_RESP_SHORT); // CMD24
+		SD_Cmd(SD_CMD_WRITE_BLOCK, addr, SD_RESP_SHORT); // CMD24
 		cmd_res = SD_GetR1Resp(SD_CMD_WRITE_BLOCK);
 	}
 	if (cmd_res == SDR_Success) {
@@ -1249,7 +1289,7 @@ SDResult SD_CheckRead(uint32_t length) {
 	// therefore will be enough to ensure only DMA transfer completed, without TXACT polling?
 
 	// Wait for DMA transfer complete and then disable the DMA channel
-	while (!(DMA_GetFlags(SDIO_DMA_CH.Instance,SDIO_DMA_CH.ChIndex,DMA_FLAG_TC)) && --wait);
+	while (!(DMA_GetFlags(SDIO_DMA_CH.Instance, SDIO_DMA_CH.ChIndex, DMA_FLAG_TC)) && --wait);
 	DMA_DisableChannel(SDIO_DMA_CH.Channel);
 
 	// Send stop transmission command in case of multiple block transfer
@@ -1261,7 +1301,9 @@ SDResult SD_CheckRead(uint32_t length) {
 	SDMMC1->ICR = SDIO_ICR_STATIC;
 
 	// Timeout?
-	if (wait == 0) return SDR_Timeout;
+	if (wait == 0) {
+		return SDR_Timeout;
+	}
 
 	// Error happened?
 	if (STA & SDIO_XFER_ERROR_FLAGS) {
@@ -1314,7 +1356,9 @@ SDResult SD_CheckWrite(uint32_t length) {
 	SDMMC1->ICR = SDIO_ICR_STATIC;
 
 	// Timeout?
-	if (wait == 0) return SDR_Timeout;
+	if (wait == 0) {
+		return SDR_Timeout;
+	}
 
 	// Error happened?
 	if (STA & SDIO_XFER_ERROR_FLAGS) {
@@ -1326,7 +1370,9 @@ SDResult SD_CheckWrite(uint32_t length) {
 
 	// Wait while the card is in programming state
 	do {
-		if (SD_GetCardState(&card_state) != SDR_Success) break;
+		if (SD_GetCardState(&card_state) != SDR_Success) {
+			break;
+		}
 	} while ((card_state == SD_STATE_PRG) || (card_state == SD_STATE_RCV));
 
 	// Clear the static SDIO flags

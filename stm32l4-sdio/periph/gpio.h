@@ -61,13 +61,13 @@
 
 
 // GPIO macros definitions
-#define GPIO_MODE_SET(pin,mode)    (mode  << ((pin) << 1)) // set MODER bits for a specified pin
+#define GPIO_MODE_SET(pin, mode)   (mode  << ((pin) << 1)) // set MODER bits for a specified pin
 #define GPIO_MODE_MSK(pin)         (0x03U << ((pin) << 1)) // mask MODER bits for a specified pin
-#define GPIO_PUPD_SET(pin,pupd)    (pupd  << ((pin) << 1)) // set PUPDR bits for a specified pin
+#define GPIO_PUPD_SET(pin, pupd)   (pupd  << ((pin) << 1)) // set PUPDR bits for a specified pin
 #define GPIO_PUPD_MSK(pin)         (0x03U << ((pin) << 1)) // mask PUPDR bits for a specified pin
-#define GPIO_SPD_SET(pin,spd)      (spd   << ((pin) << 1)) // set SPEEDR bits for a specified pin
+#define GPIO_SPD_SET(pin, spd)     (spd   << ((pin) << 1)) // set SPEEDR bits for a specified pin
 #define GPIO_SPD_MSK(pin)          (0x03U << ((pin) << 1)) // mask SPEEDR bits for a specified pin
-#define GPIO_AF_SET(pin,af)        (af    << ((pin) << 2)) // set AFR bits for a specified pin
+#define GPIO_AF_SET(pin, af)       (af    << ((pin) << 2)) // set AFR bits for a specified pin
 #define GPIO_AF_MSK(pin)           (0x0FU << ((pin) << 2)) // mask AFR bits for a specified pin
 
 
@@ -131,7 +131,6 @@ __STATIC_INLINE void GPIO_PIN_RESET(GPIO_TypeDef* GPIOx, uint32_t pin) {
 // input:
 //   GPIOx - pointer to a GPIO peripheral handle
 //   pin - combination of GPIO_PIN_X values
-//#define GPIO_PIN_INVERT(PORT,pin)  ((PORT)->ODR ^= (uint32_t)pin)
 __STATIC_INLINE void GPIO_PIN_INVERT(GPIO_TypeDef* GPIOx, uint32_t pin) {
 	GPIOx->ODR ^= pin;
 }

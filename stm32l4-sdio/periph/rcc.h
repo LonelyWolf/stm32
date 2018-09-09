@@ -15,10 +15,10 @@
 #define RCC_SYSCLK_SRC_HSEPLL      ((uint32_t)0x00000006U) // HSE -> PLL
 
 // Definitions of PLLs clock source configuration
-#define RCC_PLLSRC_NONE            ((uint32_t)0x00000000U)  // No clock sent to PLLs
-#define RCC_PLLSRC_MSI             (RCC_PLLCFGR_PLLSRC_MSI) // MSI clock
-#define RCC_PLLSRC_HSI             (RCC_PLLCFGR_PLLSRC_HSI) // HSI clock
-#define RCC_PLLSRC_HSE             (RCC_PLLCFGR_PLLSRC_HSE) // HSE clock
+#define RCC_PLLSRC_NONE            ((uint32_t)0x00000000U) // No clock sent to PLLs
+#define RCC_PLLSRC_MSI             RCC_PLLCFGR_PLLSRC_MSI  // MSI clock
+#define RCC_PLLSRC_HSI             RCC_PLLCFGR_PLLSRC_HSI  // HSI clock
+#define RCC_PLLSRC_HSE             RCC_PLLCFGR_PLLSRC_HSE  // HSE clock
 
 // Definitions of PLL selection
 #define RCC_PLL_MAIN               ((uint32_t)0x00000001U) // Main PLL
@@ -32,55 +32,55 @@
 
 // PLLM: PLL, PLLSAI1 and PLLSAI2 division factor
 #define RCC_PLLM_DIV1              ((uint32_t)0x00000000U)                     // 1
-#define RCC_PLLM_DIV2              (RCC_PLLCFGR_PLLM_0)                        // 2
-#define RCC_PLLM_DIV3              (RCC_PLLCFGR_PLLM_1)                        // 3
+#define RCC_PLLM_DIV2              RCC_PLLCFGR_PLLM_0                          // 2
+#define RCC_PLLM_DIV3              RCC_PLLCFGR_PLLM_1                          // 3
 #define RCC_PLLM_DIV4              ((RCC_PLLCFGR_PLLM_1 | RCC_PLLCFGR_PLLM_0)) // 4
-#define RCC_PLLM_DIV5              (RCC_PLLCFGR_PLLM_2)                        // 5
+#define RCC_PLLM_DIV5              RCC_PLLCFGR_PLLM_2                          // 5
 #define RCC_PLLM_DIV6              ((RCC_PLLCFGR_PLLM_2 | RCC_PLLCFGR_PLLM_0)) // 6
 #define RCC_PLLM_DIV7              ((RCC_PLLCFGR_PLLM_2 | RCC_PLLCFGR_PLLM_1)) // 7
-#define RCC_PLLM_DIV8              (RCC_PLLCFGR_PLLM)                          // 8
+#define RCC_PLLM_DIV8              RCC_PLLCFGR_PLLM                            // 8
 
 // PLLR: main PLL division factor for PLLCLK
 #define RCC_PLLR_DIV2              ((uint32_t)0x00000000U) // 2
-#define RCC_PLLR_DIV4              (RCC_PLLCFGR_PLLR_0)    // 4
-#define RCC_PLLR_DIV6              (RCC_PLLCFGR_PLLR_1)    // 6
-#define RCC_PLLR_DIV8              (RCC_PLLCFGR_PLLR)      // 8
+#define RCC_PLLR_DIV4              RCC_PLLCFGR_PLLR_0      // 4
+#define RCC_PLLR_DIV6              RCC_PLLCFGR_PLLR_1      // 6
+#define RCC_PLLR_DIV8              RCC_PLLCFGR_PLLR        // 8
 
 // PLLQ: main PLL division factor PLL48M1CLK (clock for USB, RNG and SDMMC)
 #define RCC_PLLQ_DIV2              ((uint32_t)0x00000000U) // 2
-#define RCC_PLLQ_DIV4              (RCC_PLLCFGR_PLLQ_0)    // 4
-#define RCC_PLLQ_DIV6              (RCC_PLLCFGR_PLLQ_1)    // 6
-#define RCC_PLLQ_DIV8              (RCC_PLLCFGR_PLLQ)      // 8
+#define RCC_PLLQ_DIV4              RCC_PLLCFGR_PLLQ_0      // 4
+#define RCC_PLLQ_DIV6              RCC_PLLCFGR_PLLQ_1      // 6
+#define RCC_PLLQ_DIV8              RCC_PLLCFGR_PLLQ        // 8
 
 // PLLP: main PLL division factor for PLLSAI3CLK (clock for SAI1 and SAI2)
 #define RCC_PLLP_DIV7              ((uint32_t)0x00000000U) // 7
-#define RCC_PLLP_DIV17             (RCC_PLLCFGR_PLLP)      // 17
+#define RCC_PLLP_DIV17             RCC_PLLCFGR_PLLP        // 17
 
 // PLLSAI1R: PLLSAI1 division factor for PLLADC1CLK (clock for ADC)
-#define RCC_PLLSAI1R_DIV2          ((uint32_t)0x00000000U)      // 2
-#define RCC_PLLSAI1R_DIV4          (RCC_PLLSAI1CFGR_PLLSAI1R_0) // 4
-#define RCC_PLLSAI1R_DIV6          (RCC_PLLSAI1CFGR_PLLSAI1R_1) // 6
-#define RCC_PLLSAI1R_DIV8          (RCC_PLLSAI1CFGR_PLLSAI1R)   // 8
+#define RCC_PLLSAI1R_DIV2          ((uint32_t)0x00000000U)    // 2
+#define RCC_PLLSAI1R_DIV4          RCC_PLLSAI1CFGR_PLLSAI1R_0 // 4
+#define RCC_PLLSAI1R_DIV6          RCC_PLLSAI1CFGR_PLLSAI1R_1 // 6
+#define RCC_PLLSAI1R_DIV8          RCC_PLLSAI1CFGR_PLLSAI1R   // 8
 
 // PLLSAI1Q: PLLSAI1 division factor for PLL48M2CLK (clock for USB, RNG and SDMMC)
-#define RCC_PLLSAI1Q_DIV2          ((uint32_t)0x00000000U)      // 2
-#define RCC_PLLSAI1Q_DIV4          (RCC_PLLSAI1CFGR_PLLSAI1Q_0) // 4
-#define RCC_PLLSAI1Q_DIV6          (RCC_PLLSAI1CFGR_PLLSAI1Q_1) // 6
-#define RCC_PLLSAI1Q_DIV8          (RCC_PLLSAI1CFGR_PLLSAI1Q)   // 8
+#define RCC_PLLSAI1Q_DIV2          ((uint32_t)0x00000000U)    // 2
+#define RCC_PLLSAI1Q_DIV4          RCC_PLLSAI1CFGR_PLLSAI1Q_0 // 4
+#define RCC_PLLSAI1Q_DIV6          RCC_PLLSAI1CFGR_PLLSAI1Q_1 // 6
+#define RCC_PLLSAI1Q_DIV8          RCC_PLLSAI1CFGR_PLLSAI1Q   // 8
 
 // PLLPSAI1P: PLLSAI1 division factor for PLLSAI1CLK (clock for SAI1 and SAI2)
-#define RCC_PLLSAI1P_DIV7          ((uint32_t)0x00000000U)    // 7
-#define RCC_PLLSAI1P_DIV17         (RCC_PLLSAI1CFGR_PLLSAI1P) // 17
+#define RCC_PLLSAI1P_DIV7          ((uint32_t)0x00000000U)  // 7
+#define RCC_PLLSAI1P_DIV17         RCC_PLLSAI1CFGR_PLLSAI1P // 17
 
 // PLLSAI1R: PLLSAI2 division factor for PLLADC2CLK (clock for ADC)
-#define RCC_PLLSAI2R_DIV2          ((uint32_t)0x00000000U)      // 2
-#define RCC_PLLSAI2R_DIV4          (RCC_PLLSAI2CFGR_PLLSAI2R_0) // 4
-#define RCC_PLLSAI2R_DIV6          (RCC_PLLSAI2CFGR_PLLSAI2R_1) // 6
-#define RCC_PLLSAI2R_DIV8          (RCC_PLLSAI2CFGR_PLLSAI2R)   // 8
+#define RCC_PLLSAI2R_DIV2          ((uint32_t)0x00000000U)    // 2
+#define RCC_PLLSAI2R_DIV4          RCC_PLLSAI2CFGR_PLLSAI2R_0 // 4
+#define RCC_PLLSAI2R_DIV6          RCC_PLLSAI2CFGR_PLLSAI2R_1 // 6
+#define RCC_PLLSAI2R_DIV8          RCC_PLLSAI2CFGR_PLLSAI2R   // 8
 
 // PLLPSAI1P: PLLSAI2 division factor for PLLSAI2CLK (clock for SAI1 and SAI2)
-#define RCC_PLLSAI2P_DIV7          ((uint32_t)0x00000000U)    // 7
-#define RCC_PLLSAI2P_DIV17         (RCC_PLLSAI2CFGR_PLLSAI2P) // 17
+#define RCC_PLLSAI2P_DIV7          ((uint32_t)0x00000000U)  // 7
+#define RCC_PLLSAI2P_DIV17         RCC_PLLSAI2CFGR_PLLSAI2P // 17
 
 // Definitions of AHB prescaler
 #define RCC_AHB_DIV1               RCC_CFGR_HPRE_DIV1   // SYSCLK not divided
@@ -108,13 +108,13 @@
 #define RCC_APB2_DIV16             RCC_CFGR_PPRE2_DIV16 // HCLK divided by 16
 
 // Defines used for FLASH latency selection according to HCLK frequency
-#define RCC_SCALE1_LATENCY1        ((uint32_t)16000000) // FLASH latency 1 in power scale 1
-#define RCC_SCALE1_LATENCY2        ((uint32_t)32000000) // FLASH latency 2 in power scale 1
-#define RCC_SCALE1_LATENCY3        ((uint32_t)48000000) // FLASH latency 3 in power scale 1
-#define RCC_SCALE1_LATENCY4        ((uint32_t)64000000) // FLASH latency 4 in power scale 1
-#define RCC_SCALE2_LATENCY1        ((uint32_t)6000000)  // FLASH latency 1 in power scale 2
-#define RCC_SCALE2_LATENCY2        ((uint32_t)12000000) // FLASH latency 2 in power scale 2
-#define RCC_SCALE2_LATENCY3        ((uint32_t)18000000) // FLASH latency 3 in power scale 2
+#define RCC_SCALE1_LATENCY1        ((uint32_t)16000000U) // FLASH latency 1 in power scale 1
+#define RCC_SCALE1_LATENCY2        ((uint32_t)32000000U) // FLASH latency 2 in power scale 1
+#define RCC_SCALE1_LATENCY3        ((uint32_t)48000000U) // FLASH latency 3 in power scale 1
+#define RCC_SCALE1_LATENCY4        ((uint32_t)64000000U) // FLASH latency 4 in power scale 1
+#define RCC_SCALE2_LATENCY1        ((uint32_t)6000000U)  // FLASH latency 1 in power scale 2
+#define RCC_SCALE2_LATENCY2        ((uint32_t)12000000U) // FLASH latency 2 in power scale 2
+#define RCC_SCALE2_LATENCY3        ((uint32_t)18000000U) // FLASH latency 3 in power scale 2
 
 // Definitions of MSI states
 #define RCC_MSI_OFF                RCC_CR_MSIRANGE    // disabled
@@ -140,13 +140,13 @@
 // Definitions of LSE oscillator state
 #define RCC_LSE_OFF                ((uint32_t)0x00000000U) // disabled
 #define RCC_LSE_ON                 RCC_CR_HSEON            // enabled
-#define RCC_LSE_BYPASS             ((uint32_t)(RCC_CR_HSEBYP | RCC_CR_HSEON)) // bypassed by external clock
+#define RCC_LSE_BYPASS             ((RCC_CR_HSEBYP | RCC_CR_HSEON)) // bypassed by external clock
 
 // Definitions of LSE oscillator drive capability
 #define RCC_LSE_DRV_LOW            ((uint32_t)0x00000000U) // Lower
-#define RCC_LSE_DRV_MEDLOW         (RCC_BDCR_LSEDRV_0)     // Medium low
-#define RCC_LSE_DRV_MEDHIGH        (RCC_BDCR_LSEDRV_1)     // Medium high
-#define RCC_LSE_DRV_HIGH           (RCC_BDCR_LSEDRV)       // Higher
+#define RCC_LSE_DRV_MEDLOW         RCC_BDCR_LSEDRV_0       // Medium low
+#define RCC_LSE_DRV_MEDHIGH        RCC_BDCR_LSEDRV_1       // Medium high
+#define RCC_LSE_DRV_HIGH           RCC_BDCR_LSEDRV         // Higher
 
 // Definitions of LSI oscillator state
 #define RCC_LSI_OFF                ((uint32_t)0x00000000U) // disabled
@@ -155,7 +155,7 @@
 // Definitions of HSE state
 #define RCC_HSE_OFF                ((uint32_t)0x00000000U) // disabled
 #define RCC_HSE_ON                 RCC_CR_HSEON            // enabled
-#define RCC_HSE_BYPASS             ((uint32_t)(RCC_CR_HSEBYP | RCC_CR_HSEON)) // bypassed by external clock
+#define RCC_HSE_BYPASS             ((RCC_CR_HSEBYP | RCC_CR_HSEON)) // bypassed by external clock
 
 // Definitions of HSI state
 #define RCC_HSI_OFF                ((uint32_t)0x00000000U) // disabled
@@ -192,9 +192,9 @@
 
 // Definitions of CLK48 (USB, RNG and SDMMC) clock source selection
 #define RCC_CLK48_CLK_NONE         ((uint32_t)0x00000000U) // No clock
-#define RCC_CLK48_CLK_PLLSAI1Q     (RCC_CCIPR_CLK48SEL_0)  // PLLSAI1Q (PLL48M2CLK) clock
-#define RCC_CLK48_CLK_PLLQ         (RCC_CCIPR_CLK48SEL_1)  // main PLLQ (PLL48M1CLK) clock
-#define RCC_CLK48_CLK_MSI          (RCC_CCIPR_CLK48SEL)    // PLLSAI1Q (PLL48M2CLK) clock
+#define RCC_CLK48_CLK_PLLSAI1Q     RCC_CCIPR_CLK48SEL_0    // PLLSAI1Q (PLL48M2CLK) clock
+#define RCC_CLK48_CLK_PLLQ         RCC_CCIPR_CLK48SEL_1    // main PLLQ (PLL48M1CLK) clock
+#define RCC_CLK48_CLK_MSI          RCC_CCIPR_CLK48SEL      // PLLSAI1Q (PLL48M2CLK) clock
 
 
 // Structure definitions
@@ -211,17 +211,17 @@ typedef struct {
 typedef struct {
 	uint32_t PLLN; // PLLN multiplier, value in range between 8 and 86
 	uint32_t PLLR; // PLLR divider:
-	               //   main PLL: one of RCC_PLLR_DIVx values
-	               //   PLLSAI1 : one of RCC_PLLSAI1R_DIVx values
-                   //   PLLSAI2 : one of RCC_PLLSAI2R_DIVx values
+				//   main PLL: one of RCC_PLLR_DIVx values
+				//   PLLSAI1 : one of RCC_PLLSAI1R_DIVx values
+				//   PLLSAI2 : one of RCC_PLLSAI2R_DIVx values
 	uint32_t PLLQ; // PLLQ divider:
-	               //   main PLL: one of RCC_PLLQ_DIVx values
-	               //   PLLSAI1 : one of RCC_PLLSAI1Q_DIVx values
-                   //   PLLSAI2 : ignored
+				//   main PLL: one of RCC_PLLQ_DIVx values
+				//   PLLSAI1 : one of RCC_PLLSAI1Q_DIVx values
+				//   PLLSAI2 : ignored
 	uint32_t PLLP; // PLLP divider:
-	               //   main PLL: one of RCC_PLLP_DIVx values
-	               //   PLLSAI1 : one of RCC_PLLSAI1P_DIVx values
-	               //   PLLSAI2 : one of RCC_PLLSAI2P_DIVx values
+				//   main PLL: one of RCC_PLLP_DIVx values
+				//   PLLSAI1 : one of RCC_PLLSAI1P_DIVx values
+				//   PLLSAI2 : one of RCC_PLLSAI2P_DIVx values
 } RCC_PLLInitTypeDef;
 
 // Clock dividers
@@ -233,6 +233,22 @@ typedef struct {
 
 
 // Public functions and macros
+
+// Enable prefetch buffer
+__STATIC_INLINE void RCC_PrefetchEnable(void) {
+	FLASH->ACR |= FLASH_ACR_PRFTEN;
+}
+
+// Disable prefetch buffer
+__STATIC_INLINE void RCC_PrefetchDisable(void) {
+	FLASH->ACR &= ~FLASH_ACR_PRFTEN;
+}
+
+// Get flash latency
+// return: a flash latency, one of FLASH_ACR_LATENCY_xx values
+__STATIC_INLINE uint32_t RCC_GetLatency(void) {
+	return (FLASH->ACR & FLASH_ACR_LATENCY);
+}
 
 // Enable RTC clock
 __STATIC_INLINE void RCC_RTCEnable(void) {

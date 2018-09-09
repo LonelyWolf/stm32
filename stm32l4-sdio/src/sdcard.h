@@ -1,9 +1,8 @@
-// Define to prevent recursive inclusion
 #ifndef __SDCARD_SDIO_H
 #define __SDCARD_SDIO_H
 
 
-#include <stm32l4xx.h>
+#include "stm32l4xx.h"
 #include "gpio.h"
 
 
@@ -74,12 +73,12 @@ DMA_HandleTypeDef                     SDIO_DMA_CH;
 #ifdef STM32L1XX_HD
 // Alias word address of bits of the SDIO DCTRL register
 #define SDIO_DCTRL_OFFSET             ((uint32_t)(&(SDMMC1->DCTRL)) - PERIPH_BASE)
-#define SDIO_DCTRL_DTEN_BN            0 // DTEN
+#define SDIO_DCTRL_DTEN_BN            0U // DTEN
 #define SDIO_DCTRL_DTEN_BB            *(__IO uint32_t *)(PERIPH_BB_BASE + (SDMMC_DCTRL_OFFSET << 5) + (SDMMC_DCTRL_DTEN_BN << 2))
 
 // Alias word address of bits of the SDIO CLKCR register
 #define SDIO_CLKCR_OFFSET             ((uint32_t)(&(SDMMC1->CLKCR)) - PERIPH_BASE)
-#define SDIO_CLKCR_CLKEN_BN           8 // CLKEN
+#define SDIO_CLKCR_CLKEN_BN           8U // CLKEN
 #define SDIO_CLKCR_CLKEN_BB           *(__IO uint32_t *)(PERIPH_BB_BASE + (SDMMC_CLKCR_OFFSET << 5) + (SDMMC_CLKCR_CLKEN_BN << 2))
 #endif // STM32L1XX_HD
 
@@ -116,41 +115,41 @@ DMA_HandleTypeDef                     SDIO_DMA_CH;
 #define SD_RESP_LONG                  (SDMMC_CMD_WAITRESP)    // Long response
 
 // SD commands  index
-#define SD_CMD_GO_IDLE_STATE          ((uint8_t)0)
-#define SD_CMD_SEND_OP_COND           ((uint8_t)1)  // MMC only
-#define SD_CMD_ALL_SEND_CID           ((uint8_t)2)  // Not supported in SPI mode
-#define SD_CMD_SEND_REL_ADDR          ((uint8_t)3)  // Not supported in SPI mode
-#define SD_CMD_SET_BUS_WIDTH          ((uint8_t)6)
-#define SD_CMD_SEL_DESEL_CARD         ((uint8_t)7)  // Not supported in SPI mode
-#define SD_CMD_HS_SEND_EXT_CSD        ((uint8_t)8)
-#define SD_CMD_SEND_CSD               ((uint8_t)9)
-#define SD_CMD_SEND_CID               ((uint8_t)10)
-#define SD_CMD_READ_DAT_UNTIL_STOP    ((uint8_t)11) // Not supported in SPI mode
-#define SD_CMD_STOP_TRANSMISSION      ((uint8_t)12)
-#define SD_CMD_SEND_STATUS            ((uint8_t)13)
-#define SD_CMD_GO_INACTIVE_STATE      ((uint8_t)15) // Not supported in SPI mode
-#define SD_CMD_SET_BLOCKLEN           ((uint8_t)16)
-#define SD_CMD_READ_SINGLE_BLOCK      ((uint8_t)17)
-#define SD_CMD_READ_MULT_BLOCK        ((uint8_t)18)
-#define SD_CMD_WRITE_DAT_UNTIL_STOP   ((uint8_t)20) // Not supported in SPI mode
-#define SD_CMD_WRITE_BLOCK            ((uint8_t)24)
-#define SD_CMD_WRITE_MULTIPLE_BLOCK   ((uint8_t)25)
-#define SD_CMD_PROG_CSD               ((uint8_t)27)
-#define SD_CMD_SET_WRITE_PROT         ((uint8_t)28) // Not supported in SPI mode
-#define SD_CMD_CLR_WRITE_PROT         ((uint8_t)29) // Not supported in SPI mode
-#define SD_CMD_SEND_WRITE_PROT        ((uint8_t)30) // Not supported in SPI mode
-#define SD_CMD_ERASE                  ((uint8_t)38)
-#define SD_CMD_LOCK_UNLOCK            ((uint8_t)42)
-#define SD_CMD_APP_CMD                ((uint8_t)55)
-#define SD_CMD_READ_OCR               ((uint8_t)58) // Read OCR register
-#define SD_CMD_CRC_ON_OFF             ((uint8_t)59) // On/Off CRC check by SD Card (in SPI mode)
+#define SD_CMD_GO_IDLE_STATE          ((uint8_t)0U)
+#define SD_CMD_SEND_OP_COND           ((uint8_t)1U)  // MMC only
+#define SD_CMD_ALL_SEND_CID           ((uint8_t)2U)  // Not supported in SPI mode
+#define SD_CMD_SEND_REL_ADDR          ((uint8_t)3U)  // Not supported in SPI mode
+#define SD_CMD_SWITCH_FUNC            ((uint8_t)6U)
+#define SD_CMD_SEL_DESEL_CARD         ((uint8_t)7U)  // Not supported in SPI mode
+#define SD_CMD_HS_SEND_EXT_CSD        ((uint8_t)8U)
+#define SD_CMD_SEND_CSD               ((uint8_t)9U)
+#define SD_CMD_SEND_CID               ((uint8_t)10U)
+#define SD_CMD_READ_DAT_UNTIL_STOP    ((uint8_t)11U) // Not supported in SPI mode
+#define SD_CMD_STOP_TRANSMISSION      ((uint8_t)12U)
+#define SD_CMD_SEND_STATUS            ((uint8_t)13U)
+#define SD_CMD_GO_INACTIVE_STATE      ((uint8_t)15U) // Not supported in SPI mode
+#define SD_CMD_SET_BLOCKLEN           ((uint8_t)16U)
+#define SD_CMD_READ_SINGLE_BLOCK      ((uint8_t)17U)
+#define SD_CMD_READ_MULT_BLOCK        ((uint8_t)18U)
+#define SD_CMD_WRITE_DAT_UNTIL_STOP   ((uint8_t)20U) // Not supported in SPI mode
+#define SD_CMD_WRITE_BLOCK            ((uint8_t)24U)
+#define SD_CMD_WRITE_MULTIPLE_BLOCK   ((uint8_t)25U)
+#define SD_CMD_PROG_CSD               ((uint8_t)27U)
+#define SD_CMD_SET_WRITE_PROT         ((uint8_t)28U) // Not supported in SPI mode
+#define SD_CMD_CLR_WRITE_PROT         ((uint8_t)29U) // Not supported in SPI mode
+#define SD_CMD_SEND_WRITE_PROT        ((uint8_t)30U) // Not supported in SPI mode
+#define SD_CMD_ERASE                  ((uint8_t)38U)
+#define SD_CMD_LOCK_UNLOCK            ((uint8_t)42U)
+#define SD_CMD_APP_CMD                ((uint8_t)55U)
+#define SD_CMD_READ_OCR               ((uint8_t)58U) // Read OCR register
+#define SD_CMD_CRC_ON_OFF             ((uint8_t)59U) // On/Off CRC check by SD Card (in SPI mode)
 
 // Following commands are SD Card Specific commands.
 // SD_CMD_APP_CMD should be sent before sending these commands.
-#define SD_CMD_SET_BUS_WIDTH          ((uint8_t)6)  // ACMD6
-#define SD_CMD_SD_SEND_OP_COND        ((uint8_t)41) // ACMD41
-#define SD_CMD_SET_CLR_CARD_DETECT    ((uint8_t)42) // ACMD42
-#define SD_CMD_SEND_SCR               ((uint8_t)51) // ACMD51
+#define SD_CMD_SET_BUS_WIDTH          ((uint8_t)6U)  // ACMD6
+#define SD_CMD_SD_SEND_OP_COND        ((uint8_t)41U) // ACMD41
+#define SD_CMD_SET_CLR_CARD_DETECT    ((uint8_t)42U) // ACMD42
+#define SD_CMD_SEND_SCR               ((uint8_t)51U) // ACMD51
 
 // Pattern for R6 response
 #define SD_CHECK_PATTERN              ((uint32_t)0x000001AAU)
@@ -186,16 +185,16 @@ DMA_HandleTypeDef                     SDIO_DMA_CH;
 #define SD_OCR_AKE_SEQ_ERROR          ((uint32_t)0x00000008U) // Error in the sequence of the authentication process
 
 // Card state (OCR[12:9] bits CURRENT_STATE)
-#define SD_STATE_IDLE                 ((uint8_t)0x00) // Idle
-#define SD_STATE_READY                ((uint8_t)0x01) // Ready
-#define SD_STATE_IDENT                ((uint8_t)0x02) // Identification
-#define SD_STATE_STBY                 ((uint8_t)0x03) // Stand-by
-#define SD_STATE_TRAN                 ((uint8_t)0x04) // Transfer
-#define SD_STATE_DATA                 ((uint8_t)0x05) // Sending data
-#define SD_STATE_RCV                  ((uint8_t)0x06) // Receive data
-#define SD_STATE_PRG                  ((uint8_t)0x07) // Programming
-#define SD_STATE_DIS                  ((uint8_t)0x08) // Disconnect
-#define SD_STATE_ERROR                ((uint8_t)0xFF) // Error or unknown state
+#define SD_STATE_IDLE                 ((uint8_t)0x00U) // Idle
+#define SD_STATE_READY                ((uint8_t)0x01U) // Ready
+#define SD_STATE_IDENT                ((uint8_t)0x02U) // Identification
+#define SD_STATE_STBY                 ((uint8_t)0x03U) // Stand-by
+#define SD_STATE_TRAN                 ((uint8_t)0x04U) // Transfer
+#define SD_STATE_DATA                 ((uint8_t)0x05U) // Sending data
+#define SD_STATE_RCV                  ((uint8_t)0x06U) // Receive data
+#define SD_STATE_PRG                  ((uint8_t)0x07U) // Programming
+#define SD_STATE_DIS                  ((uint8_t)0x08U) // Disconnect
+#define SD_STATE_ERROR                ((uint8_t)0xFFU) // Error or unknown state
 
 // Mask for ACMD41
 #define SD_STD_CAPACITY               ((uint32_t)0x00000000U)
@@ -209,13 +208,16 @@ DMA_HandleTypeDef                     SDIO_DMA_CH;
 #define SD_DATA_W_TIMEOUT             ((uint32_t)((48000000U / (SD_CLK_DIV_TRAN + 2U) / 1000U) * 250U)) // Date write timeout is 250ms
 
 // Trials count for ACMD41
-#define SD_ACMD41_TRIALS              ((uint32_t)0x0000FFFF)
+#define SD_ACMD41_TRIALS              ((uint32_t)0x0000FFFFU)
 
 // Bitmap to clear the SDIO command flags
-#define SDIO_ICR_CMD                  ((uint32_t)(SDMMC_ICR_CCRCFAILC | SDMMC_ICR_CTIMEOUTC | SDMMC_ICR_CMDRENDC | SDMMC_ICR_CMDSENTC))
+#define SDIO_ICR_CMD                  ((uint32_t)(SDMMC_ICR_CCRCFAILC | SDMMC_ICR_CTIMEOUTC | \
+												SDMMC_ICR_CMDRENDC | SDMMC_ICR_CMDSENTC))
 
 // Bitmap to clear the SDIO data flags
-#define SDIO_ICR_DATA                 ((uint32_t)(SDMMC_ICR_RXOVERRC | SDMMC_ICR_DCRCFAILC | SDMMC_ICR_DTIMEOUTC | SDMMC_ICR_DBCKENDC | SDMMC_ICR_STBITERRC))
+#define SDIO_ICR_DATA                 ((uint32_t)(SDMMC_ICR_RXOVERRC | SDMMC_ICR_DCRCFAILC | \
+												SDMMC_ICR_DTIMEOUTC | SDMMC_ICR_DBCKENDC | \
+												SDMMC_ICR_STBITERRC))
 
 // Bitmap to clear the SDIO static flags (command and data)
 #define SDIO_ICR_STATIC               ((uint32_t)(SDMMC_ICR_CCRCFAILC | SDMMC_ICR_DCRCFAILC | SDMMC_ICR_CTIMEOUTC | \
@@ -247,7 +249,7 @@ DMA_HandleTypeDef                     SDIO_DMA_CH;
 #define SDIO_XFER_ERROR_FLAGS         (SDIO_XFER_COMMON_FLAGS | SDMMC_STA_TXUNDERR | SDMMC_STA_RXOVERR)
 
 // RCA for the MMC card
-#define SDIO_MMC_RCA                  ((uint16_t)0x0001)
+#define SDIO_MMC_RCA                  ((uint16_t)0x0001U)
 
 
 // SD card response type
@@ -281,12 +283,12 @@ typedef enum {
 	SDR_BadResponse         = 0x07,
 	SDR_SetBlockSizeFailed  = 0x08,  // Set block size command failed (response for CMD16)
 	SDR_UnknownCard         = 0x09,
-	SDR_NoResponse          = 0x0a,
-	SDR_AddrOutOfRange      = 0x0b,  // Address out of range
-	SDR_WriteCRCError       = 0x0c,  // Data write rejected due to a CRC error
-	SDR_InvalidVoltage      = 0x0d,  // Unsupported voltage range
-	SDR_DataTimeout         = 0x0e,  // Data block transfer timeout
-	SDR_DataCRCFail         = 0x0f,  // Data block transfer CRC failed
+	SDR_NoResponse          = 0x0A,
+	SDR_AddrOutOfRange      = 0x0B,  // Address out of range
+	SDR_WriteCRCError       = 0x0C,  // Data write rejected due to a CRC error
+	SDR_InvalidVoltage      = 0x0D,  // Unsupported voltage range
+	SDR_DataTimeout         = 0x0E,  // Data block transfer timeout
+	SDR_DataCRCFail         = 0x0F,  // Data block transfer CRC failed
 	SDR_RXOverrun           = 0x10,  // Receive FIFO overrun
 	SDR_TXUnderrun          = 0x11,  // Transmit FIFO underrun
 	SDR_StartBitError       = 0x12,  // Start bit not detected on all data signals
@@ -297,12 +299,12 @@ typedef enum {
 	SDR_WPViolation         = 0x17,  // Attempt to write to a protected block or to the write protected card
 	SDR_LockUnlockFailed    = 0x18,  // Error in lock/unlock command
 	SDR_ComCRCError         = 0x19,  // The CRC check of the previous command failed
-	SDR_IllegalCommand      = 0x1a,  // Command is not legal for the the current card state
-	SDR_CardECCFailed       = 0x1b,  // Card internal ECC was applied but failed to correct the data
-	SDR_CCError             = 0x1c,  // Internal card controller error
-	SDR_GeneralError        = 0x1d,  // A general or an unknown error occurred during the operation
-	SDR_StreamUnderrun      = 0x1e,  // The card could not sustain data transfer in stream read operation
-	SDR_StreamOverrun       = 0x1f,  // The card could not sustain data programming in stream mode
+	SDR_IllegalCommand      = 0x1A,  // Command is not legal for the the current card state
+	SDR_CardECCFailed       = 0x1B,  // Card internal ECC was applied but failed to correct the data
+	SDR_CCError             = 0x1C,  // Internal card controller error
+	SDR_GeneralError        = 0x1D,  // A general or an unknown error occurred during the operation
+	SDR_StreamUnderrun      = 0x1E,  // The card could not sustain data transfer in stream read operation
+	SDR_StreamOverrun       = 0x1F,  // The card could not sustain data programming in stream mode
 	SDR_CSDOverwrite        = 0x20,  // CSD overwrite error
 	SDR_WPEraseSkip         = 0x21,  // Only partial address space was erased
 	SDR_ECCDisabled         = 0x22,  // The command has been executed without using the internal ECC

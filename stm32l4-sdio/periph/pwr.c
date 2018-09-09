@@ -12,7 +12,7 @@
 uint32_t PWR_GetResetSource(void) {
 	uint32_t result = PWR_RESET_SRC_UNKNOWN;
 	uint32_t reg;
-	uint32_t pwrstate = 0;
+	uint32_t pwrstate;
 
 	// The source of reset
 	reg = RCC->CSR;
@@ -47,8 +47,8 @@ uint32_t PWR_GetResetSource(void) {
 		result |= PWR_RESET_SRC_OBL;
 	}
 
-// Clear the reset flags
-RCC->CSR |= RCC_CSR_RMVF;
+	// Clear the reset flags
+	RCC->CSR |= RCC_CSR_RMVF;
 
 	// Remember state of the PWR peripheral and enable it
 	pwrstate = RCC->APB1ENR1;
@@ -179,5 +179,72 @@ void PWR_EnterSHUTDOWNMode(void) {
 	// Enter to the SHUTDOWN mode
 	__WFI();
 
-	// After waking up from STANDBY mode, program execution restarts in the same way as after a Reset
+	// After waking up from SHUTDOWN mode, program execution restarts in the same way as after a Reset
+}
+
+// Configure wakeup pin polarity (signal edge to detect wakeup event)
+// input:
+//   pin - wakeup pin to disable, one of PWR_WKUP_PINx values
+//   polarity - polarity for an event detection, one of PWR_WKUP_Px values
+void PWR_WKUPPolarity(uint32_t pin, uint32_t polarity) {
+	if (polarity == PWR_WKUP_PL) {
+		PWR->CR4 |= pin;
+	} else {
+		PWR->CR4 &= ~pin;
+	}
+}
+
+// Configure GPIO pull-up state in standby and shutdown modes
+// input:
+//    GPIO - GPIO port to configure, one of PWR_GPIOx values
+//    pins - GPIO pins to configure, any combination of PWR_GPIO_PIN_xx values
+//    state - new state of pull-up, one of PWR_GPIO_xx value
+// note: that configuration must be enabled by using PWR_EnablePUCfg()
+void PWR_GPIOPUSet(uint32_t GPIO, uint32_t pins, uint32_t state) {
+	__IO uint32_t *PUCR;
+	__IO uint32_t *PDCR;
+
+	switch (GPIO) {
+		case PWR_GPIOA: PUCR = &(PWR->PUCRA); PDCR = &(PWR->PDCRA); break;
+		case PWR_GPIOB: PUCR = &(PWR->PUCRB); PDCR = &(PWR->PDCRB); break;
+		case PWR_GPIOC: PUCR = &(PWR->PUCRC); PDCR = &(PWR->PDCRC); break;
+#if defined(GPIOD)
+		case PWR_GPIOD: PUCR = &(PWR->PUCRD); PDCR = &(PWR->PDCRD); break;
+#endif // GPIOD
+#if defined(GPIOE)
+		case PWR_GPIOE: PUCR = &(PWR->PUCRE); PDCR = &(PWR->PDCRE); break;
+#endif // GPIOE
+#if defined(GPIOF)
+		case PWR_GPIOF: PUCR = &(PWR->PUCRF); PDCR = &(PWR->PDCRF); break;
+#endif // GPIOF
+#if defined(GPIOG)
+		case PWR_GPIOG: PUCR = &(PWR->PUCRG); PDCR = &(PWR->PDCRG); break;
+#endif // GPIOG
+		case PWR_GPIOH: PUCR = &(PWR->PUCRH); PDCR = &(PWR->PDCRH); break;
+#if defined(GPIOI)
+		case PWR_GPIOI: PUCR = &(PWR->PUCRI); PDCR = &(PWR->PDCRI); break;
+#endif // GPIOI
+		default:
+			// Invalid GPIO port specified, do nothing
+			return;
+	}
+
+	switch (state) {
+		case PWR_GPIO_PD:
+			// Pull-down
+			*PUCR &= ~pins;
+			*PDCR |=  pins;
+			break;
+		case PWR_GPIO_PU:
+			// Pull-up
+			*PUCR |=  pins;
+			*PDCR &= ~pins;
+			break;
+		case PWR_GPIO_DISABLE:
+		default:
+			// Disable
+			*PUCR &= ~pins;
+			*PDCR &= ~pins;
+			break;
+	}
 }
