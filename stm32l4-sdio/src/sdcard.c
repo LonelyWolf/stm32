@@ -723,7 +723,6 @@ void SD_GetCardInfo(void) {
 // note: command response is a contents of the CCCR register (512bit or 64bytes)
 SDResult SD_CmdSwitch(uint32_t argument, uint8_t *resp) {
 	uint32_t *ptr = (uint32_t *)resp;
-	register uint32_t STA;
 	SDResult res = SDR_Success;
 
 	// SD specification says that response size is always 512bits,
@@ -779,7 +778,7 @@ SDResult SD_CmdSwitch(uint32_t argument, uint8_t *resp) {
 	}
 
 	// Check for errors
-	if (STA & SDIO_XFER_ERROR_FLAGS) {
+	if (SDMMC1->STA & SDIO_XFER_ERROR_FLAGS) {
 		if (SDMMC1->STA & SDMMC_STA_DTIMEOUT) { res = SDR_DataTimeout;   }
 		if (SDMMC1->STA & SDMMC_STA_DCRCFAIL) { res = SDR_DataCRCFail;   }
 		if (SDMMC1->STA & SDMMC_STA_RXOVERR)  { res = SDR_RXOverrun;     }
