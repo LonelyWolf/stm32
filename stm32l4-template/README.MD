@@ -2,7 +2,7 @@
 
 **Used:**
 - ARM CMSIS library for Cortex-M4 (v5.4.0)
-- STM32L4xx startup, headers and vector table (v1.4.3)
+- STM32L4xx startup, headers and vector table (v1.5.0)
 
 **Only minimal system initialization.**
 
