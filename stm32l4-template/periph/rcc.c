@@ -26,13 +26,7 @@ static uint32_t RCC_CalcDelay(uint32_t delay) {
 	return cnt;
 }
 
-// Get current PLLM divider value
-// return: value of PLLM divider (one of RCC_PLLM_DIVx values)
-__STATIC_INLINE uint32_t RCC_GetPLLMDiv(void) {
-	return (RCC->PLLCFGR & RCC_PLLCFGR_PLLM);
-}
-
-// Calculate the output PLL frequency according to given settings
+// Calculate the output frequency according to given PLL settings
 // input:
 //   inPLL - frequency of PLL input clock (Hz)
 //   cfgPLL - pointer to the structure what contains the configuration for the PLL
@@ -86,7 +80,7 @@ static void RCC_SetFlashLatency(uint32_t hclk) {
 		// else default latency 0WS
 	}
 
-	// Configure the new flash latency
+	// Configure new flash latency
 	reg  = FLASH->ACR;
 	reg &= ~FLASH_ACR_LATENCY;
 	reg |= latency;
@@ -151,10 +145,68 @@ static ErrorStatus RCC_SwitchToPLL(uint32_t SysClkFreq, RCC_CLKInitTypeDef *cfgC
 	return SUCCESS;
 }
 
+// Get PLL source clock frequency
+static uint32_t RCC_GetPLLSrcFreq(void) {
+	register uint32_t freq;
+	register uint32_t reg = RCC->PLLCFGR;
+
+	switch (reg & RCC_PLLCFGR_PLLSRC) {
+		case RCC_PLLCFGR_PLLSRC_HSI:
+			// HSI used as PLL clock source
+			freq = HSI_VALUE;
+			break;
+		case RCC_PLLCFGR_PLLSRC_HSE:
+			// HSE used as PLL clock source
+			freq = HSE_VALUE;
+			break;
+		default:
+			// MSI used as PLL clock source
+			freq = RCC_GetMSIFreq();
+			break;
+	}
+
+	// Apply PLLM divider
+	freq /= ((reg & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos) + 1;
+
+	return freq;
+}
+
+// Get current internal PLL clock frequency
+static uint32_t RCC_GetPLLIntFreq(void) {
+	register uint32_t freq = RCC_GetPLLSrcFreq();
+
+	// Apply PLLN multiplier
+	freq *= (RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos;
+
+	return freq;
+}
+
+// Get current internal PLLSAI1 clock frequency
+static uint32_t RCC_GetPLLSAI1IntFreq(void) {
+	register uint32_t freq = RCC_GetPLLSrcFreq();
+
+	// Apply PLLSAI1N multiplier
+	freq *= (RCC->PLLSAI1CFGR & RCC_PLLSAI1CFGR_PLLSAI1N) >> RCC_PLLSAI1CFGR_PLLSAI1N_Pos;
+
+	return freq;
+}
+
+#if 0 // <-- for future use
+// Get current internal PLLSAI2 clock frequency
+static uint32_t RCC_GetPLLSAI2IntFreq(void) {
+	register uint32_t freq = RCC_GetPLLSrcFreq();
+
+	// Apply PLLSAI2N multiplier
+	freq *= (RCC->PLLSAI2CFGR & RCC_PLLSAI2CFGR_PLLSAI2N) >> RCC_PLLSAI2CFGR_PLLSAI2N_Pos;
+
+	return freq;
+}
+#endif
+
 // Get the current system clock source
 // return: clock source, one of RCC_SYSCLK_SRC_xx values
 uint32_t RCC_GetSysClockSource(void) {
-	uint32_t result = RCC_SYSCLK_SRC_UNKNOWN;
+	register uint32_t result = RCC_SYSCLK_SRC_UNKNOWN;
 
 	// Get the SYSCLK source
 	switch (RCC->CFGR & RCC_CFGR_SWS) {
@@ -202,8 +254,7 @@ uint32_t RCC_GetMSIFreq(void) {
 // Get current SYSCLK clock frequency
 // return: SYSCLK frequency (Hz)
 uint32_t RCC_GetSYSCLKFreq(void) {
-	uint32_t freq;
-	uint32_t reg;
+	register uint32_t freq;
 
 	// Get the SYSCLK source
 	switch (RCC->CFGR & RCC_CFGR_SWS) {
@@ -217,27 +268,9 @@ uint32_t RCC_GetSYSCLKFreq(void) {
 		break;
 	case RCC_CFGR_SWS_PLL:
 		// PLL used as system clock
-		reg = RCC->PLLCFGR;
-		switch (reg & RCC_PLLCFGR_PLLSRC) {
-		case RCC_PLLCFGR_PLLSRC_HSI:
-			// HSI used as PLL clock source
-			freq = HSI_VALUE;
-			break;
-		case RCC_PLLCFGR_PLLSRC_HSE:
-			// HSE used as PLL clock source
-			freq = HSE_VALUE;
-			break;
-		default:
-			// MSI used as PLL clock source
-			freq = RCC_GetMSIFreq();
-			break;
-		}
-		// PLLM divider
-		freq /= ((reg & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos) + 1;
-		// PLLN multiplier
-		freq *= (reg & RCC_PLLCFGR_PLLN) >> RCC_PLLCFGR_PLLN_Pos;
-		// PLLR divider
-		freq /= (((reg & RCC_PLLCFGR_PLLR) >> RCC_PLLCFGR_PLLR_Pos) + 1) * 2;
+		freq = RCC_GetPLLIntFreq();
+		// Apply PLLR divider
+		freq /= (((RCC->PLLCFGR & RCC_PLLCFGR_PLLR) >> RCC_PLLCFGR_PLLR_Pos) + 1) * 2;
 		break;
 	default:
 		// MSI used as system clock
@@ -270,6 +303,37 @@ uint32_t RCC_GetPCLK1Freq(uint32_t hclk) {
 // return: PCLK2 frequency (Hz)
 uint32_t RCC_GetPCLK2Freq(uint32_t hclk) {
 	return (hclk >> APBPrescTable[(RCC->CFGR & RCC_CFGR_PPRE2) >> RCC_CFGR_PPRE2_Pos]);
+}
+
+// Get current CLK48 clock frequency
+// return: CLK48 frequency (Hz)
+uint32_t RCC_GetCLK48Freq(void) {
+	uint32_t freq;
+	uint32_t result;
+
+	freq = RCC_GetCLK48Source();
+	switch (freq) {
+		case RCC_CLK48_CLK_MSI:
+			result = RCC_GetMSIFreq();
+			break;
+		case RCC_CLK48_CLK_PLLQ:
+			result = RCC_GetPLLIntFreq();
+			// Apply PLLQ divider
+			result /= (((RCC->PLLCFGR & RCC_PLLCFGR_PLLQ) >> RCC_PLLCFGR_PLLQ_Pos) + 1) * 2;
+			break;
+		case RCC_CLK48_CLK_PLLSAI1Q:
+			result = RCC_GetPLLSAI1IntFreq();
+			// Apply PLLSAI1Q divider
+			result /= (((RCC->PLLSAI1CFGR & RCC_PLLSAI1CFGR_PLLSAI1Q) >> RCC_PLLSAI1CFGR_PLLSAI1Q_Pos) + 1) * 2;
+			break;
+		case RCC_CLK48_CLK_NONE:
+		default:
+			// No clock source
+			result = 0;
+			break;
+	}
+
+	return result;
 }
 
 // Return the frequencies of the System, AHB and APB bus clocks
@@ -318,10 +382,10 @@ void RCC_PLLMConfig(uint32_t pllm) {
 	// Check if all PLLs are disabled
 	if (RCC->CR & (RCC_CR_PLLON | RCC_CR_PLLSAI1ON | RCC_CR_PLLSAI2ON)) {
 		// Modifying the PLL input clock divider when one of PLLs are enabled is bad idea...
-	} else {
-		RCC->PLLCFGR &= ~(RCC_PLLCFGR_PLLM);
-		RCC->PLLCFGR |= pllm & RCC_PLLCFGR_PLLM;
+		return;
 	}
+	RCC->PLLCFGR &= ~(RCC_PLLCFGR_PLLM);
+	RCC->PLLCFGR |= pllm & RCC_PLLCFGR_PLLM;
 }
 
 // Enable the PLL outputs
@@ -864,7 +928,7 @@ ErrorStatus RCC_SetClockPLL(uint32_t clock_source, RCC_PLLInitTypeDef *cfgPLL, R
 		RCC_PLLOutEnable(RCC_PLL_MAIN, RCC_PLL_OUTR);
 
 		// Calculate PLL output frequency
-		freq = RCC_CalcPLLFreq(freq, RCC_GetPLLMDiv(), cfgPLL);
+		freq = RCC_CalcPLLFreq(freq, RCC->PLLCFGR & RCC_PLLCFGR_PLLM, cfgPLL);
 
 		// Configure the main PLL and enable it
 		RCC_PLLConfig(RCC_PLL_MAIN, cfgPLL);

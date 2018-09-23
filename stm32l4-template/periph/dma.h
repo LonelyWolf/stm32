@@ -101,14 +101,14 @@ typedef struct {
 // Enable specified DMA channel
 // input:
 //   channel - pointer to the DMA channel handle
-__STATIC_INLINE void DMA_EnableChannel(DMA_Channel_TypeDef *channel) {
+__STATIC_FORCEINLINE void DMA_EnableChannel(DMA_Channel_TypeDef *channel) {
 	channel->CCR |= DMA_CCR_EN;
 }
 
 // Disable specified DMA channel
 // input:
 //   channel - pointer to the DMA channel handle
-__STATIC_INLINE void DMA_DisableChannel(DMA_Channel_TypeDef *channel) {
+__STATIC_FORCEINLINE void DMA_DisableChannel(DMA_Channel_TypeDef *channel) {
 	channel->CCR &= ~DMA_CCR_EN;
 }
 
@@ -116,7 +116,7 @@ __STATIC_INLINE void DMA_DisableChannel(DMA_Channel_TypeDef *channel) {
 // input:
 //   channel - pointer to the DMA channel handle
 //   irq - IRQ to enable, combination of DMA_IRQ_xx values
-__STATIC_INLINE void DMA_EnableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) {
+__STATIC_FORCEINLINE void DMA_EnableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) {
 	channel->CCR |= (irq & (DMA_CCR_TCIE | DMA_CCR_HTIE | DMA_CCR_TEIE));
 }
 
@@ -124,7 +124,7 @@ __STATIC_INLINE void DMA_EnableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) {
 // input:
 //   channel - pointer to the DMA channel handle
 //   irq - IRQ to disable, combination of DMA_IRQ_xx values
-__STATIC_INLINE void DMA_DisableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) {
+__STATIC_FORCEINLINE void DMA_DisableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) {
 	channel->CCR &= ~(irq & (DMA_CCR_TCIE | DMA_CCR_HTIE | DMA_CCR_TEIE));
 }
 
@@ -134,7 +134,7 @@ __STATIC_INLINE void DMA_DisableIRQ(DMA_Channel_TypeDef *channel, uint32_t irq) 
 //   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
 //   flags - flags to check, any combination of DMA_FLAG_xx values
 // return: specified flags state, zero if all flags are reset
-__STATIC_INLINE uint32_t DMA_GetFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
+__STATIC_FORCEINLINE uint32_t DMA_GetFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
 	return (DMAx->ISR & ((flags & (DMA_ISR_GIF1 | DMA_ISR_TCIF1 | DMA_ISR_HTIF1 | DMA_ISR_TEIF1)) << channel_index));
 }
 
@@ -143,7 +143,7 @@ __STATIC_INLINE uint32_t DMA_GetFlags(DMA_TypeDef *DMAx, uint32_t channel_index,
 //   DMAx - pointer to the DMA peripheral handler (DMA1, etc.)
 //   channel_index - index of the channel to clear flags, one of DMA_CHIDX_xxx values
 //   flags - flags to be cleared, any combination of DMA_CF_xx values
-__STATIC_INLINE void DMA_ClearFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
+__STATIC_FORCEINLINE void DMA_ClearFlags(DMA_TypeDef *DMAx, uint32_t channel_index, uint32_t flags) {
 	DMAx->IFCR = (flags & DMA_CF_ALL) << channel_index;
 }
 
@@ -152,7 +152,7 @@ __STATIC_INLINE void DMA_ClearFlags(DMA_TypeDef *DMAx, uint32_t channel_index, u
 //   channel - pointer to the DMA channel handle
 //   length - new number of DMA transactions
 // note: channel must be disabled
-__STATIC_INLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16_t length) {
+__STATIC_FORCEINLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16_t length) {
 	channel->CNDTR = length;
 }
 
@@ -160,7 +160,7 @@ __STATIC_INLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16_t le
 // input:
 //   channel - pointer to the DMA channel handle
 // return: number of remaining transactions
-__STATIC_INLINE uint16_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
+__STATIC_FORCEINLINE uint16_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
 	return channel->CNDTR;
 }
 
@@ -168,7 +168,7 @@ __STATIC_INLINE uint16_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
 // input:
 //   channel - pointer to the DMA channel handle
 //   addr - new address
-__STATIC_INLINE void DMA_SetAddrM(DMA_Channel_TypeDef *channel, uint32_t addr) {
+__STATIC_FORCEINLINE void DMA_SetAddrM(DMA_Channel_TypeDef *channel, uint32_t addr) {
 	channel->CMAR = addr;
 }
 
@@ -176,7 +176,7 @@ __STATIC_INLINE void DMA_SetAddrM(DMA_Channel_TypeDef *channel, uint32_t addr) {
 // input:
 //   channel - pointer to the DMA channel handle
 //   addr - new address
-__STATIC_INLINE void DMA_SetAddrP(DMA_Channel_TypeDef *channel, uint32_t addr) {
+__STATIC_FORCEINLINE void DMA_SetAddrP(DMA_Channel_TypeDef *channel, uint32_t addr) {
 	channel->CPAR = addr;
 }
 
@@ -191,7 +191,7 @@ __STATIC_INLINE void DMA_SetAddrP(DMA_Channel_TypeDef *channel, uint32_t addr) {
 //     DMA_PSIZE_xx - peripheral data size
 //     DMA_MINC_xx - memory increment state
 //     DMA_PINC_xx - peripheral increment state
-__STATIC_INLINE void DMA_ConfigChannel(DMA_Channel_TypeDef *channel, uint32_t params) {
+__STATIC_FORCEINLINE void DMA_ConfigChannel(DMA_Channel_TypeDef *channel, uint32_t params) {
 	channel->CCR = (params & \
 			(DMA_CCR_DIR | DMA_CCR_MEM2MEM | DMA_CCR_CIRC | \
 			DMA_CCR_PINC | DMA_CCR_MINC | \

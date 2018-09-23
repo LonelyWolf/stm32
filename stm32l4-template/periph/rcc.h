@@ -355,6 +355,12 @@ __STATIC_INLINE uint32_t RCC_GetClockRTC(void) {
 	return (RCC->BDCR & RCC_BDCR_RTCSEL);
 }
 
+// Get the current CLK48 clock source
+// return: clock source, one of RCC_CLK48_CLK_xx values
+__STATIC_INLINE uint32_t RCC_GetCLK48Source(void) {
+	return (RCC->CCIPR & RCC_CCIPR_CLK48SEL);
+}
+
 
 // Function prototypes
 uint32_t RCC_GetSysClockSource(void);
@@ -364,6 +370,7 @@ uint32_t RCC_GetSYSCLKFreq(void);
 uint32_t RCC_GetHCLKFreq(uint32_t sysclk);
 uint32_t RCC_GetPCLK1Freq(uint32_t hclk);
 uint32_t RCC_GetPCLK2Freq(uint32_t hclk);
+uint32_t RCC_GetCLK48Freq(void);
 void RCC_GetClocksFreq(RCC_ClocksTypeDef* RCC_Clocks);
 
 void RCC_PLLSrcConfig(uint32_t pll_src);
