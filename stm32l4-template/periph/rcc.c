@@ -574,15 +574,14 @@ ErrorStatus RCC_PLLConfig(uint32_t pll, RCC_PLLInitTypeDef *cfgPLL) {
 // note: when the MSI is used as system clock or clock source for PLL, in these
 //       cases it is not allowed to be disabled
 ErrorStatus RCC_MSIConfig(uint32_t state) {
-	volatile uint32_t wait;
-	uint32_t msifreq;
+	register volatile uint32_t wait;
 	uint32_t reg;
 
 	if ((RCC->CFGR & RCC_CFGR_SWS) == RCC_CFGR_SWS_MSI) {
 		// The MSI is current system clock, only configure new frequency range allowed
 		if (state != RCC_MSI_OFF) {
 			// Get new MSI frequency
-			msifreq = MSIRangeTable[(state & RCC_CR_MSIRANGE) >> RCC_CR_MSIRANGE_Pos];
+			uint32_t msifreq = MSIRangeTable[(state & RCC_CR_MSIRANGE) >> RCC_CR_MSIRANGE_Pos];
 
 			// In case the MSI is the current system clock source and the new MSI clock frequency is
 			// increasing then the FLASH wait states should be adjusted

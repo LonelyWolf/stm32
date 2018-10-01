@@ -290,7 +290,6 @@ ErrorStatus RTC_SetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	// Variant #1: enter INIT mode, compose new values for date and time registers, then write them
 
 	// Enter initialization mode
-	RTC_WriteProtectionDisable();
 	if (RTC_EnterInitMode() == SUCCESS) {
 		// Compose new value for time register
 		TR = (((time->RTC_Hours / 10U) << RTC_TR_HT_Pos)      | \
