@@ -266,8 +266,8 @@ void USART_Init(const USART_HandleTypeDef *USARTx, uint32_t mode) {
 	if (mode & USART_MODE_TX) {
 		// Configure TX pin as: AF, low speed, push-pull, pull-up
 		RCC->AHB2ENR |= USARTx->PIN_TX.GPIO_AHB;
-		GPIO_set_mode(USARTx->PIN_TX.GPIO, GPIO_Mode_AF, GPIO_PUPD_PU, USARTx->PIN_TX.GPIO_PIN);
 		GPIO_af_cfg(USARTx->PIN_TX.GPIO, USARTx->PIN_TX.GPIO_SRC, USARTx->AF);
+		GPIO_set_mode(USARTx->PIN_TX.GPIO, GPIO_Mode_AF, GPIO_PUPD_PU, USARTx->PIN_TX.GPIO_PIN);
 		GPIO_out_cfg(USARTx->PIN_TX.GPIO, GPIO_OT_PP, GPIO_SPD_LOW, USARTx->PIN_TX.GPIO_PIN);
 	}
 
@@ -275,8 +275,8 @@ void USART_Init(const USART_HandleTypeDef *USARTx, uint32_t mode) {
 	if (mode & USART_MODE_RX) {
 		// Configure RX pin as: AF, low speed, push-pull, pull-up
 		RCC->AHB2ENR |= USARTx->PIN_RX.GPIO_AHB;
-		GPIO_set_mode(USARTx->PIN_RX.GPIO, GPIO_Mode_AF, GPIO_PUPD_PU, USARTx->PIN_RX.GPIO_PIN);
 		GPIO_af_cfg(USARTx->PIN_RX.GPIO, USARTx->PIN_RX.GPIO_SRC, USARTx->AF);
+		GPIO_set_mode(USARTx->PIN_RX.GPIO, GPIO_Mode_AF, GPIO_PUPD_PU, USARTx->PIN_RX.GPIO_PIN);
 		GPIO_out_cfg(USARTx->PIN_RX.GPIO, GPIO_OT_PP, GPIO_SPD_LOW, USARTx->PIN_RX.GPIO_PIN);
 	}
 
