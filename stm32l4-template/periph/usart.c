@@ -423,32 +423,32 @@ void USART_SetHWFlow(const USART_HandleTypeDef *USARTx, uint32_t hwflow_mode) {
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
 //   irq - IRQ to enable, one of USART_IRQ_xx values (where xx can be TXE, RXNE, TC, IDLE, PE, ERR)
 void USART_EnableIRQ(USART_HandleTypeDef *USARTx, uint16_t irq) {
-	if (((uint8_t)irq >> 5) == 1) {
+	if (((uint8_t)irq >> 5) == 1U) {
 		// USART_CR1
-		USARTx->Instance->CR1 |= (1 << (irq & 0x1F));
-	} else if (((uint8_t)irq >> 5) == 2) {
+		USARTx->Instance->CR1 |= (1U << (irq & 0x1F));
+	} else if (((uint8_t)irq >> 5) == 2U) {
 		// USART_CR2
-		USARTx->Instance->CR2 |= (1 << (irq & 0x1F));
+		USARTx->Instance->CR2 |= (1U << (irq & 0x1F));
 	} else {
 		// USART_CR3
-		USARTx->Instance->CR3 |= (1 << (irq & 0x1F));
+		USARTx->Instance->CR3 |= (1U << (irq & 0x1F));
 	}
 }
 
 // Disable USART interrupt
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)
-//   irq - IRQ to enable, one of the USART_IRQ_xx values (where xx can be TXE, RXNE, TC, IDLE, PE, ERR)
+//   irq - IRQ to disable, one of the USART_IRQ_xx values (where xx can be TXE, RXNE, TC, IDLE, PE, ERR)
 void USART_DisableIRQ(USART_HandleTypeDef *USARTx, uint16_t irq) {
-	if (((uint8_t)irq >> 5) == 1) {
+	if (((uint8_t)irq >> 5) == 1U) {
 		// USART_CR1
-		USARTx->Instance->CR1 |= (1 << (irq & 0x1F));
-	} else if (((uint8_t)irq >> 5) == 2) {
+		USARTx->Instance->CR1 |= (1U << (irq & 0x1F));
+	} else if (((uint8_t)irq >> 5) == 2U) {
 		// USART_CR2
-		USARTx->Instance->CR2 |= (1 << (irq & 0x1F));
+		USARTx->Instance->CR2 |= (1U << (irq & 0x1F));
 	} else {
 		// USART_CR3
-		USARTx->Instance->CR3 |= (1 << (irq & 0x1F));
+		USARTx->Instance->CR3 |= (1U << (irq & 0x1F));
 	}
 }
 
@@ -714,6 +714,7 @@ void USART_SendBufHex(USART_TypeDef *USARTx, const char *pBuf, uint32_t length) 
 #if (USART_USE_PRINTF)
 
 #include <stdarg.h>
+
 // Transmit formatted string via USART
 // input:
 //   USARTx - pointer to the USART port handler (hUSART1, hUART4, etc.)

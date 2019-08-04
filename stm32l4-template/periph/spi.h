@@ -225,13 +225,7 @@ __STATIC_FORCEINLINE void SPI_DataWrite8(SPI_HandleTypeDef *SPIx, uint8_t data) 
 //   SPIx - pointer to the SPI port handle
 //   data - data to write
 __STATIC_FORCEINLINE void SPI_DataWrite16(SPI_HandleTypeDef *SPIx, uint16_t data) {
-#if defined (__GNUC__)
-	// For strict-aliasing
-	__IO uint16_t *DR = (__IO uint16_t *)&SPIx->Instance->DR;
-	*DR = data;
-#else
 	SPIx->Instance->DR = data;
-#endif
 }
 
 // Get state of the SPI flag

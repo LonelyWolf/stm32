@@ -26,7 +26,7 @@ void Delay_Init(void) {
 // input:
 //   ms - number of milliseconds to wait
 void Delay_ms(uint32_t ms) {
-	__IO uint32_t delay_counter = ms;
+	register __IO uint32_t delay_counter = ms;
 
 	while (delay_counter) {
 		if (SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) {
