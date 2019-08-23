@@ -6,6 +6,14 @@
 #include "nrf24_hal.h"
 
 
+#ifndef nRF24_ADDR_REVERSE
+// How the TX/RX address should be transmitted to the transceiver
+//   0 - straight - the first byte of the address transmitted first
+//   1 - reverse - the last byte of the address transmitted first
+#define nRF24_ADDR_REVERSE         0
+#endif
+
+
 // nRF24L0 instruction definitions
 #define nRF24_CMD_R_REGISTER       (uint8_t)0x00 // Register read
 #define nRF24_CMD_W_REGISTER       (uint8_t)0x20 // Register write
@@ -67,9 +75,7 @@
 #define nRF24_MASK_TXFIFO          (uint8_t)0x30 // Mask for TX FIFO status bits [5:4] in FIFO_STATUS register
 #define nRF24_MASK_PLOS_CNT        (uint8_t)0xF0 // Mask for PLOS_CNT[7:4] bits in OBSERVE_TX register
 #define nRF24_MASK_ARC_CNT         (uint8_t)0x0F // Mask for ARC_CNT[3:0] bits in OBSERVE_TX register
-
-// Fake address to test transceiver presence (5 bytes long)
-#define nRF24_TEST_ADDR            "nRF24"
+#define nRF24_MASK_SETUP_AW        (uint8_t)0x03 // Mask for AW[1:0] bits in SETUP_AW register
 
 
 // Retransmit delay
@@ -172,28 +178,6 @@ typedef enum {
 } nRF24_RXResult;
 
 
-// Addresses of the RX_PW_P# registers
-static const uint8_t nRF24_RX_PW_PIPE[6] = {
-		nRF24_REG_RX_PW_P0,
-		nRF24_REG_RX_PW_P1,
-		nRF24_REG_RX_PW_P2,
-		nRF24_REG_RX_PW_P3,
-		nRF24_REG_RX_PW_P4,
-		nRF24_REG_RX_PW_P5
-};
-
-// Addresses of the address registers
-static const uint8_t nRF24_ADDR_REGS[7] = {
-		nRF24_REG_RX_ADDR_P0,
-		nRF24_REG_RX_ADDR_P1,
-		nRF24_REG_RX_ADDR_P2,
-		nRF24_REG_RX_ADDR_P3,
-		nRF24_REG_RX_ADDR_P4,
-		nRF24_REG_RX_ADDR_P5,
-		nRF24_REG_TX_ADDR
-};
-
-
 // Function prototypes
 void nRF24_Init(void);
 uint8_t nRF24_Check(void);
@@ -212,6 +196,7 @@ void nRF24_ClosePipe(uint8_t pipe);
 void nRF24_EnableAA(uint8_t pipe);
 void nRF24_DisableAA(uint8_t pipe);
 
+uint8_t nRF24_GetAddrWidth(void);
 uint8_t nRF24_GetStatus(void);
 uint8_t nRF24_GetIRQFlags(void);
 uint8_t nRF24_GetStatus_RXFIFO(void);
@@ -226,8 +211,5 @@ void nRF24_ClearIRQFlags(void);
 
 void nRF24_WritePayload(uint8_t *pBuf, uint8_t length);
 nRF24_RXResult nRF24_ReadPayload(uint8_t *pBuf, uint8_t *length);
-
-#define nRF24_RX_ON()   nRF24_CE_H();
-#define nRF24_RX_OFF()  nRF24_CE_L();
 
 #endif // __NRF24_H

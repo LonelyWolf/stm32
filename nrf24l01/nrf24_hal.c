@@ -14,12 +14,12 @@ void nRF24_GPIO_Init(void) {
 	PORT.GPIO_Speed = GPIO_Speed_2MHz;
 	PORT.GPIO_Pin = nRF24_CSN_PIN;
 	GPIO_Init(nRF24_CSN_PORT, &PORT);
-	nRF24_CSN_H();
+	nRF24_CSN_H;
 
 	// Configure CE pin
 	PORT.GPIO_Pin = nRF24_CE_PIN;
 	GPIO_Init(nRF24_CE_PORT, &PORT);
-	nRF24_CE_L();
+	nRF24_CE_L;
 }
 
 // Low level SPI transmit/receive function (hardware depended)
