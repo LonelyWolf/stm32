@@ -96,7 +96,7 @@ Simple example code of receiver in polling mode:
 uint8_t nRF24_payload[32]; // buffer for payload
 uint8_t payload_length; // variable to store a length of received payload
 uint8_t pipe; // pipe number
-nRF24_CE_H(); // start receiving
+nRF24_CE_H; // start receiving
 while (1) {
     // constantly poll the status of RX FIFO...
     if (nRF24_GetStatus_RXFIFO() != nRF24_STATUS_RXFIFO_EMPTY) {
@@ -121,7 +121,7 @@ The polling method is far from optimal and if it possible, it is better to use t
 ```tcc
 uint8_t status;
 nRF24_WritePayload(pBuf, length); // transfer payload data to transceiver
-nRF24_CE_H(); // assert CE pin (transmission starts)
+nRF24_CE_H; // assert CE pin (transmission starts)
 while (1) {
     status = nRF24_GetStatus();
     if (status & (nRF24_FLAG_TX_DS | nRF24_FLAG_MAX_RT)) {
@@ -129,7 +129,7 @@ while (1) {
         break;
     }
 }
-nRF24_CE_H(); // de-assert CE pin (nRF24 goes to StandBy-I mode)
+nRF24_CE_L; // de-assert CE pin (nRF24 goes to StandBy-I mode)
 nRF24_ClearIRQFlags(); // clear any pending IRQ flags
 if (status & nRF24_FLAG_MAX_RT) {
     // Auto retransmit counter exceeds the programmed maximum limit (payload in FIFO is not removed)
