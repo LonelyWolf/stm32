@@ -14,32 +14,32 @@ void CRC_Init(void) {
 //   length - size of the buffer (in bytes)
 void CRC_CalcBuffer(register uint32_t *pBuf, register uint32_t length) {
 	// Send a data to the CRC unit by 32-bit words to reduce number of memory transactions
-	while (length > 3) {
+	while (length > 3U) {
 #ifdef __GNUC__
 		CRC_PutData32(__builtin_bswap32(*pBuf++));
 #else
 		CRC_PutData32((((*pBuf) >> 24) | (((*pBuf) & 0x00FF0000) >> 8) | (((*pBuf) & 0x0000FF00) << 8) | ((*pBuf) << 24)));
 		pBuf++;
 #endif // __GNUC__
-		length -= 4;
+		length -= 4U;
 	}
 
 	// Send remnant of the data buffer if any
 	if (length) {
 		switch (length) {
-			case 1:
+			case 1U:
 				CRC_PutData8((uint8_t)(*pBuf));
 
 				break;
-			case 2:
+			case 2U:
 #ifdef __GNUC__
 				CRC_PutData16((uint16_t)__builtin_bswap16(*pBuf));
 #else
-				CRC_PutData16((uint16_t)((((*pBuf) >> 8) | (((*pBuf) & 0x00FF) << 8))));
+				CRC_PutData16((uint16_t)((((uint16_t)*pBuf >> 8) | (((*pBuf) & 0x00FF) << 8))));
 #endif // __GNUC__
 
 				break;
-			case 3:
+			case 3U:
 				CRC_PutData8((uint8_t)(*pBuf));
 #ifdef __GNUC__
 				CRC_PutData16((uint16_t)__builtin_bswap16(*pBuf >> 8));
