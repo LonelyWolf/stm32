@@ -303,7 +303,7 @@ void SPI_SendRecvBuf(SPI_HandleTypeDef *SPIx, uint8_t *pBuf, uint32_t length) {
 		while (!(SPIx->Instance->SR & SPI_SR_TXE)); // Wait until TX buffer is empty
 		SPIx->Instance->DR = *pBuf; // Send byte (TXE cleared)
 		while (!(SPIx->Instance->SR & SPI_SR_RXNE)); // Wait while RX buffer is empty
-		*pBuf++ = SPIx->Instance->DR; // Read received byte
+		*pBuf++ = (uint8_t)(SPIx->Instance->DR); // Read received byte
 	}
 	while (SPIx->Instance->SR & SPI_SR_BSY); // Wait for the transmission of the last byte
 }

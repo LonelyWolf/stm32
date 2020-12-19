@@ -2,7 +2,8 @@
 #define __RCC_H
 
 
-#include <stm32l4xx.h>
+#include "stm32l4xx.h"
+#include "stm32l4_clocks.h"
 
 
 // Definitions of system clock source
@@ -234,79 +235,111 @@ typedef struct {
 
 // Public functions and macros
 
+// Enable D-Cache (data cache)
+__STATIC_FORCEINLINE void RCC_ICacheEnable(void) {
+	FLASH->ACR |= FLASH_ACR_ICEN;
+}
+
+// Disable D-Cache (data cache)
+__STATIC_FORCEINLINE void RCC_ICacheDisable(void) {
+	FLASH->ACR &= ~FLASH_ACR_ICEN;
+}
+
+// Reset D-Cache (data cache)
+__STATIC_FORCEINLINE void RCC_ICacheReset(void) {
+	FLASH->ACR |=  FLASH_ACR_ICRST;
+	FLASH->ACR &= ~FLASH_ACR_ICRST;
+}
+
+// Enable D-Cache (data cache)
+__STATIC_FORCEINLINE void RCC_DCacheEnable(void) {
+	FLASH->ACR |= FLASH_ACR_ICEN;
+}
+
+// Disable D-Cache (data cache)
+__STATIC_FORCEINLINE void RCC_DCacheDisable(void) {
+	FLASH->ACR &= ~FLASH_ACR_ICEN;
+}
+
+// Reset D-Cache (data cache)
+__STATIC_FORCEINLINE void RCC_DCacheReset(void) {
+	FLASH->ACR |=  FLASH_ACR_ICRST;
+	FLASH->ACR &= ~FLASH_ACR_ICRST;
+}
+
 // Enable prefetch buffer
-__STATIC_INLINE void RCC_PrefetchEnable(void) {
+__STATIC_FORCEINLINE void RCC_PrefetchEnable(void) {
 	FLASH->ACR |= FLASH_ACR_PRFTEN;
 }
 
 // Disable prefetch buffer
-__STATIC_INLINE void RCC_PrefetchDisable(void) {
+__STATIC_FORCEINLINE void RCC_PrefetchDisable(void) {
 	FLASH->ACR &= ~FLASH_ACR_PRFTEN;
 }
 
 // Get flash latency
 // return: a flash latency, one of FLASH_ACR_LATENCY_xx values
-__STATIC_INLINE uint32_t RCC_GetLatency(void) {
+__STATIC_FORCEINLINE uint32_t RCC_GetLatency(void) {
 	return (FLASH->ACR & FLASH_ACR_LATENCY);
 }
 
 // Enable RTC clock
-__STATIC_INLINE void RCC_RTCEnable(void) {
+__STATIC_FORCEINLINE void RCC_RTCEnable(void) {
 	RCC->BDCR |= RCC_BDCR_RTCEN;
 }
 
 // Disable RTC clock
-__STATIC_INLINE void RCC_RTCDisable(void) {
+__STATIC_FORCEINLINE void RCC_RTCDisable(void) {
 	RCC->BDCR &= ~RCC_BDCR_RTCEN;
 }
 
 // Backup domain software reset
-__STATIC_INLINE void RCC_BkpReset(void) {
+__STATIC_FORCEINLINE void RCC_BkpReset(void) {
 	RCC->BDCR |=  RCC_BDCR_BDRST;
 	RCC->BDCR &= ~RCC_BDCR_BDRST;
 }
 
 // Check if LSE oscillator is ready
 // return: state of oscillator (0 or 1)
-__STATIC_INLINE uint32_t RCC_LSEIsReady(void) {
+__STATIC_FORCEINLINE uint32_t RCC_LSEIsReady(void) {
 	return ((RCC->BDCR & RCC_BDCR_LSERDY) == RCC_BDCR_LSERDY);
 }
 
 // Check if LSI oscillator is ready
 // return: state of oscillator (0 or 1)
 // note: LSIRDY bit will be set if LSI is off but LSECSS is on
-__STATIC_INLINE uint32_t RCC_LSIIsReady(void) {
+__STATIC_FORCEINLINE uint32_t RCC_LSIIsReady(void) {
 	return ((RCC->CSR & RCC_CSR_LSIRDY) == RCC_CSR_LSIRDY);
 }
 
 // Check if HSE oscillator is ready
 // return: state of oscillator (0 or 1)
-__STATIC_INLINE uint32_t RCC_HSEIsReady(void) {
+__STATIC_FORCEINLINE uint32_t RCC_HSEIsReady(void) {
 	return ((RCC->CR & RCC_CR_HSERDY) == RCC_CR_HSERDY);
 }
 
 // Check if LSE oscillator is on
 // return: state of oscillator (0 or 1)
-__STATIC_INLINE uint32_t RCC_LSEIsOn(void) {
+__STATIC_FORCEINLINE uint32_t RCC_LSEIsOn(void) {
 	return ((RCC->BDCR & RCC_BDCR_LSEON) == RCC_BDCR_LSEON);
 }
 
 // Check if LSI oscillator is on
 // return: state of oscillator (0 or 1)
-__STATIC_INLINE uint32_t RCC_LSIIsOn(void) {
+__STATIC_FORCEINLINE uint32_t RCC_LSIIsOn(void) {
 	return ((RCC->CSR & RCC_CSR_LSION) == RCC_CSR_LSION);
 }
 
 // Check if HSE oscillator is on
 // return: state of oscillator (0 or 1)
-__STATIC_INLINE uint32_t RCC_HSEIsOn(void) {
+__STATIC_FORCEINLINE uint32_t RCC_HSEIsOn(void) {
 	return ((RCC->CR & RCC_CR_HSEON) == RCC_CR_HSEON);
 }
 
 // Configure system clock selection after wake-up from STOP mode
 // input:
 //   clock_src - specifies which clock to select, one of RCC_WAKEUPCLOCK_xx values
-__STATIC_INLINE void RCC_SetWakeClock(uint32_t clock_src) {
+__STATIC_FORCEINLINE void RCC_SetWakeClock(uint32_t clock_src) {
 	RCC->CFGR &= ~RCC_CFGR_STOPWUCK;
 	RCC->CFGR |= clock_src & RCC_CFGR_STOPWUCK;
 }
@@ -315,7 +348,7 @@ __STATIC_INLINE void RCC_SetWakeClock(uint32_t clock_src) {
 // input:
 //   drv_cap - new LSE oscillator drive capability, one of RCC_LSE_DRV_xx values
 // note: access to the backup domain must be enabled
-__STATIC_INLINE void RCC_SetLSEDrive(uint32_t drv_cap) {
+__STATIC_FORCEINLINE void RCC_SetLSEDrive(uint32_t drv_cap) {
 	RCC->BDCR &= ~RCC_BDCR_LSEDRV;
 	RCC->BDCR |= drv_cap & RCC_BDCR_LSEDRV;
 }
@@ -323,41 +356,41 @@ __STATIC_INLINE void RCC_SetLSEDrive(uint32_t drv_cap) {
 // Enable CSS for LSE
 // note: must be called after LSE and LSI are enabled, ready, and after the RTC
 //       clock has been selected
-__STATIC_INLINE void RCC_CSSLSEEnable(void) {
+__STATIC_FORCEINLINE void RCC_CSSLSEEnable(void) {
 	RCC->BDCR |= RCC_BDCR_LSECSSON;
 }
 
 // Disable CSS for LSE
 // note: call to this function only makes sense after a failure detection on LSE
-__STATIC_INLINE void RCC_CSSLSEDisable(void) {
+__STATIC_FORCEINLINE void RCC_CSSLSEDisable(void) {
 	RCC->BDCR &= ~RCC_BDCR_LSECSSON;
 }
 
 // Get state of CSS for LSE
 // return: state of CSS (0 or 1)
-__STATIC_INLINE uint32_t RCC_IsCSSLSEOn(void) {
+__STATIC_FORCEINLINE uint32_t RCC_IsCSSLSEOn(void) {
 	return ((RCC->BDCR & RCC_BDCR_LSECSSON) == RCC_BDCR_LSECSSON);
 }
 
 // Enable LSE CSS interrupt
-__STATIC_INLINE void RCC_CSSLSEEnableIRQ(void) {
+__STATIC_FORCEINLINE void RCC_CSSLSEEnableIRQ(void) {
 	RCC->CIER |= RCC_CIER_LSECSSIE;
 }
 
 // Clear the CSS for LSE flag
-__STATIC_INLINE void RCC_CSSLSEClearFlag(void) {
+__STATIC_FORCEINLINE void RCC_CSSLSEClearFlag(void) {
 	RCC->CICR = RCC_CICR_LSECSSC;
 }
 
 // Retrieve current RTC clock source
 // return: RTC clock source, one of RCC_RTC_CLK_xx values
-__STATIC_INLINE uint32_t RCC_GetClockRTC(void) {
+__STATIC_FORCEINLINE uint32_t RCC_GetClockRTC(void) {
 	return (RCC->BDCR & RCC_BDCR_RTCSEL);
 }
 
 // Get the current CLK48 clock source
 // return: clock source, one of RCC_CLK48_CLK_xx values
-__STATIC_INLINE uint32_t RCC_GetCLK48Source(void) {
+__STATIC_FORCEINLINE uint32_t RCC_GetCLK48Source(void) {
 	return (RCC->CCIPR & RCC_CCIPR_CLK48SEL);
 }
 

@@ -87,6 +87,6 @@ void EXTI_cfg2(uint32_t EXTI_Line, uint32_t EXTI_mode, uint32_t EXTI_trigger) {
 void EXTI_src(uint32_t port_src, uint32_t pin_src) {
 	uint32_t shift = (pin_src & 0x03) << 2;
 
-	SYSCFG->EXTICR[pin_src >> 2] &= ~(0x0F << shift);
+	SYSCFG->EXTICR[pin_src >> 2] &= ~(0x0FU << shift);
 	SYSCFG->EXTICR[pin_src >> 2] |= port_src << shift;
 }

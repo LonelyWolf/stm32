@@ -60,17 +60,6 @@
 #define GPIO_AF15                  ((uint32_t)0x0000000FU)
 
 
-// GPIO macros definitions
-#define GPIO_MODE_SET(pin, mode)   (mode  << ((pin) << 1)) // set MODER bits for a specified pin
-#define GPIO_MODE_MSK(pin)         (0x03U << ((pin) << 1)) // mask MODER bits for a specified pin
-#define GPIO_PUPD_SET(pin, pupd)   (pupd  << ((pin) << 1)) // set PUPDR bits for a specified pin
-#define GPIO_PUPD_MSK(pin)         (0x03U << ((pin) << 1)) // mask PUPDR bits for a specified pin
-#define GPIO_SPD_SET(pin, spd)     (spd   << ((pin) << 1)) // set SPEEDR bits for a specified pin
-#define GPIO_SPD_MSK(pin)          (0x03U << ((pin) << 1)) // mask SPEEDR bits for a specified pin
-#define GPIO_AF_SET(pin, af)       (af    << ((pin) << 2)) // set AFR bits for a specified pin
-#define GPIO_AF_MSK(pin)           (0x0FU << ((pin) << 2)) // mask AFR bits for a specified pin
-
-
 // GPIO pin output speed
 typedef enum {
 	GPIO_SPD_LOW    = ((uint32_t)0x00000000U), // low
@@ -104,8 +93,8 @@ typedef enum {
 typedef struct {
 	uint32_t      GPIO_AHB;  // AHB bit for GPIO port
 	GPIO_TypeDef *GPIO;      // Pointer to the pin GPIO port
-	uint16_t      GPIO_PIN;  // GPIO pin
-	uint8_t       GPIO_SRC;  // GPIO pin source
+	uint32_t      GPIO_PIN;  // GPIO pin
+	uint32_t      GPIO_SRC;  // GPIO pin source
 } GPIO_HandleTypeDef;
 
 
@@ -153,8 +142,8 @@ __STATIC_INLINE uint32_t GPIO_PIN_OSTATE(GPIO_TypeDef* GPIOx, uint32_t pin) {
 
 
 // Function prototypes
-void GPIO_set_mode(GPIO_TypeDef *GPIOx, GPIOMode_TypeDef Mode, GPIOPUPD_TypeDef PUPD, uint16_t Pins);
-void GPIO_out_cfg(GPIO_TypeDef *GPIOx, GPIOOT_TypeDef OT, GPIOSPD_TypeDef Speed, uint16_t Pins);
-void GPIO_af_cfg(GPIO_TypeDef *GPIOx, uint16_t Pin, uint8_t AF);
+void GPIO_set_mode(GPIO_TypeDef *GPIOx, GPIOMode_TypeDef mode, GPIOPUPD_TypeDef PUPD, uint32_t pins);
+void GPIO_out_cfg(GPIO_TypeDef *GPIOx, GPIOOT_TypeDef OT, GPIOSPD_TypeDef speed, uint32_t pins);
+void GPIO_af_cfg(GPIO_TypeDef *GPIOx, uint32_t pin, uint32_t AF);
 
 #endif // __GPIO_H

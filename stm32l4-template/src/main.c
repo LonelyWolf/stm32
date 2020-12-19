@@ -3,7 +3,7 @@
 
 // Configure system clock
 // HSE -> PLL -> SYSCLK
-void SetSysClock(void) {
+static void SetSysClock(void) {
 	RCC_PLLInitTypeDef pll;
 	RCC_CLKInitTypeDef clk;
 
@@ -18,7 +18,7 @@ void SetSysClock(void) {
 	// Fpll_p = Fvco / PLLP = 160 / 7 = 22.857143MHz (unused)
 	// Fpll_q = Fvco / PLLQ = 160 / 8 = 20MHz (unused)
 	// Fpll_r = Fvco / PLLR = 160 / 2 = 80MHz (input for SYSCLK)
-	pll.PLLN = 20;
+	pll.PLLN = 20U;
 	pll.PLLR = RCC_PLLR_DIV2;
 	pll.PLLQ = RCC_PLLQ_DIV8;
 	pll.PLLP = RCC_PLLP_DIV7;
@@ -78,7 +78,7 @@ void SetSysClock(void) {
 
 // Configure CLK48 clock
 // note: PLL input clock must be already configured
-void Clock_Clk48Config(void) {
+__attribute__((unused)) static void Clock_Clk48Config(void) {
 	RCC_PLLInitTypeDef pll;
 
 	// Input clock HSE = 16MHz
@@ -86,7 +86,7 @@ void Clock_Clk48Config(void) {
 	// Fpll_p = Fvco / PLLP = 96 / 7 = 13.714286MHz (unused)
 	// Fpll_q = Fvco / PLLQ = 96 / 2 = 48MHz (PLL48M2CLK, clock for USB, RNG and SDMMC)
 	// Fpll_r = Fvco / PLLR = 96 / 2 = 48MHz (unused)
-	pll.PLLN = 12;
+	pll.PLLN = 12U;
 	pll.PLLR = RCC_PLLSAI1R_DIV2;
 	pll.PLLQ = RCC_PLLSAI1Q_DIV2;
 	pll.PLLP = RCC_PLLSAI1P_DIV7;
@@ -102,7 +102,7 @@ void Clock_Clk48Config(void) {
 }
 
 // Disable CLK48 clock
-void Clock_Clk48Disable(void) {
+__attribute__((unused)) static void Clock_Clk48Disable(void) {
 	RCC_SetClock48M(RCC_CLK48_CLK_NONE);
 	RCC_PLLOutDisable(RCC_PLL_SAI1, RCC_PLL_OUTQ);
 	RCC_PLLDisable(RCC_PLL_SAI1);
@@ -114,12 +114,15 @@ int main(void) {
 	SetSysClock();
 	SystemCoreClockUpdate();
 
-
 	// Prefetch is useful if at least one wait state is needed to access the Flash memory
 	if (RCC_GetLatency() != FLASH_ACR_LATENCY_0WS) {
 		// Enable prefetch buffer (a.k.a ART)
 		RCC_PrefetchEnable();
 	}
+
+	// Enable I-Cache and D-Cache (enabled by default)
+	RCC_ICacheEnable();
+	RCC_DCacheEnable();
 
 
 	// Initialize debug output port (USART2)
@@ -134,7 +137,7 @@ int main(void) {
 	//   115200, 8-N-1
 	//   no hardware flow control
 	USART_SetOversampling(&hUSART2, USART_OVERS16);
-	USART_SetBaudRate(&hUSART2, 115200);
+	USART_SetBaudRate(&hUSART2, 115200U);
 	USART_SetDataMode(&hUSART2, USART_DATAWIDTH_8B, USART_PARITY_NONE, USART_STOPBITS_1);
 	USART_SetHWFlow(&hUSART2, USART_HWCTL_NONE);
 	USART_Enable(&hUSART2);
@@ -142,13 +145,13 @@ int main(void) {
 
 
 	// Say "hello world" into the USART port
-	RCC_ClocksTypeDef Clocks;
-	RCC_GetClocksFreq(&Clocks);
 	printf("---STM32L476RG---\r\n");
 	printf("STM32L476 Template (%s @ %s)\r\n", __DATE__, __TIME__);
-	printf("CPU: %.3uMHz\r\n", SystemCoreClock / 1000);
-	printf("SYSCLK: %.3uMHz, HCLK: %.3uMHz\r\n", Clocks.SYSCLK_Frequency / 1000, Clocks.HCLK_Frequency / 1000);
-	printf("APB1: %.3uMHz, APB2: %.3uMHz\r\n", Clocks.PCLK1_Frequency / 1000, Clocks.PCLK2_Frequency / 1000);
+	printf("CPU: %.3uMHz\r\n", SystemCoreClock / 1000U);
+	RCC_ClocksTypeDef rcc_clocks;
+	RCC_GetClocksFreq(&rcc_clocks);
+	printf("SYSCLK: %.3uMHz, HCLK: %.3uMHz\r\n", rcc_clocks.SYSCLK_Frequency / 1000U, rcc_clocks.HCLK_Frequency / 1000U);
+	printf("APB1: %.3uMHz, APB2: %.3uMHz\r\n", rcc_clocks.PCLK1_Frequency / 1000U, rcc_clocks.PCLK2_Frequency / 1000U);
 	printf("System clock: %s\r\n", _sysclk_src_str[RCC_GetSysClockSource()]);
 #if 0
 	// DEV: 0x461 = STM32L496xx/4A6xx
@@ -185,7 +188,7 @@ int main(void) {
 	// The main loop
 	while (1) {
 		// Invert the PA5 pin state every half of second
-		Delay_ms(500);
+		Delay_ms(500U);
 		GPIO_PIN_INVERT(GPIOA, GPIO_PIN_5);
 	}
 }

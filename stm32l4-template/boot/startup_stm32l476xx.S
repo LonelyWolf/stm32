@@ -7,7 +7,7 @@
   *                - Set the initial SP
   *                - Set the initial PC == Reset_Handler,
   *                - Set the vector table entries with the exceptions ISR address,
-  *                - Configure the clock system
+  *                - Configure the clock system  
   *                - Branches to main in the C library (which eventually
   *                  calls main()).
   *            After Reset the Cortex-M4 processor is in Thread mode,
@@ -18,15 +18,15 @@
   * <h2><center>&copy; Copyright (c) 2017 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
+  * This software component is licensed by ST under Apache License, Version 2.0,
   * the "License"; You may not use this file except in compliance with the
   * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  *                        opensource.org/licenses/Apache-2.0
   *
   ******************************************************************************
   */
 
-	.syntax unified
+  .syntax unified
 	.cpu cortex-m4
 	.fpu softvfp
 	.thumb
@@ -56,15 +56,18 @@ defined in linker script */
  * @retval : None
 */
 
-	.section	.text.Reset_Handler
+    .section	.text.Reset_Handler
 	.weak	Reset_Handler
 	.type	Reset_Handler, %function
 Reset_Handler:
-ldr   sp, =_estack    /* Atollic update: set stack pointer */
+  ldr   sp, =_estack    /* Set stack pointer */
+
+/* Call the clock system initialization function.*/
+    bl  SystemInit
 
 /* Copy the data segment initializers from flash to SRAM */
-movs	r1, #0
-b	LoopCopyDataInit
+  movs	r1, #0
+  b	LoopCopyDataInit
 
 CopyDataInit:
 	ldr	r3, =_sidata
@@ -90,16 +93,14 @@ LoopFillZerobss:
 	cmp	r2, r3
 	bcc	FillZerobss
 
-/* Call the clock system intitialization function.*/
-	bl  SystemInit
 /* Call static constructors */
-	bl __libc_init_array
+    bl __libc_init_array
 /* Call the application's entry point.*/
 	bl	main
 
 LoopForever:
-	b LoopForever
-
+    b LoopForever
+    
 .size	Reset_Handler, .-Reset_Handler
 
 /**
@@ -110,7 +111,7 @@ LoopForever:
  * @param  None
  * @retval : None
 */
-	.section	.text.Default_Handler,"ax",%progbits
+    .section	.text.Default_Handler,"ax",%progbits
 Default_Handler:
 Infinite_Loop:
 	b	Infinite_Loop
@@ -122,7 +123,7 @@ Infinite_Loop:
 * 0x0000.0000.
 *
 ******************************************************************************/
-	.section	.isr_vector,"a",%progbits
+ 	.section	.isr_vector,"a",%progbits
 	.type	g_pfnVectors, %object
 	.size	g_pfnVectors, .-g_pfnVectors
 
@@ -236,16 +237,16 @@ g_pfnVectors:
 *
 *******************************************************************************/
 
-	.weak	NMI_Handler
+  .weak	NMI_Handler
 	.thumb_set NMI_Handler,Default_Handler
 
-	.weak	HardFault_Handler
+  .weak	HardFault_Handler
 	.thumb_set HardFault_Handler,Default_Handler
 
-	.weak	MemManage_Handler
+  .weak	MemManage_Handler
 	.thumb_set MemManage_Handler,Default_Handler
 
-	.weak	BusFault_Handler
+  .weak	BusFault_Handler
 	.thumb_set BusFault_Handler,Default_Handler
 
 	.weak	UsageFault_Handler
@@ -447,62 +448,62 @@ g_pfnVectors:
 	.thumb_set DMA2_Channel5_IRQHandler,Default_Handler
 
 	.weak	DFSDM1_FLT0_IRQHandler
-	.thumb_set DFSDM1_FLT0_IRQHandler,Default_Handler
-
+	.thumb_set DFSDM1_FLT0_IRQHandler,Default_Handler	
+	
 	.weak	DFSDM1_FLT1_IRQHandler
-	.thumb_set DFSDM1_FLT1_IRQHandler,Default_Handler
-
+	.thumb_set DFSDM1_FLT1_IRQHandler,Default_Handler	
+	
 	.weak	DFSDM1_FLT2_IRQHandler
-	.thumb_set DFSDM1_FLT2_IRQHandler,Default_Handler
-
+	.thumb_set DFSDM1_FLT2_IRQHandler,Default_Handler	
+	
 	.weak	COMP_IRQHandler
 	.thumb_set COMP_IRQHandler,Default_Handler
-
+	
 	.weak	LPTIM1_IRQHandler
 	.thumb_set LPTIM1_IRQHandler,Default_Handler
-
+	
 	.weak	LPTIM2_IRQHandler
-	.thumb_set LPTIM2_IRQHandler,Default_Handler
-
+	.thumb_set LPTIM2_IRQHandler,Default_Handler	
+	
 	.weak	OTG_FS_IRQHandler
-	.thumb_set OTG_FS_IRQHandler,Default_Handler
-
+	.thumb_set OTG_FS_IRQHandler,Default_Handler	
+	
 	.weak	DMA2_Channel6_IRQHandler
-	.thumb_set DMA2_Channel6_IRQHandler,Default_Handler
-
+	.thumb_set DMA2_Channel6_IRQHandler,Default_Handler	
+	
 	.weak	DMA2_Channel7_IRQHandler
-	.thumb_set DMA2_Channel7_IRQHandler,Default_Handler
-
+	.thumb_set DMA2_Channel7_IRQHandler,Default_Handler	
+	
 	.weak	LPUART1_IRQHandler
-	.thumb_set LPUART1_IRQHandler,Default_Handler
-
+	.thumb_set LPUART1_IRQHandler,Default_Handler	
+	
 	.weak	QUADSPI_IRQHandler
-	.thumb_set QUADSPI_IRQHandler,Default_Handler
-
+	.thumb_set QUADSPI_IRQHandler,Default_Handler	
+	
 	.weak	I2C3_EV_IRQHandler
-	.thumb_set I2C3_EV_IRQHandler,Default_Handler
-
+	.thumb_set I2C3_EV_IRQHandler,Default_Handler	
+	
 	.weak	I2C3_ER_IRQHandler
-	.thumb_set I2C3_ER_IRQHandler,Default_Handler
-
+	.thumb_set I2C3_ER_IRQHandler,Default_Handler	
+	
 	.weak	SAI1_IRQHandler
 	.thumb_set SAI1_IRQHandler,Default_Handler
-
+	
 	.weak	SAI2_IRQHandler
 	.thumb_set SAI2_IRQHandler,Default_Handler
-
+	
 	.weak	SWPMI1_IRQHandler
 	.thumb_set SWPMI1_IRQHandler,Default_Handler
-
+	
 	.weak	TSC_IRQHandler
 	.thumb_set TSC_IRQHandler,Default_Handler
-
+	
 	.weak	LCD_IRQHandler
 	.thumb_set LCD_IRQHandler,Default_Handler
-
+	
 	.weak	RNG_IRQHandler
 	.thumb_set RNG_IRQHandler,Default_Handler
-
+	
 	.weak	FPU_IRQHandler
 	.thumb_set FPU_IRQHandler,Default_Handler
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

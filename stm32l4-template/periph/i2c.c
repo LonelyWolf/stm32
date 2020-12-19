@@ -273,7 +273,7 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 		if ((reg & I2C_ISR_NACKF) || (wait == 0)) { return I2C_ERROR; }
 
 		// Read received data
-		*pBuf++ = I2Cx->RXDR;
+		*pBuf++ = (uint8_t)I2Cx->RXDR;
 		rx_count--;
 
 		if ((rx_count == 0) && (nbytes != 0)) {

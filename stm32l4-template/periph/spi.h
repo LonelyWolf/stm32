@@ -26,7 +26,7 @@
 // SPI handle structure
 typedef struct {
 	SPI_TypeDef                   *Instance; // SPI peripheral base address
-	uint8_t                        AF;       // SPI alternate function mapping
+	uint32_t                       AF;       // SPI alternate function mapping
 	GPIO_HandleTypeDef             PIN_SCK;  // SCK pin
 	GPIO_HandleTypeDef             PIN_MISO; // MISO pin
 	GPIO_HandleTypeDef             PIN_MOSI; // MOSI pin
@@ -184,7 +184,7 @@ __STATIC_FORCEINLINE void SPI_CRCNext(SPI_HandleTypeDef *SPIx) {
 // input:
 //   SPIx - pointer to the SPI port handle
 // return: RX CRC value
-__STATIC_FORCEINLINE uint16_t SPI_GetCRCRX(SPI_HandleTypeDef *SPIx) {
+__STATIC_FORCEINLINE uint32_t SPI_GetCRCRX(SPI_HandleTypeDef *SPIx) {
 	return SPIx->Instance->RXCRCR;
 }
 
@@ -192,7 +192,7 @@ __STATIC_FORCEINLINE uint16_t SPI_GetCRCRX(SPI_HandleTypeDef *SPIx) {
 // input:
 //   SPIx - pointer to the SPI port handle
 // return: TX CRC value
-__STATIC_FORCEINLINE uint16_t SPI_GetCRCTX(SPI_HandleTypeDef *SPIx) {
+__STATIC_FORCEINLINE uint32_t SPI_GetCRCTX(SPI_HandleTypeDef *SPIx) {
 	return SPIx->Instance->TXCRCR;
 }
 

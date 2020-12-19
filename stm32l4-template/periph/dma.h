@@ -152,7 +152,7 @@ __STATIC_FORCEINLINE void DMA_ClearFlags(DMA_TypeDef *DMAx, uint32_t channel_ind
 //   channel - pointer to the DMA channel handle
 //   length - new number of DMA transactions
 // note: channel must be disabled
-__STATIC_FORCEINLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16_t length) {
+__STATIC_FORCEINLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint32_t length) {
 	channel->CNDTR = length;
 }
 
@@ -160,7 +160,7 @@ __STATIC_FORCEINLINE void DMA_SetDataLength(DMA_Channel_TypeDef *channel, uint16
 // input:
 //   channel - pointer to the DMA channel handle
 // return: number of remaining transactions
-__STATIC_FORCEINLINE uint16_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
+__STATIC_FORCEINLINE uint32_t DMA_GetDataLength(DMA_Channel_TypeDef *channel) {
 	return channel->CNDTR;
 }
 

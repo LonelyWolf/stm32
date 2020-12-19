@@ -8,8 +8,8 @@
   *          is using in the C source code, usually in main.c. This file contains:
   *           - Configuration section that allows to select:
   *              - The STM32L4xx device used in the target application
-  *              - To use or not the peripheral’s drivers in application code(i.e.
-  *                code will be based on direct access to peripheral’s registers
+  *              - To use or not the peripheralâ€™s drivers in application code(i.e.
+  *                code will be based on direct access to peripheralâ€™s registers
   *                rather than drivers API), this option is controlled by
   *                "#define USE_HAL_DRIVER"
   *
@@ -19,10 +19,10 @@
   * <h2><center>&copy; Copyright (c) 2017 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
+  * This software component is licensed by ST under Apache License, Version 2.0,
   * the "License"; You may not use this file except in compliance with the
   * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  *                        opensource.org/licenses/Apache-2.0
   *
   ******************************************************************************
   */
@@ -53,50 +53,6 @@
 #define STM32L4
 #endif /* STM32L4 */
 
-
-// ########################## Oscillator Values adaptation ####################
-
-// The value of External High Speed oscillator (HSE)
-#if !defined(HSE_VALUE)
-  #define HSE_VALUE             ((uint32_t)16000000U) // Hz
-#endif // HSE_VALUE
-
-// The default value of Internal Multiple Speed oscillator (MSI)
-// This value is the default MSI range value after reset
-#if !defined(MSI_VALUE)
-  #define MSI_VALUE             ((uint32_t)4000000U) // Hz
-#endif // MSI_VALUE
-
-// The value of Internal High Speed oscillator (HSI)
-#if !defined(HSI_VALUE)
-  #define HSI_VALUE             ((uint32_t)16000000U) // Hz
-#endif // HSI_VALUE
-
-// The value of External Low Speed oscillator (LSE)
-#if !defined(LSE_VALUE)
-  #define LSE_VALUE             ((uint32_t)32768U) // Hz
-#endif // LSE_VALUE
-
-// The value of Internal High Speed oscillator for USB FS/SDMMC/RNG (HSI48)
-#if defined(RCC_HSI48_SUPPORT)
-  #if !defined(HSI48_VALUE)
-    #define HSI48_VALUE  ((uint32_t)48000000U) // Hz
-  #endif // HSI48_VALUE
-#endif // RCC_HSI48_SUPPORT
-
-// Startup timeout for HSE
-#if !defined(HSE_STARTUP_TIMEOUT)
-  #define HSE_STARTUP_TIMEOUT   ((uint32_t)5000U)
-#endif // HSE_STARTUP_TIMEOUT
-
-// Startup timeout for LSE
-#if !defined(LSE_STARTUP_TIMEOUT)
-  #define LSE_STARTUP_TIMEOUT   ((uint32_t)5000U)
-#endif // HSE_STARTUP_TIMEOUT
-
-// ############################################################################
-
-
 /* Uncomment the line below according to the target STM32L4 device used in your
    application
   */
@@ -106,6 +62,7 @@
     !defined (STM32L451xx) && !defined (STM32L452xx) && !defined (STM32L462xx) && \
     !defined (STM32L471xx) && !defined (STM32L475xx) && !defined (STM32L476xx) && !defined (STM32L485xx) && !defined (STM32L486xx) && \
     !defined (STM32L496xx) && !defined (STM32L4A6xx) && \
+    !defined (STM32L4P5xx) && !defined (STM32L4Q5xx) && \
     !defined (STM32L4R5xx) && !defined (STM32L4R7xx) && !defined (STM32L4R9xx) && !defined (STM32L4S5xx) && !defined (STM32L4S7xx) && !defined (STM32L4S9xx)
   /* #define STM32L412xx */   /*!< STM32L412xx Devices */
   /* #define STM32L422xx */   /*!< STM32L422xx Devices */
@@ -124,6 +81,7 @@
   /* #define STM32L486xx */   /*!< STM32L486xx Devices */
   /* #define STM32L496xx */   /*!< STM32L496xx Devices */
   /* #define STM32L4A6xx */   /*!< STM32L4A6xx Devices */
+  /* #define STM32L4P5xx */   /*!< STM32L4Q5xx Devices */
   /* #define STM32L4R5xx */   /*!< STM32L4R5xx Devices */
   /* #define STM32L4R7xx */   /*!< STM32L4R7xx Devices */
   /* #define STM32L4R9xx */   /*!< STM32L4R9xx Devices */
@@ -148,8 +106,8 @@
   * @brief CMSIS Device version number
   */
 #define __STM32L4_CMSIS_VERSION_MAIN   (0x01) /*!< [31:24] main version */
-#define __STM32L4_CMSIS_VERSION_SUB1   (0x05) /*!< [23:16] sub1 version */
-#define __STM32L4_CMSIS_VERSION_SUB2   (0x01) /*!< [15:8]  sub2 version */
+#define __STM32L4_CMSIS_VERSION_SUB1   (0x07) /*!< [23:16] sub1 version */
+#define __STM32L4_CMSIS_VERSION_SUB2   (0x00) /*!< [15:8]  sub2 version */
 #define __STM32L4_CMSIS_VERSION_RC     (0x00) /*!< [7:0]  release candidate */
 #define __STM32L4_CMSIS_VERSION        ((__STM32L4_CMSIS_VERSION_MAIN << 24)\
                                        |(__STM32L4_CMSIS_VERSION_SUB1 << 16)\
@@ -198,6 +156,10 @@
   #include "stm32l496xx.h"
 #elif defined(STM32L4A6xx)
   #include "stm32l4a6xx.h"
+#elif defined(STM32L4P5xx)
+  #include "stm32l4p5xx.h"
+#elif defined(STM32L4Q5xx)
+  #include "stm32l4q5xx.h"
 #elif defined(STM32L4R5xx)
   #include "stm32l4r5xx.h"
 #elif defined(STM32L4R7xx)

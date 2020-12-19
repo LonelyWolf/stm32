@@ -9,6 +9,11 @@
 #define RTC_TIMEOUT_SYNC           100000U // wait for synchronization, about 1s
 #define RTC_TIMEOUT                  1000U // timeout for various operations, about 10ms
 
+// Reserved bits in the RTC_TR register
+#define RTC_TR_RESERVED_MASK       ((uint32_t)0x007F7F7FU)
+// Reserved bits in the RTC_DR register
+#define RTC_DR_RESERVED_MASK       ((uint32_t)0x00FFFF3FU)
+
 
 // Count rough delay for timeouts
 static uint32_t RTC_CalcDelay(uint32_t delay) {
@@ -411,18 +416,26 @@ void RTC_GetDateTime(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	DR = RTC->DR & RTC_DR_RESERVED_MASK;
 
 	// Convert BCD to human readable format
-	time->RTC_Hours   = (((TR & RTC_TR_HT)  >> RTC_TR_HT_Pos)  * 10U) + ((TR & RTC_TR_HU)  >> RTC_TR_HU_Pos);
-	time->RTC_Minutes = (((TR & RTC_TR_MNT) >> RTC_TR_MNT_Pos) * 10U) + ((TR & RTC_TR_MNU) >> RTC_TR_MNU_Pos);
-	time->RTC_Seconds = (((TR & RTC_TR_ST)  >> RTC_TR_ST_Pos)  * 10U) + ((TR & RTC_TR_SU)  >> RTC_TR_SU_Pos);
-	time->RTC_H12     = (TR & RTC_TR_PM) >> RTC_TR_PM_Pos;
+	time->RTC_Hours   = (uint8_t)((((TR & RTC_TR_HT)  >> RTC_TR_HT_Pos)  * 10U) + ((TR & RTC_TR_HU)  >> RTC_TR_HU_Pos));
+	time->RTC_Minutes = (uint8_t)((((TR & RTC_TR_MNT) >> RTC_TR_MNT_Pos) * 10U) + ((TR & RTC_TR_MNU) >> RTC_TR_MNU_Pos));
+	time->RTC_Seconds = (uint8_t)((((TR & RTC_TR_ST)  >> RTC_TR_ST_Pos)  * 10U) + ((TR & RTC_TR_SU)  >> RTC_TR_SU_Pos));
+	time->RTC_H12     = (uint8_t)((TR & RTC_TR_PM) >> RTC_TR_PM_Pos);
 
-	date->RTC_Year    = (((DR & RTC_DR_YT) >> RTC_DR_YT_Pos) * 10U) + ((DR & RTC_DR_YU) >> RTC_DR_YU_Pos);
-	date->RTC_Month   = (((DR & RTC_DR_MT) >> RTC_DR_MT_Pos) * 10U) + ((DR & RTC_DR_MU) >> RTC_DR_MU_Pos);
-	date->RTC_Date    = (((DR & RTC_DR_DT) >> RTC_DR_DT_Pos) * 10U) + ((DR & RTC_DR_DU) >> RTC_DR_DU_Pos);
-	date->RTC_WeekDay = (DR & RTC_DR_WDU) >> RTC_DR_WDU_Pos;
+	date->RTC_Year    = (uint8_t)((((DR & RTC_DR_YT) >> RTC_DR_YT_Pos) * 10U) + ((DR & RTC_DR_YU) >> RTC_DR_YU_Pos));
+	date->RTC_Month   = (uint8_t)((((DR & RTC_DR_MT) >> RTC_DR_MT_Pos) * 10U) + ((DR & RTC_DR_MU) >> RTC_DR_MU_Pos));
+	date->RTC_Date    = (uint8_t)((((DR & RTC_DR_DT) >> RTC_DR_DT_Pos) * 10U) + ((DR & RTC_DR_DU) >> RTC_DR_DU_Pos));
+	date->RTC_WeekDay = (uint8_t)((DR & RTC_DR_WDU) >> RTC_DR_WDU_Pos);
 }
 
 #if (RTC_USE_EPOCH)
+
+// Definition of the Julian day number (https://en.wikipedia.org/wiki/Julian_day)
+#if (RTC_EPOCH_UNIX)
+#define RTC_JDN                    ((uint32_t)2440588U) // 01 Jan 1970 12:00:00 (Unix epoch)
+#else
+#define RTC_JDN                    ((uint32_t)2451544U) // 31 Dec 1999 12:00:00 (STM32 epoch)
+#endif // RTC_EPOCH_UNIX
+
 // Convert Date/Time structures to epoch time
 // input:
 //   time - pointer to the RTC time structure
@@ -432,12 +445,12 @@ uint32_t RTC_ToEpoch(RTC_TimeTypeDef *time, RTC_DateTypeDef *date) {
 	uint8_t  a;
 	uint16_t y;
 	uint8_t  m;
-	uint32_t JDN;
+	register uint32_t JDN;
 
 	// Calculate some coefficients
-	a = (14U - date->RTC_Month) / 12U;
-	y = date->RTC_Year + 6800U - a; // years since 1 March, 4801 BC
-	m = date->RTC_Month + (12U * a) - 3U;
+	a = (uint8_t)(14U - date->RTC_Month) / 12U;
+	y = (uint16_t)(date->RTC_Year + 6800U) - a; // years since 1 March, 4801 BC
+	m = (uint8_t)(date->RTC_Month + (12U * a) - 3U);
 
 	// Compute Julian day number (from Gregorian calendar date)
 	JDN  = date->RTC_Date;
@@ -478,7 +491,7 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	a = (epoch / 86400U) + RTC_JDN;
 
 	// Day of week
-	date->RTC_WeekDay = (a % 7U) + 1U;
+	date->RTC_WeekDay = (uint8_t)(a % 7U) + 1U;
 
 	// Calculate intermediate values
 	a += 32044U;
@@ -489,14 +502,14 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 	d  = ((5U * a) + 2U) / 153U;
 
 	// Date
-	date->RTC_Date  = a - (((153U * d) + 2U) / 5U) + 1U;
-	date->RTC_Month = d + 3U - (12U * (d / 10U));
-	date->RTC_Year  = (100U * b) + c - 6800U + (d / 10U);
+	date->RTC_Date  = (uint8_t)(a - (((153U * d) + 2U) / 5U) + 1U);
+	date->RTC_Month = (uint8_t)(d + 3U - (12U * (d / 10U)));
+	date->RTC_Year  = (uint8_t)((100U * b) + c - 6800U + (d / 10U));
 
 	// Time
-	time->RTC_Hours   = (epoch / 3600U) % 24U;
-	time->RTC_Minutes = (epoch / 60U) % 60U;
-	time->RTC_Seconds =  epoch % 60U;
+	time->RTC_Hours   = (uint8_t)((epoch / 3600U) % 24U);
+	time->RTC_Minutes = (uint8_t)((epoch / 60U) % 60U);
+	time->RTC_Seconds = (uint8_t)(epoch % 60U);
 }
 
 // Adjust time and date by time zone offset
@@ -505,15 +518,16 @@ void RTC_FromEpoch(uint32_t epoch, RTC_TimeTypeDef *time, RTC_DateTypeDef *date)
 //   date - pointer to RTC_Date structure with date to adjust
 //   offset - hours offset to add or subtract from date/time (hours)
 void RTC_AdjustTimeZone(RTC_TimeTypeDef *time, RTC_DateTypeDef *date, int8_t offset) {
-	uint32_t epoch;
+	register uint32_t epoch;
 
 	// Convert date/time to epoch
 	epoch = RTC_ToEpoch(time, date);
 	// Add or subtract offset in seconds
-	epoch += offset * 3600;
+	epoch += (uint32_t)(3600 * offset);
 	// Convert updated epoch back to date/time
 	RTC_FromEpoch(epoch, time, date);
 }
+
 #endif // RTC_USE_EPOCH
 
 // Calculate Day Of Week for specified date
@@ -528,8 +542,8 @@ void RTC_CalcDOW(RTC_DateTypeDef *date) {
 	register uint8_t wd;
 
 	// Calculate intermediate values
-	adjustment = (14 - date->RTC_Month) / 12;
-	month = date->RTC_Month + (12 * adjustment) - 2;
+	adjustment = (int16_t)(14 - date->RTC_Month) / 12;
+	month = (int16_t)(date->RTC_Month + (12 * adjustment) - 2);
 	year = date->RTC_Year - adjustment;
 
 	// Calculate day of week (0 = Sunday ... 6 = Saturday)

@@ -15,7 +15,7 @@
 //   delay - desired delay duration
 // return: value for timeout counter
 static uint32_t RCC_CalcDelay(uint32_t delay) {
-	uint32_t cnt;
+	register uint32_t cnt;
 
 	if (SystemCoreClock > 1000000U) {
 		cnt = (delay * ((SystemCoreClock / 1000000U) + 1U));
@@ -34,9 +34,9 @@ static uint32_t RCC_CalcDelay(uint32_t delay) {
 static uint32_t RCC_CalcPLLFreq(uint32_t inPLL, uint32_t pllm, RCC_PLLInitTypeDef *cfgPLL) {
 	uint32_t pllfreq;
 
-	pllfreq  = inPLL / ((pllm >> RCC_PLLCFGR_PLLM_Pos) + 1);
+	pllfreq  = inPLL / ((pllm >> RCC_PLLCFGR_PLLM_Pos) + 1U);
 	pllfreq *= cfgPLL->PLLN;
-	pllfreq /= ((cfgPLL->PLLR >> RCC_PLLCFGR_PLLR_Pos) + 1) << 1;
+	pllfreq /= ((cfgPLL->PLLR >> RCC_PLLCFGR_PLLR_Pos) + 1U) << 1;
 
 	return pllfreq;
 }
@@ -118,7 +118,7 @@ static ErrorStatus RCC_SwitchToPLL(uint32_t SysClkFreq, RCC_CLKInitTypeDef *cfgC
 	// Wait for the system clock to switch to PLL
 	wait = RCC_CalcDelay(RCC_TIMEOUT_PLL);
 	while (((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL) && --wait);
-	if (wait == 0) {
+	if (wait == 0U) {
 		// The PLL had not lock
 		// Restore previous AHB prescaler and flash latency
 		RCC->CFGR = bkp;
@@ -151,22 +151,13 @@ static uint32_t RCC_GetPLLSrcFreq(void) {
 	register uint32_t reg = RCC->PLLCFGR;
 
 	switch (reg & RCC_PLLCFGR_PLLSRC) {
-		case RCC_PLLCFGR_PLLSRC_HSI:
-			// HSI used as PLL clock source
-			freq = HSI_VALUE;
-			break;
-		case RCC_PLLCFGR_PLLSRC_HSE:
-			// HSE used as PLL clock source
-			freq = HSE_VALUE;
-			break;
-		default:
-			// MSI used as PLL clock source
-			freq = RCC_GetMSIFreq();
-			break;
+		case RCC_PLLCFGR_PLLSRC_HSI: freq = HSI_VALUE; break; // HSI used as PLL clock source
+		case RCC_PLLCFGR_PLLSRC_HSE: freq = HSE_VALUE; break; // HSE used as PLL clock source
+		default: freq = RCC_GetMSIFreq(); break; // MSI used as PLL clock source
 	}
 
 	// Apply PLLM divider
-	freq /= ((reg & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos) + 1;
+	freq /= ((reg & RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos) + 1U;
 
 	return freq;
 }
@@ -270,7 +261,7 @@ uint32_t RCC_GetSYSCLKFreq(void) {
 		// PLL used as system clock
 		freq = RCC_GetPLLIntFreq();
 		// Apply PLLR divider
-		freq /= (((RCC->PLLCFGR & RCC_PLLCFGR_PLLR) >> RCC_PLLCFGR_PLLR_Pos) + 1) * 2;
+		freq /= (((RCC->PLLCFGR & RCC_PLLCFGR_PLLR) >> RCC_PLLCFGR_PLLR_Pos) + 1U) * 2U;
 		break;
 	default:
 		// MSI used as system clock
@@ -445,7 +436,6 @@ void RCC_PLLOutDisable(uint32_t pll, uint32_t pll_out) {
 			break;
 		default:
 			// Wrong PLL specified, do nothing
-
 			break;
 	}
 
@@ -489,7 +479,7 @@ void RCC_PLLDisable(uint32_t pll) {
 //   cfgPLL - pointer to the structure what contains the configuration for the PLL
 // return: SUCCESS if operation was successful, ERROR in case of a timeout
 ErrorStatus RCC_PLLConfig(uint32_t pll, RCC_PLLInitTypeDef *cfgPLL) {
-	volatile uint32_t wait = 0;
+	volatile uint32_t wait = 0U;
 
 	switch (pll) {
 		case RCC_PLL_MAIN:
@@ -499,7 +489,9 @@ ErrorStatus RCC_PLLConfig(uint32_t pll, RCC_PLLInitTypeDef *cfgPLL) {
 				wait = RCC_CalcDelay(RCC_TIMEOUT_PLL);
 				RCC->CR &= ~(RCC_CR_PLLON);
 				while ((RCC->CR & RCC_CR_PLLRDY) && --wait);
-				if (wait == 0) { return ERROR; }
+				if (wait == 0U) {
+					return ERROR;
+				}
 
 				// Configure the PLL multiplication and division factors
 				RCC->PLLCFGR &= ~(RCC_PLLCFGR_PLLN | RCC_PLLCFGR_PLLR | RCC_PLLCFGR_PLLQ | RCC_PLLCFGR_PLLP);
@@ -522,7 +514,9 @@ ErrorStatus RCC_PLLConfig(uint32_t pll, RCC_PLLInitTypeDef *cfgPLL) {
 			wait = RCC_CalcDelay(RCC_TIMEOUT_PLL);
 			RCC->CR &= ~(RCC_CR_PLLSAI1ON);
 			while ((RCC->CR & RCC_CR_PLLSAI1RDY) && --wait);
-			if (wait == 0) { return ERROR; }
+			if (wait == 0U) {
+				return ERROR;
+			}
 
 			// Configure the PLLSAI1 multiplication and division factors
 			RCC->PLLSAI1CFGR &= ~(RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1R | RCC_PLLSAI1CFGR_PLLSAI1Q |
@@ -543,7 +537,9 @@ ErrorStatus RCC_PLLConfig(uint32_t pll, RCC_PLLInitTypeDef *cfgPLL) {
 			wait = RCC_CalcDelay(RCC_TIMEOUT_PLL);
 			RCC->CR &= ~(RCC_CR_PLLSAI2ON);
 			while ((RCC->CR & RCC_CR_PLLSAI2RDY) && --wait);
-			if (wait == 0) { return ERROR; }
+			if (wait == 0U) {
+				return ERROR;
+			}
 
 			// Configure the PLLSAI2 multiplication and division factors
 			RCC->PLLSAI2CFGR &= ~(RCC_PLLSAI2CFGR_PLLSAI2N | RCC_PLLSAI2CFGR_PLLSAI2R | RCC_PLLSAI2CFGR_PLLSAI2P);
@@ -609,7 +605,7 @@ ErrorStatus RCC_MSIConfig(uint32_t state) {
 			wait = 0xDEADBEEF;
 		} else {
 			// Turning off the HSI when it is the system clock source is bad idea...
-			wait = 0;
+			wait = 0U;
 		}
 	} else {
 		wait = RCC_CalcDelay(RCC_TIMEOUT_MSI);
@@ -617,7 +613,7 @@ ErrorStatus RCC_MSIConfig(uint32_t state) {
 			// Enable the MSI and wait till it ready
 			RCC->CR |= RCC_CR_MSION;
 			while (!(RCC->CR & RCC_CR_MSIRDY) && --wait);
-			if (wait) {
+			if (wait != 0U) {
 				// Set MSIRGSEL bit to switch range selection to the RCC_CR register
 				RCC->CR |= RCC_CR_MSIRGSEL;
 
@@ -653,7 +649,7 @@ ErrorStatus RCC_HSIConfig(uint32_t state) {
 	} else {
 		// Disable HSI and wait till it turned off
 		RCC->CR &= ~RCC_CR_HSION;
-		while (!(RCC->CR & RCC_CR_HSIRDY) && --wait);
+		while ((RCC->CR & RCC_CR_HSIRDY) && --wait);
 	}
 
 	return (wait) ? SUCCESS : ERROR;
@@ -673,7 +669,9 @@ ErrorStatus RCC_HSEConfig(uint32_t state) {
 
 	// Wait till HSE is turned off
 	while ((RCC->CR & RCC_CR_HSERDY) && --wait);
-	if (wait == 0) { return ERROR; }
+	if (wait == 0U) {
+		return ERROR;
+	}
 
 	// Configure new state of the HSE and wait till it ready
 	if (state != RCC_HSE_OFF) {
@@ -719,7 +717,9 @@ ErrorStatus RCC_LSEConfig(uint32_t state) {
 	// It is write-protected (after reset), thus to gain access to it
 	// the PWR peripheral must be enabled.
 	pwrstate = RCC->APB1ENR1;
-	if (!(pwrstate & RCC_APB1ENR1_PWREN)) { RCC->APB1ENR1 |= RCC_APB1ENR1_PWREN; }
+	if (!(pwrstate & RCC_APB1ENR1_PWREN)) {
+		RCC->APB1ENR1 |= RCC_APB1ENR1_PWREN;
+	}
 
 	// Save state of DBP bit and enable write access to the backup domain
 	dbpstate = ((PWR->CR1 & PWR_CR1_DBP) != PWR_CR1_DBP);
@@ -746,7 +746,9 @@ ErrorStatus RCC_LSEConfig(uint32_t state) {
 	}
 
 	// Restore states of the DBP bit and PWR peripheral
-	if (dbpstate) { PWR->CR1 &= ~PWR_CR1_DBP; }
+	if (dbpstate) {
+		PWR->CR1 &= ~PWR_CR1_DBP;
+	}
 	RCC->APB1ENR1 = pwrstate;
 
 	return (wait) ? SUCCESS : ERROR;
@@ -781,7 +783,7 @@ ErrorStatus RCC_SetClockMSI(RCC_CLKInitTypeDef *cfgCLK) {
 
 	// Wait for the system clock to switch to MSI
 	while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_MSI);
-	if (wait == 0) {
+	if (wait == 0U) {
 		// Restore configuration and flash latency
 		RCC->CFGR = reg;
 		RCC_SetFlashLatency(SystemCoreClock);
@@ -827,7 +829,7 @@ ErrorStatus RCC_SetClockHSI(RCC_CLKInitTypeDef *cfgCLK) {
 
 	// Wait for the system clock to switch to HSI
 	while (((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSI) && --wait);
-	if (wait == 0) {
+	if (wait == 0U) {
 		// Restore configuration and flash latency
 		RCC->CFGR = reg;
 		RCC_SetFlashLatency(SystemCoreClock);
@@ -874,7 +876,7 @@ ErrorStatus RCC_SetClockHSE(RCC_CLKInitTypeDef *cfgCLK) {
 
 	// Wait for the system clock to switch to HSE
 	while (((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSE) && --wait);
-	if (wait == 0) {
+	if (wait == 0U) {
 		// Restore configuration and flash latency
 		RCC->CFGR = reg;
 		RCC_SetFlashLatency(SystemCoreClock);
@@ -918,11 +920,11 @@ ErrorStatus RCC_SetClockPLL(uint32_t clock_source, RCC_PLLInitTypeDef *cfgPLL, R
 		case RCC_PLLSRC_HSE: freq = HSE_VALUE;        break;
 		default:
 			// Invalid clock source specified
-			freq = 0;
+			freq = 0U;
 			break;
 	}
 
-	if (freq != 0) {
+	if (freq != 0U) {
 		// Enable main PLL R output
 		RCC_PLLOutEnable(RCC_PLL_MAIN, RCC_PLL_OUTR);
 
@@ -930,14 +932,14 @@ ErrorStatus RCC_SetClockPLL(uint32_t clock_source, RCC_PLLInitTypeDef *cfgPLL, R
 		freq = RCC_CalcPLLFreq(freq, RCC->PLLCFGR & RCC_PLLCFGR_PLLM, cfgPLL);
 
 		// Configure the main PLL and enable it
-		RCC_PLLConfig(RCC_PLL_MAIN, cfgPLL);
-
-		// Switch system clock to it
-		result = RCC_SwitchToPLL(freq, cfgCLK);
-
-		if (result != SUCCESS) {
-			// Disable main PLL R output
-			RCC_PLLOutDisable(RCC_PLL_MAIN, RCC_PLL_OUTR);
+		result = RCC_PLLConfig(RCC_PLL_MAIN, cfgPLL);
+		if (result == SUCCESS) {
+			// Switch system clock to PLL
+			result = RCC_SwitchToPLL(freq, cfgCLK);
+			if (result != SUCCESS) {
+				// Disable main PLL R output
+				RCC_PLLOutDisable(RCC_PLL_MAIN, RCC_PLL_OUTR);
+			}
 		}
 	}
 
@@ -951,7 +953,7 @@ ErrorStatus RCC_SetClockPLL(uint32_t clock_source, RCC_PLLInitTypeDef *cfgPLL, R
 // return: clock frequency (Hz)
 //         zero if the clock is not ready (HSI/LSE) or invalid value of periph_sel has been specified
 uint32_t RCC_GetClockUSART(uint32_t periph_sel) {
-	uint32_t frequency = 0;
+	uint32_t frequency = 0U;
 	uint32_t clk_src;
 
 	// Get clock source for specified peripheral
@@ -980,22 +982,22 @@ uint32_t RCC_GetClockUSART(uint32_t periph_sel) {
 					// All except USART1 clocked from APB1
 					frequency = RCC_GetPCLK1Freq(RCC_GetHCLKFreq(RCC_GetSYSCLKFreq()));
 				}
-
 				break;
 			case RCC_PERIPH_CLK_SYSCLK:
 				// USART clock is system clock
 				frequency = RCC_GetSYSCLKFreq();
-
 				break;
 			case RCC_PERIPH_CLK_HSI:
 				// USART clock is HSI
-				if (RCC->CR & RCC_CR_HSIRDY) frequency = HSI_VALUE;
-
+				if (RCC->CR & RCC_CR_HSIRDY) {
+					frequency = HSI_VALUE;
+				}
 				break;
 			case RCC_PERIPH_CLK_LSE:
 				// USART clock is LSE
-				if (RCC->BDCR & RCC_BDCR_LSERDY) frequency = LSE_VALUE;
-
+				if (RCC->BDCR & RCC_BDCR_LSERDY) {
+					frequency = LSE_VALUE;
+				}
 				break;
 			default:
 				// Do nothing, this is wrong clock source (frequency for return is zero)
@@ -1048,7 +1050,9 @@ void RCC_SetClockI2C(uint32_t periph_sel, uint32_t clock_src) {
 	uint32_t reg;
 
 	// LSE clock is to slow for I2C
-	if (clock_src == RCC_PERIPH_CLK_LSE) { return; }
+	if (clock_src == RCC_PERIPH_CLK_LSE) {
+		return;
+	}
 
 	// Configure new clock source for specified peripheral
 	reg  = RCC->CCIPR;

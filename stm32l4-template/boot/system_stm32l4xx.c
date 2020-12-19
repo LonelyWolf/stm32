@@ -69,15 +69,16 @@
   * <h2><center>&copy; Copyright (c) 2017 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
+  * This software component is licensed by ST under Apache License, Version 2.0,
   * the "License"; You may not use this file except in compliance with the
   * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  *                        opensource.org/licenses/Apache-2.0
   *
   ******************************************************************************
   */
 
 
+#include "stm32l4_clocks.h"
 #include "stm32l4xx.h"
 
 
@@ -135,7 +136,7 @@ void SystemInit(void) {
 	// Disable all interrupts
 	RCC->CIER = 0x00000000U;
 
-	// Configure the vector table relocation
+  // Configure the vector table location add offset address
 #ifdef VECT_TAB_SRAM
 	SCB->VTOR = SRAM_BASE | VECT_TAB_OFFSET; // table in internal SRAM
 #else

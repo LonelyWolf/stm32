@@ -2,7 +2,6 @@
 #define __RTC_H
 
 
-#include <stm32l4xx.h>
 #include "rcc.h"
 
 
@@ -28,6 +27,13 @@
 //   1 - epoch related functions enabled
 #define RTC_USE_EPOCH              1
 
+#if (RTC_USE_EPOCH)
+// Which epoch should be user
+//   0 - STM32 epoch (since RTC starts counting from 01 Jan 2000)
+//   1 - Unix epoch
+#define RTC_EPOCH_UNIX             1
+#endif // RTC_USE_EPOCH
+
 // Code related to set date and time
 //   0 - Variant #1: enter INIT mode,
 //       compose new values for date and time registers,
@@ -38,11 +44,6 @@
 //       when the frequency of the MCU is rather low
 #define RTC_USE_SETDATETIME        0
 
-
-// Reserved bits in the RTC_TR register
-#define RTC_TR_RESERVED_MASK       ((uint32_t)0x007F7F7FU)
-// Reserved bits in the RTC_DR register
-#define RTC_DR_RESERVED_MASK       ((uint32_t)0x00FFFF3FU)
 
 #if (RTC_USE_ALARMS)
 // Alarms
@@ -93,11 +94,6 @@
 #define RTC_MONTH_OCTOBER          ((uint8_t)0x10U)
 #define RTC_MONTH_NOVEMBER         ((uint8_t)0x11U)
 #define RTC_MONTH_DECEMBER         ((uint8_t)0x12U)
-
-// Definition of the Julian day number
-// Epoch will start at 31 Dec 1999 12:00:00 (since the STM32 RTC start counting from 01 Jan 2000 00:00:00)
-// note: to use Unix epoch time define '2440588' here
-#define RTC_JDN                    ((uint32_t)2451544U) // 31 Dec 1999 12:00:00
 
 
 // Days of week text notation
