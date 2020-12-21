@@ -2,7 +2,7 @@
 #define __RNG_H
 
 
-#include <stm32l4xx.h>
+#include "stm32l4xx.h"
 
 
 // Note: the RNG peripheral is clocked by 48MHz clock, thus it should

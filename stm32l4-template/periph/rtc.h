@@ -2,7 +2,7 @@
 #define __RTC_H
 
 
-#include "rcc.h"
+#include "stm32l4xx.h"
 
 
 // Memo for STM32L4:

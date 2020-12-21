@@ -2,7 +2,7 @@
 #define __GPIO_H
 
 
-#include <stm32l4xx.h>
+#include "stm32l4xx.h"
 
 
 // GPIO pin definitions

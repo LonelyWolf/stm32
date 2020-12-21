@@ -2,8 +2,6 @@
 #define __I2C_H
 
 
-#include "stm32l4xx.h"
-#include "rcc.h"
 #include "gpio.h"
 
 
@@ -58,26 +56,6 @@
 // Definitions for compatibility with old code using this library
 #define I2C_GENSTOP_YES        I2C_TX_STOP
 #define I2C_GENSTOP_NO         I2C_TX_NOSTOP
-
-// Definition of bits to reset in CR2 register
-#define I2C_CR2_ALL            (I2C_CR2_SADD    | \
-								I2C_CR2_NBYTES  | \
-								I2C_CR2_RELOAD  | \
-								I2C_CR2_AUTOEND | \
-								I2C_CR2_RD_WRN  | \
-								I2C_CR2_START   | \
-								I2C_CR2_STOP)
-
-// Definition of all bits in ICR register (clear all I2C flags at once)
-#define I2C_ICR_ALL            (I2C_ICR_ADDRCF  | \
-								I2C_ICR_ALERTCF | \
-								I2C_ICR_ARLOCF  | \
-								I2C_ICR_BERRCF  | \
-								I2C_ICR_NACKCF  | \
-								I2C_ICR_OVRCF   | \
-								I2C_ICR_PECCF   | \
-								I2C_ICR_STOPCF  | \
-								I2C_ICR_TIMOUTCF)
 
 
 // Result of I2C functions

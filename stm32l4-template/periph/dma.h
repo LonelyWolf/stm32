@@ -2,7 +2,7 @@
 #define __DMA_H
 
 
-#include <stm32l4xx.h>
+#include "stm32l4xx.h"
 
 
 // Definitions of DMA data transfer direction

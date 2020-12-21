@@ -10,6 +10,26 @@
 // Maximum NBYTES value
 #define I2C_NBYTES_MAX          255U
 
+// Definition of bits to reset in CR2 register
+#define I2C_CR2_ALL            (I2C_CR2_SADD    | \
+								I2C_CR2_NBYTES  | \
+								I2C_CR2_RELOAD  | \
+								I2C_CR2_AUTOEND | \
+								I2C_CR2_RD_WRN  | \
+								I2C_CR2_START   | \
+								I2C_CR2_STOP)
+
+// Definition of all bits in ICR register (clear all I2C flags at once)
+#define I2C_ICR_ALL            (I2C_ICR_ADDRCF  | \
+								I2C_ICR_ALERTCF | \
+								I2C_ICR_ARLOCF  | \
+								I2C_ICR_BERRCF  | \
+								I2C_ICR_NACKCF  | \
+								I2C_ICR_OVRCF   | \
+								I2C_ICR_PECCF   | \
+								I2C_ICR_STOPCF  | \
+								I2C_ICR_TIMOUTCF)
+
 
 // Count rough delay for timeouts
 static uint32_t I2C_CalcDelay(uint32_t delay) {

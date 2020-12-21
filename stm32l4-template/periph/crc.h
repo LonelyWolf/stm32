@@ -2,7 +2,7 @@
 #define __CRC_H
 
 
-#include <stm32l4xx.h>
+#include "stm32l4xx.h"
 
 
 // Definitions of polynomial length
@@ -125,7 +125,6 @@ __STATIC_INLINE uint32_t CRC_GetData32(void) {
 
 // Function prototypes
 void CRC_Init(void);
-//void CRC_CalcBuffer(uint8_t *pBuf, uint32_t length);
 void CRC_CalcBuffer(register uint32_t *pBuf, register uint32_t length);
 
 #endif // __CRC_H

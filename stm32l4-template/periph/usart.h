@@ -2,10 +2,8 @@
 #define __USART_H
 
 
-#include <stm32l4xx.h>
-
-#include "gpio.h"
 #include "rcc.h"
+#include "gpio.h"
 
 
 // Which USART/UART ports will be used
@@ -27,13 +25,13 @@
 #endif
 
 
-// Define to use simple printf
+// Simple USART printf() implementation
 //   0 - USART_printf is not available
-//   1 - USART_printf available
+//   1 - USART_printf is available
 #define USART_USE_PRINTF           1
 
 /*
-	// Example of definition of an alias for printf to send output to USART1
+	// Example of alias definition for printf() to send output to USART1
 	#if (USART_USE_PRINTF)
 	#define printf(...) USART_printf(USART1, __VA_ARGS__)
 	#endif
