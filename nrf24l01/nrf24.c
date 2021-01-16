@@ -44,7 +44,7 @@ static void nRF24_WriteReg(uint8_t reg, uint8_t value) {
 	nRF24_CSN_L;
 	if (reg < nRF24_CMD_W_REGISTER) {
 		// This is a register access
-		nRF24_LL_RW(nRF24_CMD_W_REGISTER | (reg & nRF24_MASK_REG_MAP));
+		nRF24_LL_RW((uint8_t)(nRF24_CMD_W_REGISTER | (reg & nRF24_MASK_REG_MAP)));
 		nRF24_LL_RW(value);
 	} else {
 		// This is a single byte command or future command/register
@@ -66,7 +66,9 @@ static void nRF24_WriteReg(uint8_t reg, uint8_t value) {
 static void nRF24_ReadMBReg(uint8_t reg, uint8_t *pBuf, uint8_t count) {
 	nRF24_CSN_L;
 	nRF24_LL_RW(reg);
-	while (count--) { *pBuf++ = nRF24_LL_RW(nRF24_CMD_NOP); }
+	while (count--) {
+		*pBuf++ = nRF24_LL_RW(nRF24_CMD_NOP);
+	}
 	nRF24_CSN_H;
 }
 
@@ -181,7 +183,7 @@ void nRF24_SetPowerMode(uint8_t mode) {
 	} else {
 		// Clear the PWR_UP bit of CONFIG register to put the transceiver
 		// It goes into Power Down mode with consumption about 900nA
-		reg &= ~nRF24_CONFIG_PWR_UP;
+		reg &= (uint8_t)(~nRF24_CONFIG_PWR_UP);
 	}
 	nRF24_WriteReg(nRF24_REG_CONFIG, reg);
 }
@@ -194,8 +196,8 @@ void nRF24_SetOperationalMode(uint8_t mode) {
 
 	// Configure PRIM_RX bit of the CONFIG register
 	reg = nRF24_ReadReg(nRF24_REG_CONFIG);
-	reg &= ~nRF24_CONFIG_PRIM_RX;
-	reg |= (mode & nRF24_CONFIG_PRIM_RX);
+	reg &= (uint8_t)(~nRF24_CONFIG_PRIM_RX);
+	reg = (uint8_t)(reg | (mode & nRF24_CONFIG_PRIM_RX));
 	nRF24_WriteReg(nRF24_REG_CONFIG, reg);
 }
 
@@ -209,8 +211,8 @@ void nRF24_SetCRCScheme(uint8_t scheme) {
 
 	// Configure EN_CRC[3] and CRCO[2] bits of the CONFIG register
 	reg = nRF24_ReadReg(nRF24_REG_CONFIG);
-	reg &= ~nRF24_MASK_CRC;
-	reg |= (scheme & nRF24_MASK_CRC);
+	reg &= (uint8_t)(~nRF24_MASK_CRC);
+	reg = (uint8_t)(reg | (scheme & nRF24_MASK_CRC));
 	nRF24_WriteReg(nRF24_REG_CONFIG, reg);
 }
 
@@ -241,7 +243,7 @@ void nRF24_SetAutoRetr(uint8_t ard, uint8_t arc) {
 //   addr_width - RX/TX address field width, value from 3 to 5
 // note: this setting is common for all pipes
 void nRF24_SetAddrWidth(uint8_t addr_width) {
-	nRF24_WriteReg(nRF24_REG_SETUP_AW, addr_width - 2U);
+	nRF24_WriteReg(nRF24_REG_SETUP_AW, (uint8_t)(addr_width - 2U));
 }
 
 // Set static RX address for a specified pipe
@@ -301,7 +303,7 @@ void nRF24_SetTXPower(uint8_t tx_pwr) {
 
 	// Configure RF_PWR[2:1] bits of the RF_SETUP register
 	reg = nRF24_ReadReg(nRF24_REG_RF_SETUP);
-	reg &= ~nRF24_MASK_RF_PWR;
+	reg &= (uint8_t)(~nRF24_MASK_RF_PWR);
 	reg |= tx_pwr;
 	nRF24_WriteReg(nRF24_REG_RF_SETUP, reg);
 }
@@ -314,7 +316,7 @@ void nRF24_SetDataRate(uint8_t data_rate) {
 
 	// Configure RF_DR_LOW[5] and RF_DR_HIGH[3] bits of the RF_SETUP register
 	reg = nRF24_ReadReg(nRF24_REG_RF_SETUP);
-	reg &= ~nRF24_MASK_DATARATE;
+	reg &= (uint8_t)(~nRF24_MASK_DATARATE);
 	reg |= data_rate;
 	nRF24_WriteReg(nRF24_REG_RF_SETUP, reg);
 }
@@ -337,9 +339,9 @@ void nRF24_SetRXPipe(uint8_t pipe, uint8_t aa_state, uint8_t payload_len) {
 	// Set auto acknowledgment for a specified pipe (EN_AA register)
 	reg = nRF24_ReadReg(nRF24_REG_EN_AA);
 	if (aa_state == nRF24_AA_ON) {
-		reg |= (1U << pipe);
+		reg |= (uint8_t)(1U << pipe);
 	} else {
-		reg &= ~(1U << pipe);
+		reg &= (uint8_t)~(1U << pipe);
 	}
 	nRF24_WriteReg(nRF24_REG_EN_AA, reg);
 }
@@ -351,7 +353,7 @@ void nRF24_ClosePipe(uint8_t pipe) {
 	uint8_t reg;
 
 	reg = nRF24_ReadReg(nRF24_REG_EN_RXADDR);
-	reg &= ~(1U << pipe);
+	reg &= (uint8_t)~(1U << pipe);
 	reg &= nRF24_MASK_EN_RX;
 	nRF24_WriteReg(nRF24_REG_EN_RXADDR, reg);
 }
@@ -364,7 +366,7 @@ void nRF24_EnableAA(uint8_t pipe) {
 
 	// Set bit in EN_AA register
 	reg = nRF24_ReadReg(nRF24_REG_EN_AA);
-	reg |= (1U << pipe);
+	reg = reg | (uint8_t)(1U << pipe);
 	nRF24_WriteReg(nRF24_REG_EN_AA, reg);
 }
 
@@ -379,7 +381,7 @@ void nRF24_DisableAA(uint8_t pipe) {
 		// Clear bit in the EN_AA register
 		uint8_t reg;
 		reg = nRF24_ReadReg(nRF24_REG_EN_AA);
-		reg &= ~(1U << pipe);
+		reg &= (uint8_t)~(1U << pipe);
 		nRF24_WriteReg(nRF24_REG_EN_AA, reg);
 	}
 }
