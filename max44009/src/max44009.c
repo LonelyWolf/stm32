@@ -10,7 +10,7 @@ static void MAX44009_WriteReg(uint8_t addr, uint8_t value) {
 
 	buf[0] = addr;
 	buf[1] = value;
-	I2C_Transmit(MAX44009_I2C_PORT, buf, 2, MAX44009_ADDR, I2C_GENSTOP_YES);
+	I2C_Transmit(MAX44009_I2C_PORT, buf, 2U, MAX44009_ADDR, I2C_GENSTOP_YES);
 }
 
 // Read value of the MAX44009 register
@@ -19,10 +19,10 @@ static void MAX44009_WriteReg(uint8_t addr, uint8_t value) {
 // return:
 //   register value
 static uint8_t MAX44009_ReadReg(uint8_t addr) {
-	uint8_t value = 0;
+	uint8_t value = 0U;
 
-	I2C_Transmit(MAX44009_I2C_PORT, &addr, 1, MAX44009_ADDR, I2C_GENSTOP_NO);
-	I2C_Receive(MAX44009_I2C_PORT, &value, 1, MAX44009_ADDR);
+	I2C_Transmit(MAX44009_I2C_PORT, &addr, 1U, MAX44009_ADDR, I2C_GENSTOP_NO);
+	I2C_Receive(MAX44009_I2C_PORT, &value, 1U, MAX44009_ADDR);
 
 	return value;
 }
@@ -54,7 +54,7 @@ void MAX44009_SetModeAutomatic(void) {
 	uint8_t reg;
 
 	reg = MAX44009_ReadReg(MAX44009_REG_CFG);
-	reg &= ~(MAX44009_CFG_CONT | MAX44009_CFG_MANUAL);
+	reg &= (uint8_t)~(MAX44009_CFG_CONT | MAX44009_CFG_MANUAL);
 	MAX44009_WriteReg(MAX44009_REG_CFG, reg);
 }
 
@@ -70,7 +70,7 @@ void MAX44009_SetModeContinuous(void) {
 
 	reg = MAX44009_ReadReg(MAX44009_REG_CFG);
 	reg |= MAX44009_CFG_CONT;
-	reg &= ~MAX44009_CFG_MANUAL;
+	reg &= (uint8_t)~MAX44009_CFG_MANUAL;
 	MAX44009_WriteReg(MAX44009_REG_CFG, reg);
 }
 
@@ -85,9 +85,9 @@ void MAX44009_SetModeManual(uint8_t cdr, uint8_t tim) {
 
 	reg = MAX44009_ReadReg(MAX44009_REG_CFG);
 	// Clear CONT, CDR and TIM bits of CFG register
-	reg &= ~(MAX44009_CFG_CONT | MAX44009_CDR_DIV8 | MAX44009_IT_6d25ms);
+	reg &= (uint8_t)~(MAX44009_CFG_CONT | MAX44009_CDR_DIV8 | MAX44009_IT_6d25ms);
 	// Set MANUAL bit and configure new values of CDR and TIM[2:0] bits
-	reg |= MAX44009_CFG_MANUAL | (cdr & MAX44009_CDR_DIV8) | (tim & MAX44009_IT_6d25ms);
+	reg |= (uint8_t)(MAX44009_CFG_MANUAL | (cdr & MAX44009_CDR_DIV8) | (tim & MAX44009_IT_6d25ms));
 	MAX44009_WriteReg(MAX44009_REG_CFG, reg);
 }
 
@@ -122,13 +122,13 @@ void MAX44009_Init(void) {
 	// Default mode: measurements performed every 800ms
 	// Auto range: CDR and integration time are automatically determined by
 	//             the internal autoranging circuitry of the IC
-	MAX44009_WriteReg(MAX44009_REG_CFG, 0x03);
+	MAX44009_WriteReg(MAX44009_REG_CFG, 0x03U);
 	// Upper threshold: maximum
-	MAX44009_SetThrU(0xFF);
+	MAX44009_SetThrU(0xFFU);
 	// Lower threshold: minimum
-	MAX44009_SetThrL(0x00);
+	MAX44009_SetThrL(0x00U);
 	// Threshold timer: 25,5s
-	MAX44009_SetThrT(0xFF);
+	MAX44009_SetThrT(0xFFU);
 }
 
 // Get lux readings from the MAX44009
@@ -150,19 +150,19 @@ uint32_t MAX44009_GetLux(void) {
 #endif
 
 	// Calculate lux value using formula: 2^(exponent) * mantissa * 0.045
-	result = 1 << ((lhb & 0xF0) >> 4);
-	if (result == 32768) {
+	result = 1U << ((lhb & 0xF0U) >> 4);
+	if (result == 32768U) {
 		// Overrange condition
 		result = MAX44009_OVERRANGE;
 	} else {
 #if (MAX44009_ACCURACY)
 		// Maximum accuracy, formula: 2^(exponent) * mantissa * 0.045
-		result *= ((lhb & 0x0F) << 4) + (llb & 0x0F);
-		result *= 45;
+		result *= ((lhb & 0x0FU) << 4) + (llb & 0x0FU);
+		result *= 45U;
 #else
 		// Reduced accuracy, formula: 2^(exponent) * mantissa * 0.72
-		result *= lhb & 0x0F;
-		result *= 720;
+		result *= lhb & 0x0FU;
+		result *= 720U;
 #endif // MAX44009_ACCURACY
 	}
 
