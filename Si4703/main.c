@@ -95,7 +95,7 @@ void Si4703_Read(void) {
 
 	I2C_AcknowledgeConfig(I2C_PORT,ENABLE); // Enable I2C acknowledge
 	I2C_GenerateSTART(I2C_PORT,ENABLE); // Send START condition
-	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
+	while (I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)==ERROR); // Wait for EV5
 	I2C_Send7bitAddress(I2C_PORT,Si4703_ADDR,I2C_Direction_Receiver); // Send slave address for READ
 	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)); // Wait for EV6
 	// Si4703 read start from r0Ah register
@@ -121,7 +121,7 @@ void Si4703_Write(void) {
 
 	I2C_AcknowledgeConfig(I2C_PORT,ENABLE); // Enable I2C acknowledge
 	I2C_GenerateSTART(I2C_PORT,ENABLE); // Send START condition
-	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
+	while (I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)==ERROR); // Wait for EV5
 	I2C_Send7bitAddress(I2C_PORT,Si4703_ADDR,I2C_Direction_Transmitter); // Send slave address
 	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)); // Wait for EV6
 	for (i = 2; i < 8; i++) {
