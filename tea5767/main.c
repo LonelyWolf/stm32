@@ -102,7 +102,7 @@ void TEA5767_write(void) {
 
 	I2C_AcknowledgeConfig(I2C_PORT,ENABLE); // Enable I2C acknowledge
 	I2C_GenerateSTART(I2C_PORT,ENABLE);
-	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
+	while (I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)==ERROR); // Wait for EV5
 	I2C_Send7bitAddress(I2C_PORT,TEA5767_ADDR,I2C_Direction_Transmitter); // Send slave address
 	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED)); // Wait for EV6
 
@@ -120,7 +120,7 @@ void TEA5767_read(void) {
 
 	I2C_AcknowledgeConfig(I2C_PORT,ENABLE); // Enable I2C acknowledge
 	I2C_GenerateSTART(I2C_PORT,ENABLE);
-	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)); // Wait for EV5
+	while (I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_MODE_SELECT)==ERROR); // Wait for EV5
 	I2C_Send7bitAddress(I2C_PORT,TEA5767_ADDR,I2C_Direction_Receiver); // Send slave address
 	while (!I2C_CheckEvent(I2C_PORT,I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)); // Wait for EV6
 
