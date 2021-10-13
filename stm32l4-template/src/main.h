@@ -10,21 +10,15 @@
 #include "rcc.h"
 #include "pwr.h"
 #include "gpio.h"
-//#include "dma.h"
-//#include "exti.h"
-//#include "i2c.h"
-//#include "rtc.h"
-//#include "spi.h"
-//#include "crc.h"
-//#include "rng.h"
 #include "usart.h"
+#include "exti.h"
+#include "spi.h"
+#include "i2c.h"
+#include "rtc.h"
+#include "dma.h"
+#include "crc.h"
+#include "rng.h"
 #include "delay.h"
-
-
-// Clock sources notation, just for nice debugging output
-static char const * const _sysclk_src_str[] = {
-		"UNKNOWN", "MSI", "HSI", "HSE", "MSI->PLL", "HSI->PLL", "HSE->PLL"
-};
 
 
 // Debug USART port

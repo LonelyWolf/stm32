@@ -3,6 +3,7 @@
 
 
 #include "gpio.h"
+#include "rcc.h"
 
 
 // Define which SPI ports will be used
@@ -252,6 +253,14 @@ __STATIC_FORCEINLINE void SPI_DMADisable(SPI_HandleTypeDef *SPIx, uint32_t dir) 
 	SPIx->Instance->CR2 &= ~dir;
 }
 
+// Get baudrate prescaler
+// input:
+//   SPIx - pointer to the SPI port handle
+// return: baudrate prescaler, one of SPI_BR_xx values
+__STATIC_FORCEINLINE uint32_t SPI_GetPrescaler(SPI_HandleTypeDef *SPIx) {
+	return (SPIx->Instance->CR1 & SPI_CR1_BR);
+}
+
 
 // Function prototypes
 #if (SPI1_USE)
@@ -263,13 +272,17 @@ void SPI2_HandleInit(void);
 #if (SPI3_USE)
 void SPI3_HandleInit(void);
 #endif
+
 void SPI_Init(const SPI_HandleTypeDef *SPIx, uint32_t clock_conf, uint16_t SPI_DIR);
-void SPI_SetBaudrate(SPI_HandleTypeDef *SPIx, uint32_t prescaler);
+void SPI_SetPrescaler(SPI_HandleTypeDef *SPIx, uint32_t prescaler);
+uint32_t SPI_GetBaudrate(SPI_HandleTypeDef *SPIx);
+void SPI_SetCRC(SPI_HandleTypeDef *SPIx, uint32_t crc_length, uint16_t polynomial);
+
 void SPI_SendBuf(SPI_HandleTypeDef *SPIx, uint8_t *pBuf, uint32_t length);
 void SPI_SendBuf16(SPI_HandleTypeDef *SPIx, uint16_t *pBuf, uint32_t length);
 uint8_t SPI_SendRecv(SPI_HandleTypeDef *SPIx, uint8_t data);
 void SPI_SendRecvBuf(SPI_HandleTypeDef *SPIx, uint8_t *pBuf, uint32_t length);
-void SPI_SetCRC(SPI_HandleTypeDef *SPIx, uint32_t crc_length, uint16_t polynomial);
+
 #if (SPI_USE_DMA)
 void SPI_ConfigureDMA(SPI_HandleTypeDef *SPIx, uint32_t DMA_DIR, uint32_t DMA_MODE, uint8_t *pBuf, uint32_t length);
 void SPI_SetDMA(const SPI_HandleTypeDef *SPIx, uint32_t DMA_DIR, FunctionalState NewState);

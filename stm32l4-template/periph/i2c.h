@@ -53,6 +53,7 @@
 #define I2C_TX_NOSTOP          ((uint32_t)0x10000000U) // Don't generate STOP condition
 #define I2C_TX_NOSTART         ((uint32_t)0x20000000U) // Don't generate START condition
 #define I2C_TX_CONT            ((uint32_t)0x40000000U) // The transmission will be continued
+
 // Definitions for compatibility with old code using this library
 #define I2C_GENSTOP_YES        I2C_TX_STOP
 #define I2C_GENSTOP_NO         I2C_TX_NOSTOP
@@ -125,5 +126,6 @@ void I2C_Init(I2C_TypeDef* I2Cx);
 I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t Trials);
 I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, uint8_t devAddr, uint32_t flags);
 I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t devAddr);
+I2CSTATUS I2C_GeneralCall(I2C_TypeDef* I2Cx, uint8_t cmd);
 
 #endif // __I2C_H

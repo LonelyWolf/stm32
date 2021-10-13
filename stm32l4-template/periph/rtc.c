@@ -15,6 +15,20 @@
 #define RTC_DR_RESERVED_MASK       ((uint32_t)0x00FFFF3FU)
 
 
+// Days of week text notation
+// The first element of array is empty because RTC counts days from '1'
+char const * const RTC_DOW_STR[] = {
+		"",
+		"MON",
+		"TUE",
+		"WED",
+		"THU",
+		"FRI",
+		"SAT",
+		"SUN"
+};
+
+
 // Count rough delay for timeouts
 static uint32_t RTC_CalcDelay(uint32_t delay) {
 	uint32_t cnt;

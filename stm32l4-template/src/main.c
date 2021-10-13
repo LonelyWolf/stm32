@@ -1,6 +1,12 @@
 #include "main.h"
 
 
+// Clock sources notation, just for nice debugging output
+static char const * const _sysclk_src_str[] = {
+		"UNKNOWN", "MSI", "HSI", "HSE", "MSI->PLL", "HSI->PLL", "HSE->PLL"
+};
+
+
 // Configure system clock
 // HSE -> PLL -> SYSCLK
 static void SetSysClock(void) {

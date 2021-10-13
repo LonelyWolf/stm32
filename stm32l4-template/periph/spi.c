@@ -236,17 +236,48 @@ void SPI_Init(const SPI_HandleTypeDef *SPIx, uint32_t clock_conf, uint16_t SPI_D
 //   SPIx - pointer to the SPI port handle
 //   prescaler - SPI prescaler, one of SPI_BR_xx values
 // note: this function should not be called when communication is ongoing
-void SPI_SetBaudrate(SPI_HandleTypeDef *SPIx, uint32_t prescaler) {
-	uint32_t reg;
-
+void SPI_SetPrescaler(SPI_HandleTypeDef *SPIx, uint32_t prescaler) {
 	// Ensure the BUSY flag is reset since the baud rate control bits
 	// should not be changed when communication is ongoing
 	while (SPIx->Instance->SR & SPI_SR_BSY);
 
 	// Clear SPI baud rate control bits and write a new value
-	reg  = SPIx->Instance->CR1 & ~SPI_CR1_BR;
-	reg |= prescaler;
-	SPIx->Instance->CR1 = reg;
+	SPIx->Instance->CR1 &= ~SPI_CR1_BR;
+	SPIx->Instance->CR1 |= prescaler;
+}
+
+// Computes current SPI baudrate
+// input:
+//   SPIx - pointer to the SPI port handle
+// return: SPI baudrate (bits/s)
+uint32_t SPI_GetBaudrate(SPI_HandleTypeDef *SPIx) {
+	register uint32_t src_freq;
+
+	src_freq = RCC_GetHCLKFreq(RCC_GetSYSCLKFreq());
+	if (SPIx->Instance == SPI1) {
+		src_freq = RCC_GetPCLK2Freq(src_freq); // SPI1 feed from APB2
+	} else {
+		src_freq = RCC_GetPCLK1Freq(src_freq); // SPI2 or SPI3 feed from APB1
+	}
+
+	return src_freq / (2U << (SPI_GetPrescaler(SPIx) >> SPI_CR1_BR_Pos));
+}
+
+// Configure SPI CRC length and polynomial value
+// input:
+//   SPIx - pointer to the SPI port handle
+//   crc_length - CRC length, one of SPI_CRC_xx values
+//   polynomial - new value of CRC polynomial, should be odd value
+// note: should be called only when SPI is disabled
+void SPI_SetCRC(SPI_HandleTypeDef *SPIx, uint32_t crc_length, uint16_t polynomial) {
+	SPIx->Instance->CRCPR = polynomial;
+	if (crc_length == SPI_CRC_8BIT) {
+		// 8-bit CRC
+		SPIx->Instance->CR1 &= ~SPI_CR1_CRCL;
+	} else {
+		// 16-bit CRC
+		SPIx->Instance->CR1 |= SPI_CR1_CRCL;
+	}
 }
 
 // Send data buffer to SPI
@@ -306,23 +337,6 @@ void SPI_SendRecvBuf(SPI_HandleTypeDef *SPIx, uint8_t *pBuf, uint32_t length) {
 		*pBuf++ = (uint8_t)(SPIx->Instance->DR); // Read received byte
 	}
 	while (SPIx->Instance->SR & SPI_SR_BSY); // Wait for the transmission of the last byte
-}
-
-// Configure SPI CRC length and polynomial value
-// input:
-//   SPIx - pointer to the SPI port handle
-//   crc_length - CRC length, one of SPI_CRC_xx values
-//   polynomial - new value of CRC polynomial, should be odd value
-// note: should be called only when SPI is disabled
-void SPI_SetCRC(SPI_HandleTypeDef *SPIx, uint32_t crc_length, uint16_t polynomial) {
-	SPIx->Instance->CRCPR = polynomial;
-	if (crc_length) {
-		// 16-bit CRC
-		SPIx->Instance->CR1 |= SPI_CR1_CRCL;
-	} else {
-		// 8-bit CRC
-		SPIx->Instance->CR1 &= ~SPI_CR1_CRCL;
-	}
 }
 
 #if (SPI_USE_DMA)

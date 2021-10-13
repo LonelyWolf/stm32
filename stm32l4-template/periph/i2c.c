@@ -136,12 +136,16 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 		// Wait for STOP, NACK or BERR
 		wait = delay_val;
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_STOPF | I2C_ISR_NACKF | I2C_ISR_BERR)) && --wait);
-		if (wait == 0) { return I2C_ERROR; }
+		if (wait == 0U) {
+			return I2C_ERROR;
+		}
 
 		// Wait while STOP flag is reset
 		wait = delay_val;
 		while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
-		if (wait == 0) { return I2C_ERROR; }
+		if (wait == 0U) {
+			return I2C_ERROR;
+		}
 
 		// Clear the NACK, STOP and BERR flags
 		I2Cx->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF;
@@ -153,7 +157,9 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 			I2C_Enable(I2Cx);
 		} else {
 			// Device responded if NACK flag is not set
-			if (!(reg & I2C_ISR_NACKF)) { return I2C_SUCCESS; }
+			if (!(reg & I2C_ISR_NACKF)) {
+				return I2C_SUCCESS;
+			}
 		}
 	}
 
@@ -213,7 +219,9 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 		// Wait until either TXIS or NACK flag is set
 		wait = delay_val;
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_TXIS | I2C_ISR_NACKF)) && --wait);
-		if ((reg & I2C_ISR_NACKF) || (wait == 0))  { return I2C_ERROR; }
+		if ((reg & I2C_ISR_NACKF) || (wait == 0)) {
+			return I2C_ERROR;
+		}
 
 		// Transmit byte
 		I2Cx->TXDR = *pBuf++;
@@ -223,7 +231,9 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 			// Wait until TCR flag is set (Transfer Complete Reload)
 			wait = delay_val;
 			while (!(I2Cx->ISR & I2C_ISR_TCR) && --wait);
-			if (wait == 0) { return I2C_ERROR; }
+			if (wait == 0) {
+				return I2C_ERROR;
+			}
 
 			// Configure next (or last) portion transfer
 			reg = I2Cx->CR2;
@@ -231,7 +241,9 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 			if ((flags & I2C_TX_CONT) || (nbytes > I2C_NBYTES_MAX)) {
 				reg |= I2C_CR2_RELOAD;
 			} else {
-				if (!(flags & I2C_TX_NOSTOP)) { reg |= I2C_CR2_AUTOEND; }
+				if (!(flags & I2C_TX_NOSTOP)) {
+					reg |= I2C_CR2_AUTOEND;
+				}
 			}
 			tx_count = (nbytes > I2C_NBYTES_MAX) ? I2C_NBYTES_MAX : nbytes;
 			nbytes -= tx_count;
@@ -244,7 +256,7 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 	wait = delay_val;
 	while (!(I2Cx->ISR & (I2C_ISR_TC | I2C_ISR_TCR | I2C_ISR_STOPF)) && --wait);
 
-	return (wait) ? I2C_SUCCESS : I2C_ERROR;
+	return (wait == 0) ? I2C_ERROR : I2C_SUCCESS;
 }
 
 // Receive an amount of data in master mode
@@ -290,7 +302,9 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 		// Wait until either RXNE or NACK flag is set
 		wait = delay_val;
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_RXNE | I2C_ISR_NACKF)) && --wait);
-		if ((reg & I2C_ISR_NACKF) || (wait == 0)) { return I2C_ERROR; }
+		if ((reg & I2C_ISR_NACKF) || (wait == 0)) {
+			return I2C_ERROR;
+		}
 
 		// Read received data
 		*pBuf++ = (uint8_t)I2Cx->RXDR;
@@ -300,7 +314,9 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 			// Wait until TCR flag is set (Transfer Complete Reload)
 			wait = delay_val;
 			while (!(I2Cx->ISR & I2C_ISR_TCR) && --wait);
-			if (wait == 0) { return I2C_ERROR; }
+			if (wait == 0) {
+				return I2C_ERROR;
+			}
 
 			// Configure next (or last) portion transfer
 			reg = I2Cx->CR2;
@@ -322,5 +338,16 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 	wait = delay_val;
 	while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
 
-	return (wait) ? I2C_SUCCESS : I2C_ERROR;
+	return (wait == 0) ? I2C_ERROR : I2C_SUCCESS;
+}
+
+// Transmits a general-call code to all devices on the bus
+// input:
+//   I2Cx - pointer to the I2C peripheral (I2C1, etc.)
+//   cmd - command to transmit
+// return:
+//   I2C_ERROR if there was a timeout during I2C operations, I2C_SUCCESS otherwise
+I2CSTATUS I2C_GeneralCall(I2C_TypeDef* I2Cx, uint8_t cmd) {
+	// 0x00 is the I2C general call address
+	return I2C_Transmit(I2Cx, &cmd, sizeof(cmd), 0x00, I2C_TX_STOP);
 }

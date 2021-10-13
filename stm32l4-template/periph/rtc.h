@@ -98,16 +98,7 @@
 
 // Days of week text notation
 // The first element of array is empty because RTC counts days from '1'
-static char const * const RTC_DOW_STR[] = {
-		"",
-		"MON",
-		"TUE",
-		"WED",
-		"THU",
-		"FRI",
-		"SAT",
-		"SUN"
-};
+extern char const * const RTC_DOW_STR[];
 
 
 // RTC time structure
@@ -120,10 +111,10 @@ typedef struct {
 
 // RTC date structure
 typedef struct {
-	uint8_t RTC_WeekDay; // RTC date week day (one of RTC_DOW_XXX definitions)
-	uint8_t RTC_Month;   // RTC date month (in BCD format, one of RTC_MONTH_XXX definitions)
 	uint8_t RTC_Date;    // RTC date, the value range is [1..31]
+	uint8_t RTC_Month;   // RTC date month (in BCD format, one of RTC_MONTH_XXX definitions)
 	uint8_t RTC_Year;    // RTC date year, the value range is [0..99]
+	uint8_t RTC_WeekDay; // RTC date week day (one of RTC_DOW_XXX definitions)
 } RTC_DateTypeDef;
 
 

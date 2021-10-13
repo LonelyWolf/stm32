@@ -79,7 +79,7 @@
 // DMA states enumeration
 typedef enum {
 	DMA_STATE_RESET = 0x00U, // DMA not initialized or disabled
-	DMA_STATE_READY = 0x01U, // DMA ready to use
+	DMA_STATE_READY = 0x01U, // DMA is ready to use
 	DMA_STATE_HT    = 0x02U, // DMA half transfer flag
 	DMA_STATE_TC    = 0x03U, // DMA transfer complete flag
 	DMA_STATE_BUSY  = 0x04U, // DMA transaction is ongoing
