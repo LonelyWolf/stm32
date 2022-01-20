@@ -123,7 +123,7 @@ __STATIC_FORCEINLINE void I2C_GenStop(I2C_TypeDef* I2Cx) {
 
 // Function prototypes
 void I2C_Init(I2C_TypeDef* I2Cx);
-I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t Trials);
+I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials);
 I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, uint8_t devAddr, uint32_t flags);
 I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t devAddr);
 I2CSTATUS I2C_GeneralCall(I2C_TypeDef* I2Cx, uint8_t cmd);

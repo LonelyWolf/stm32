@@ -122,11 +122,12 @@ void I2C_Init(I2C_TypeDef* I2Cx) {
 // return:
 //   I2C_ERROR if there was a timeout during I2C operations, I2C_SUCCESS otherwise
 I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials) {
-	volatile uint32_t wait;
 	uint32_t delay_val = I2C_CalcDelay(I2C_TIMEOUT);
-	uint32_t reg;
 
-	while (trials--) {
+	do {
+		register uint32_t reg;
+		register volatile uint32_t wait;
+
 		// Clear all flags
 		I2Cx->ICR = I2C_ICR_ALL;
 
@@ -150,18 +151,16 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 		// Clear the NACK, STOP and BERR flags
 		I2Cx->ICR = I2C_ICR_STOPCF | I2C_ICR_NACKCF | I2C_ICR_BERRCF;
 
-		// Check for BERR flag
-		if (reg & I2C_ISR_BERR) {
+		// Check if BERR flag is set
+		if ((reg & I2C_ISR_BERR) == I2C_ISR_BERR) {
 			// Misplaced START/STOP? Perform a software reset of I2C
 			I2C_Disable(I2Cx);
 			I2C_Enable(I2Cx);
-		} else {
-			// Device responded if NACK flag is not set
-			if (!(reg & I2C_ISR_NACKF)) {
-				return I2C_SUCCESS;
-			}
+		} else if ((reg & I2C_ISR_NACKF) != I2C_ISR_NACKF) {
+			// The NACK flag will be reset if device is responding
+			return I2C_SUCCESS;
 		}
-	}
+	} while (--trials);
 
 	return I2C_ERROR;
 }
@@ -181,10 +180,10 @@ I2CSTATUS I2C_IsDeviceReady(I2C_TypeDef* I2Cx, uint8_t devAddr, uint32_t trials)
 // return:
 //   I2C_ERROR if there was a timeout during I2C operations, I2C_SUCCESS otherwise
 I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, uint8_t devAddr, uint32_t flags) {
-	uint32_t reg;
-	uint32_t tx_count;
 	uint32_t delay_val = I2C_CalcDelay(I2C_TIMEOUT);
-	volatile uint32_t wait;
+	register uint32_t reg;
+	register uint32_t tx_count;
+	register volatile uint32_t wait;
 
 	// Clear all flags
 	I2Cx->ICR = I2C_ICR_ALL;
@@ -202,8 +201,8 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 	// Whether it need to generate STOP condition
 	if ((flags & I2C_TX_CONT) || (nbytes > I2C_NBYTES_MAX)) {
 		reg |= I2C_CR2_RELOAD;
-	} else {
-		if (!(flags & I2C_TX_NOSTOP)) { reg |= I2C_CR2_AUTOEND; }
+	} else if (!(flags & I2C_TX_NOSTOP)) {
+		reg |= I2C_CR2_AUTOEND;
 	}
 
 	// Transfer length
@@ -219,7 +218,7 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 		// Wait until either TXIS or NACK flag is set
 		wait = delay_val;
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_TXIS | I2C_ISR_NACKF)) && --wait);
-		if ((reg & I2C_ISR_NACKF) || (wait == 0)) {
+		if ((reg & I2C_ISR_NACKF) || (wait == 0U)) {
 			return I2C_ERROR;
 		}
 
@@ -227,11 +226,11 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 		I2Cx->TXDR = *pBuf++;
 		tx_count--;
 
-		if ((tx_count == 0) && (nbytes != 0)) {
+		if ((tx_count == 0U) && (nbytes != 0U)) {
 			// Wait until TCR flag is set (Transfer Complete Reload)
 			wait = delay_val;
 			while (!(I2Cx->ISR & I2C_ISR_TCR) && --wait);
-			if (wait == 0) {
+			if (wait == 0U) {
 				return I2C_ERROR;
 			}
 
@@ -240,10 +239,8 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 			reg &= ~(I2C_CR2_NBYTES | I2C_CR2_RELOAD | I2C_CR2_AUTOEND);
 			if ((flags & I2C_TX_CONT) || (nbytes > I2C_NBYTES_MAX)) {
 				reg |= I2C_CR2_RELOAD;
-			} else {
-				if (!(flags & I2C_TX_NOSTOP)) {
-					reg |= I2C_CR2_AUTOEND;
-				}
+			} else if (!(flags & I2C_TX_NOSTOP)) {
+				reg |= I2C_CR2_AUTOEND;
 			}
 			tx_count = (nbytes > I2C_NBYTES_MAX) ? I2C_NBYTES_MAX : nbytes;
 			nbytes -= tx_count;
@@ -256,7 +253,7 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 	wait = delay_val;
 	while (!(I2Cx->ISR & (I2C_ISR_TC | I2C_ISR_TCR | I2C_ISR_STOPF)) && --wait);
 
-	return (wait == 0) ? I2C_ERROR : I2C_SUCCESS;
+	return (wait == 0U) ? I2C_ERROR : I2C_SUCCESS;
 }
 
 // Receive an amount of data in master mode
@@ -268,10 +265,10 @@ I2CSTATUS I2C_Transmit(I2C_TypeDef* I2Cx, const uint8_t *pBuf, uint32_t nbytes, 
 // return:
 //   I2C_ERROR if there was a timeout during I2C operations, I2C_SUCCESS otherwise
 I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t devAddr) {
-	uint32_t reg;
-	uint32_t rx_count;
 	uint32_t delay_val = I2C_CalcDelay(I2C_TIMEOUT);
-	volatile uint32_t wait;
+	register uint32_t reg;
+	register uint32_t rx_count;
+	register volatile uint32_t wait;
 
 	// Clear all flags
 	I2Cx->ICR = I2C_ICR_ALL;
@@ -302,7 +299,7 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 		// Wait until either RXNE or NACK flag is set
 		wait = delay_val;
 		while (!((reg = I2Cx->ISR) & (I2C_ISR_RXNE | I2C_ISR_NACKF)) && --wait);
-		if ((reg & I2C_ISR_NACKF) || (wait == 0)) {
+		if ((reg & I2C_ISR_NACKF) || (wait == 0U)) {
 			return I2C_ERROR;
 		}
 
@@ -310,11 +307,11 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 		*pBuf++ = (uint8_t)I2Cx->RXDR;
 		rx_count--;
 
-		if ((rx_count == 0) && (nbytes != 0)) {
+		if ((rx_count == 0U) && (nbytes != 0U)) {
 			// Wait until TCR flag is set (Transfer Complete Reload)
 			wait = delay_val;
 			while (!(I2Cx->ISR & I2C_ISR_TCR) && --wait);
-			if (wait == 0) {
+			if (wait == 0U) {
 				return I2C_ERROR;
 			}
 
@@ -338,7 +335,7 @@ I2CSTATUS I2C_Receive(I2C_TypeDef* I2Cx, uint8_t *pBuf, uint32_t nbytes, uint8_t
 	wait = delay_val;
 	while (!(I2Cx->ISR & I2C_ISR_STOPF) && --wait);
 
-	return (wait == 0) ? I2C_ERROR : I2C_SUCCESS;
+	return (wait == 0U) ? I2C_ERROR : I2C_SUCCESS;
 }
 
 // Transmits a general-call code to all devices on the bus
