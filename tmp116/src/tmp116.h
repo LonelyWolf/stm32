@@ -92,7 +92,7 @@ void TMP116_SetMode(TMP116_MODE_t mode);
 void TMP116_SetAvg(TMP116_AVG_t avg);
 void TMP116_SetConv(TMP116_CONV_t conv);
 void TMP116_SetConfig(TMP116_MODE_t mode, TMP116_AVG_t avg, TMP116_CONV_t conv);
-void TMP116_SetModeTA(TMP116_BIT_t bit);
+void TMP116_SetModeTA(TMP116_BIT_t state);
 void TMP116_SetAlertPin(TMP116_BIT_t state);
 void TMP116_SetAlertPolarity(TMP116_BIT_t state);
 void TMP116_SetLimitHigh(int16_t limit);
